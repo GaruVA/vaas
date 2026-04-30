@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New Shift — VAAS{% endblock %}
+{% block content %}
+<h3>New Shift</h3>
+<form method="post" style="max-width:560px">
+  <div class="mb-3">
+    <label class="form-label">Shift ID <span class="text-danger">*</span></label>
+    <input class="form-control text-uppercase" name="shift_id" required
+           placeholder="e.g. DAY_SHIFT" pattern="[A-Z0-9_]+">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Display name</label>
+    <input class="form-control" name="shift_name" required placeholder="e.g. Day Shift">
+  </div>
+  <div class="row mb-3">
+    <div class="col">
+      <label class="form-label">Start time (HH:MM)</label>
+      <input class="form-control" type="time" name="start_time" value="08:00" required>
+    </div>
+    <div class="col">
+      <label class="form-label">End time (HH:MM)</label>
+      <input class="form-control" type="time" name="end_time" value="17:00" required>
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Days of week</label><br>
+    {% for d in ['MON','TUE','WED','THU','FRI','SAT','SUN'] %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="days"
+               value="{{ d }}" id="d{{ d }}"
+               {% if d in ['MON','TUE','WED','THU','FRI'] %}checked{% endif %}>
+        <label class="form-check-label" for="d{{ d }}">{{ d }}</label>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Permitted gates</label><br>
+    {% for g in ['GATE_A','GATE_B'] %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="gates"
+               value="{{ g }}" id="{{ g }}" checked>
+        <label class="form-check-label" for="{{ g }}">{{ g }}</label>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Grace period (minutes)</label>
+    <input class="form-control" type="number" name="grace_period_minutes"
+           value="10" min="0" max="60" style="width:8em">
+  </div>
+  <button class="btn btn-success">Save shift</button>
+  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.shifts') }}">Cancel</a>
+</form>
+{% endblock %}

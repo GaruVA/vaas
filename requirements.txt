@@ -1,0 +1,10 @@
+ultralytics==8.0.196
+opencv-python==4.9.0.80
+Flask==3.0.3
+reportlab==4.2.0
+pyserial==3.5
+bcrypt==4.1.3
+pytest==8.1.1
+pytest-cov
+numpy
+Pillow

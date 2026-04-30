@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Administration</h3>
+<div class="row g-3">
+  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.vehicles') }}">Vehicles</a></div>
+  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.shifts') }}">Shifts</a></div>
+  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.users') }}">Users</a></div>
+</div>
+{% endblock %}

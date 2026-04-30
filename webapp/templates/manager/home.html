@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Reports</h3>
+<div class="list-group" style="max-width:520px">
+  <a class="list-group-item list-group-item-action" href="{{ url_for('manager.daily') }}">Daily attendance</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('manager.weekly') }}">Weekly attendance</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('manager.monthly') }}">Monthly attendance</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('manager.gate_throughput') }}">Gate throughput</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('manager.audit') }}">Audit chain — verify</a>
+</div>
+{% endblock %}

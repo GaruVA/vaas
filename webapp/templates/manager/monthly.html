@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "manager/_report_macro.html" import report_table %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Monthly Attendance — {{ year }}-{{ '%02d' % month }}</h3>
+  <div>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('manager.export_csv_route', report_type='monthly', year=year, month=month) }}">CSV</a>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('manager.export_pdf_route', report_type='monthly', year=year, month=month) }}">PDF</a>
+  </div>
+</div>
+<form class="row g-2 mb-3">
+  <div class="col-auto"><input type="number" name="year" value="{{ year }}" class="form-control" style="width:7em"></div>
+  <div class="col-auto"><input type="number" name="month" value="{{ month }}" min="1" max="12" class="form-control" style="width:6em"></div>
+  <div class="col-auto"><button class="btn btn-primary">Filter</button></div>
+</form>
+{{ report_table(rows, ['plate_number','period','total_hours','entry_count','on_time_count','late_count','compliance_rate']) }}
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Users — VAAS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Users</h3>
+  <a class="btn btn-success" href="{{ url_for('admin.new_user') }}">+ New user</a>
+</div>
+<table class="table table-sm table-striped" style="max-width:720px">
+  <thead>
+    <tr><th>ID</th><th>Username</th><th>Role</th><th>Last login</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td><strong>{{ r.username }}</strong></td>
+      <td>
+        {% if r.role == 'ADMIN' %}<span class="badge bg-danger">ADMIN</span>
+        {% elif r.role == 'MANAGER' %}<span class="badge bg-primary">MANAGER</span>
+        {% else %}<span class="badge bg-secondary">OPERATOR</span>{% endif %}
+      </td>
+      <td>{{ r.last_login or '—' }}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary"
+                data-bs-toggle="modal"
+                data-bs-target="#resetModal"
+                data-uid="{{ r.id }}"
+                data-uname="{{ r.username }}">Reset password</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<!-- Reset password modal -->
+<div class="modal fade" id="resetModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" id="resetForm">
+      <div class="modal-header">
+        <h5 class="modal-title">Reset password — <span id="resetName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input class="form-control" type="password" name="password"
+               placeholder="New password" required minlength="8">
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-warning">Reset</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+{% block extra_scripts %}
+<script>
+const resetModal = document.getElementById('resetModal');
+resetModal.addEventListener('show.bs.modal', ev => {
+  const btn = ev.relatedTarget;
+  document.getElementById('resetName').textContent = btn.dataset.uname;
+  document.getElementById('resetForm').action = `/admin/users/${btn.dataset.uid}/reset`;
+});
+</script>
+{% endblock %}
+{% endblock %}

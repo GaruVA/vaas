@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}New User — VAAS{% endblock %}
+{% block content %}
+<h3>New User</h3>
+<form method="post" style="max-width:400px">
+  <div class="mb-3">
+    <label class="form-label">Username <span class="text-danger">*</span></label>
+    <input class="form-control" name="username" required minlength="3" maxlength="40">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Password <span class="text-danger">*</span></label>
+    <input class="form-control" type="password" name="password"
+           required minlength="8" placeholder="min 8 characters">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Role</label>
+    <select class="form-select" name="role">
+      <option value="OPERATOR" selected>OPERATOR</option>
+      <option value="MANAGER">MANAGER</option>
+      <option value="ADMIN">ADMIN</option>
+    </select>
+  </div>
+  <button class="btn btn-success">Create user</button>
+  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.users') }}">Cancel</a>
+</form>
+{% endblock %}

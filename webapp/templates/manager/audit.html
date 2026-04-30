@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Audit Chain Verification</h3>
+<div class="card" style="max-width:640px">
+  <div class="card-body">
+    {% if res.intact %}
+      <div class="alert alert-success">
+        <strong>&#10003; Chain intact</strong><br>
+        Verified at {{ res.verified_at }}<br>
+        Rows checked: {{ res.rows_checked }}
+      </div>
+    {% else %}
+      <div class="alert alert-danger">
+        <strong>&#10007; Chain broken</strong><br>
+        First mismatch at row id <code>{{ res.first_bad_id }}</code>.<br>
+        All subsequent rows are also broken (chained hashes propagate).
+      </div>
+    {% endif %}
+    <p class="text-muted small">{{ res.message }}</p>
+  </div>
+</div>
+{% endblock %}

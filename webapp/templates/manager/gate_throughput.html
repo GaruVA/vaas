@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "manager/_report_macro.html" import report_table %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Gate Throughput</h3>
+  <div>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('manager.export_csv_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">CSV</a>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('manager.export_pdf_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">PDF</a>
+  </div>
+</div>
+<form class="row g-2 mb-3">
+  <div class="col-auto"><input type="date" name="from" value="{{ df }}" class="form-control"></div>
+  <div class="col-auto"><input type="date" name="to"   value="{{ dt }}" class="form-control"></div>
+  <div class="col-auto"><button class="btn btn-primary">Filter</button></div>
+</form>
+{{ report_table(rows, ['gate_id','period','hour','entries','exits','avg_dwell_seconds']) }}
+{% endblock %}

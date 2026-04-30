@@ -1,0 +1,12 @@
+{% macro report_table(rows, fields) %}
+<table class="table table-sm table-bordered table-striped">
+  <thead><tr>{% for f in fields %}<th>{{ f }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>{% for f in fields %}<td>{{ r[f] if r is mapping else r.__dict__[f] }}</td>{% endfor %}</tr>
+  {% else %}
+    <tr><td colspan="{{ fields|length }}" class="text-muted">No data</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}

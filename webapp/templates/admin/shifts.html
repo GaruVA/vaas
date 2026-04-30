@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Shifts — VAAS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Shifts</h3>
+  <a class="btn btn-success" href="{{ url_for('admin.new_shift') }}">+ New shift</a>
+</div>
+<table class="table table-sm table-striped">
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>Start</th><th>End</th>
+        <th>Days</th><th>Gates</th><th>Grace (min)</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><code>{{ r.shift_id }}</code></td>
+      <td>{{ r.shift_name }}</td>
+      <td>{{ r.start_time }}</td>
+      <td>{{ r.end_time }}</td>
+      <td><small>{{ r.days_of_week }}</small></td>
+      <td><small>{{ r.permitted_gates }}</small></td>
+      <td>{{ r.grace_period_minutes }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin.delete_shift', sid=r.shift_id) }}"
+              onsubmit="return confirm('Delete {{ r.shift_id }}?')">
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

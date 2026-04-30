@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if prefilled else 'New' }} Vehicle — VAAS{% endblock %}
+{% block content %}
+<h3>{{ 'Register new vehicle' if not prefilled else 'Edit / Register: ' ~ prefilled }}</h3>
+<form method="post" style="max-width:560px">
+  <div class="mb-3">
+    <label class="form-label">Plate number <span class="text-danger">*</span></label>
+    <input class="form-control text-uppercase" name="plate_number"
+           value="{{ prefilled }}" required
+           placeholder="e.g. CAB-1234" pattern="[A-Za-z0-9\-]+" maxlength=20>
+    <div class="form-text">Sri Lankan format: CAB-1234 / WP-CAB-9012 / KL-5678</div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Category</label>
+    <select class="form-select" name="vehicle_category">
+      <option value="CONTRACTOR">CONTRACTOR</option>
+      <option value="EMPLOYEE">EMPLOYEE</option>
+      <option value="DELIVERY">DELIVERY</option>
+      <option value="VISITOR">VISITOR</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Contractor / company name</label>
+    <input class="form-control" name="contractor_name" placeholder="Optional">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Assign to shift</label>
+    <select class="form-select" name="shift_id">
+      <option value="">— none —</option>
+      {% for s in shifts %}
+        <option value="{{ s.shift_id }}">{{ s.shift_name }} ({{ s.shift_id }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-success">Save vehicle</button>
+  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.vehicles') }}">Cancel</a>
+</form>
+{% endblock %}

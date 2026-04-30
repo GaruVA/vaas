@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Operator Dashboard — VAAS{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <h5>Gate A</h5>
+    <img id="stream-a" class="gate-stream"
+         src="{{ url_for('operator.stream', gate_id='GATE_A') }}" alt="GATE_A">
+    <div id="status-a" class="gate-status status-idle">IDLE</div>
+  </div>
+  <div class="col-lg-6">
+    <h5>Gate B</h5>
+    <img id="stream-b" class="gate-stream"
+         src="{{ url_for('operator.stream', gate_id='GATE_B') }}" alt="GATE_B">
+    <div id="status-b" class="gate-status status-idle">IDLE</div>
+  </div>
+</div>
+
+<div class="row g-3 mt-2">
+  <div class="col-lg-6">
+    <h5>Live Events</h5>
+    <table class="table table-sm table-striped" id="events-table">
+      <thead><tr><th>Time</th><th>Plate</th><th>Gate</th><th>Dir</th><th>Status</th><th>Conf</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr><td>{{ r.timestamp }}</td><td>{{ r.plate_number }}</td>
+            <td>{{ r.gate_id }}</td><td>{{ r.direction }}</td>
+            <td><span class="badge bg-secondary">{{ r.status }}</span></td>
+            <td>{{ '%.2f' % (r.confidence_score or 0) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="col-lg-6">
+    <h5>Pending Exceptions</h5>
+    <table class="table table-sm" id="exceptions-table">
+      <thead><tr><th>Time</th><th>Plate (raw)</th><th>Gate</th><th>Conf</th><th>Action</th></tr></thead>
+      <tbody>
+      {% for e in pending %}
+        <tr data-id="{{ e.id }}">
+          <td>{{ e.timestamp }}</td><td>{{ e.plate_number }}</td>
+          <td>{{ e.gate_id }}</td>
+          <td>{{ '%.2f' % (e.confidence_score or 0) }}</td>
+          <td>
+            <button class="btn btn-success btn-sm dispose" data-action="ADMIT">Admit</button>
+            <button class="btn btn-danger btn-sm dispose" data-action="REJECT">Reject</button>
+            <button class="btn btn-warning btn-sm dispose" data-action="REGISTER">Register</button>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
