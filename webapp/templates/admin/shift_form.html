@@ -1,54 +1,139 @@
 {% extends "base.html" %}
 {% block title %}New Shift — VAAS{% endblock %}
+
 {% block content %}
-<h3>New Shift</h3>
-<form method="post" style="max-width:560px">
-  <div class="mb-3">
-    <label class="form-label">Shift ID <span class="text-danger">*</span></label>
-    <input class="form-control text-uppercase" name="shift_id" required
-           placeholder="e.g. DAY_SHIFT" pattern="[A-Z0-9_]+">
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-calendar-plus-fill"></i> New Shift</h1>
+    <p class="page-subtitle">Define a new work shift for attendance tracking</p>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Display name</label>
-    <input class="form-control" name="shift_name" required placeholder="e.g. Day Shift">
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.shifts') }}">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
   </div>
-  <div class="row mb-3">
-    <div class="col">
-      <label class="form-label">Start time (HH:MM)</label>
-      <input class="form-control" type="time" name="start_time" value="08:00" required>
+</div>
+
+<div class="form-card">
+  <form method="post">
+
+    <div class="form-section-title"><i class="bi bi-tag"></i> Identification</div>
+
+    <div class="mb-3">
+      <label class="form-label" for="shift_id">
+        Shift ID <span style="color:var(--red)">*</span>
+      </label>
+      <input id="shift_id"
+             class="form-control text-uppercase"
+             name="shift_id"
+             required
+             placeholder="e.g. DAY_SHIFT"
+             pattern="[A-Z0-9_]+"
+             style="font-family:var(--font-mono)">
+      <div class="form-text">Uppercase letters, digits, underscores only. Cannot be changed later.</div>
     </div>
-    <div class="col">
-      <label class="form-label">End time (HH:MM)</label>
-      <input class="form-control" type="time" name="end_time" value="17:00" required>
+
+    <div class="mb-3">
+      <label class="form-label" for="shift_name">Display Name <span style="color:var(--red)">*</span></label>
+      <input id="shift_name"
+             class="form-control"
+             name="shift_name"
+             required
+             placeholder="e.g. Day Shift">
     </div>
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Days of week</label><br>
-    {% for d in ['MON','TUE','WED','THU','FRI','SAT','SUN'] %}
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="checkbox" name="days"
-               value="{{ d }}" id="d{{ d }}"
-               {% if d in ['MON','TUE','WED','THU','FRI'] %}checked{% endif %}>
-        <label class="form-check-label" for="d{{ d }}">{{ d }}</label>
+
+    <div class="divider"></div>
+    <div class="form-section-title"><i class="bi bi-clock"></i> Schedule</div>
+
+    <div class="row mb-3">
+      <div class="col">
+        <label class="form-label" for="start_time">Start Time</label>
+        <input id="start_time" class="form-control" type="time" name="start_time"
+               value="08:00" required style="font-family:var(--font-mono)">
       </div>
-    {% endfor %}
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Permitted gates</label><br>
-    {% for g in ['GATE_A','GATE_B'] %}
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="checkbox" name="gates"
-               value="{{ g }}" id="{{ g }}" checked>
-        <label class="form-check-label" for="{{ g }}">{{ g }}</label>
+      <div class="col">
+        <label class="form-label" for="end_time">End Time</label>
+        <input id="end_time" class="form-control" type="time" name="end_time"
+               value="17:00" required style="font-family:var(--font-mono)">
       </div>
-    {% endfor %}
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Grace period (minutes)</label>
-    <input class="form-control" type="number" name="grace_period_minutes"
-           value="10" min="0" max="60" style="width:8em">
-  </div>
-  <button class="btn btn-success">Save shift</button>
-  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.shifts') }}">Cancel</a>
-</form>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Days of Week</label>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.25rem">
+        {% for d in ['MON','TUE','WED','THU','FRI','SAT','SUN'] %}
+          <label style="display:flex;align-items:center;gap:.35rem;
+                        padding:.3rem .7rem;border-radius:var(--radius-sm);
+                        background:var(--bg-panel-alt);border:1px solid var(--border-dim);
+                        cursor:pointer;font-size:.8rem;color:var(--text-secondary);
+                        transition:all .12s"
+                 id="lbl{{ d }}">
+            <input class="form-check-input m-0" type="checkbox" name="days"
+                   value="{{ d }}" id="d{{ d }}"
+                   {% if d in ['MON','TUE','WED','THU','FRI'] %}checked{% endif %}
+                   onchange="document.getElementById('lbl{{ d }}').style.borderColor=this.checked?'var(--blue)':'var(--border-dim)';
+                             document.getElementById('lbl{{ d }}').style.color=this.checked?'var(--blue)':'var(--text-secondary)'">
+            {{ d }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="form-section-title"><i class="bi bi-door-open"></i> Gates &amp; Tolerance</div>
+
+    <div class="mb-3">
+      <label class="form-label">Permitted Gates</label>
+      <div style="display:flex;gap:.5rem;margin-top:.25rem">
+        {% for g in ['GATE_A','GATE_B'] %}
+          <label style="display:flex;align-items:center;gap:.35rem;
+                        padding:.3rem .8rem;border-radius:var(--radius-sm);
+                        background:var(--bg-panel-alt);border:1px solid var(--border-dim);
+                        cursor:pointer;font-size:.8rem;color:var(--text-secondary)"
+                 id="lbl{{ g }}">
+            <input class="form-check-input m-0" type="checkbox" name="gates"
+                   value="{{ g }}" id="{{ g }}" checked
+                   onchange="document.getElementById('lbl{{ g }}').style.borderColor=this.checked?'var(--blue)':'var(--border-dim)'">
+            {{ g }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label" for="grace">Grace Period (minutes)</label>
+      <input id="grace"
+             class="form-control"
+             type="number"
+             name="grace_period_minutes"
+             value="10"
+             min="0" max="60"
+             style="width:120px;font-family:var(--font-mono)">
+      <div class="form-text">
+        Arrivals within this window of the shift start are marked ON_TIME, not LATE.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-lg"></i> Save Shift
+      </button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.shifts') }}">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+{% block extra_scripts %}
+<script>
+/* Initialise day-label colours for pre-checked boxes */
+document.querySelectorAll('[name="days"]').forEach(cb => {
+  const lbl = document.getElementById('lbl' + cb.value);
+  if (lbl && cb.checked) {
+    lbl.style.borderColor = 'var(--blue)';
+    lbl.style.color = 'var(--blue)';
+  }
+});
+</script>
+{% endblock %}
 {% endblock %}

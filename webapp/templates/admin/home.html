@@ -1,9 +1,54 @@
 {% extends "base.html" %}
+{% block title %}Administration — VAAS{% endblock %}
+
 {% block content %}
-<h3>Administration</h3>
-<div class="row g-3">
-  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.vehicles') }}">Vehicles</a></div>
-  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.shifts') }}">Shifts</a></div>
-  <div class="col-md-4"><a class="btn btn-primary w-100" href="{{ url_for('admin.users') }}">Users</a></div>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-sliders"></i> Administration</h1>
+    <p class="page-subtitle">System configuration — vehicles, shifts, and user accounts</p>
+  </div>
+</div>
+
+<div class="row g-3" style="max-width:900px">
+
+  <div class="col-md-4">
+    <a class="nav-card h-100" href="{{ url_for('admin.vehicles') }}">
+      <div class="nav-card-icon blue"><i class="bi bi-car-front-fill"></i></div>
+      <div class="nav-card-title">Registered Vehicles</div>
+      <div class="nav-card-desc">
+        Add, edit, or suspend vehicles. Assign plates to shifts and manage registration status.
+      </div>
+      <div class="nav-card-arrow">
+        <span>Manage vehicles</span><i class="bi bi-arrow-right"></i>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a class="nav-card h-100" href="{{ url_for('admin.shifts') }}">
+      <div class="nav-card-icon green"><i class="bi bi-calendar-week-fill"></i></div>
+      <div class="nav-card-title">Shifts</div>
+      <div class="nav-card-desc">
+        Configure work shifts with start/end times, permitted days, and grace periods.
+      </div>
+      <div class="nav-card-arrow">
+        <span>Manage shifts</span><i class="bi bi-arrow-right"></i>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a class="nav-card h-100" href="{{ url_for('admin.users') }}">
+      <div class="nav-card-icon purple"><i class="bi bi-people-fill"></i></div>
+      <div class="nav-card-title">User Accounts</div>
+      <div class="nav-card-desc">
+        Create and manage operator, manager, and admin accounts. Reset passwords.
+      </div>
+      <div class="nav-card-arrow">
+        <span>Manage users</span><i class="bi bi-arrow-right"></i>
+      </div>
+    </a>
+  </div>
+
 </div>
 {% endblock %}

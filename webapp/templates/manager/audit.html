@@ -1,22 +1,82 @@
 {% extends "base.html" %}
+{% block title %}Audit Chain — VAAS{% endblock %}
+
 {% block content %}
-<h3>Audit Chain Verification</h3>
-<div class="card" style="max-width:640px">
-  <div class="card-body">
-    {% if res.intact %}
-      <div class="alert alert-success">
-        <strong>&#10003; Chain intact</strong><br>
-        Verified at {{ res.verified_at }}<br>
-        Rows checked: {{ res.rows_checked }}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-shield-check"></i> Audit Chain Verification</h1>
+    <p class="page-subtitle">SHA-256 hash chain integrity check on the live access log</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
+      <i class="bi bi-arrow-left"></i> Reports
+    </a>
+  </div>
+</div>
+
+<!-- Result card -->
+<div style="max-width:680px">
+  <div class="audit-result-card {{ 'intact' if res.intact else 'broken' }}">
+    <div class="audit-result-icon">
+      {% if res.intact %}
+        <i class="bi bi-shield-fill-check"></i>
+      {% else %}
+        <i class="bi bi-shield-fill-x"></i>
+      {% endif %}
+    </div>
+    <div style="flex:1">
+      <div class="audit-result-title">
+        {% if res.intact %}
+          &#10003; Chain Intact
+        {% else %}
+          &#10007; Chain Broken
+        {% endif %}
       </div>
-    {% else %}
-      <div class="alert alert-danger">
-        <strong>&#10007; Chain broken</strong><br>
-        First mismatch at row id <code>{{ res.first_bad_id }}</code>.<br>
-        All subsequent rows are also broken (chained hashes propagate).
+      <div class="audit-result-meta">
+        {% if res.intact %}
+          Verified <strong>{{ res.rows_checked }}</strong> row{{ 's' if res.rows_checked != 1 }}
+          successfully at {{ res.verified_at }}.<br>
+          No tampering detected. All SHA-256 hashes match.
+        {% else %}
+          First mismatch detected at row ID
+          <code>{{ res.first_bad_id }}</code>.<br>
+          All subsequent rows are also broken — hash chains propagate forward.<br>
+          This indicates data modification after original insertion.
+        {% endif %}
       </div>
-    {% endif %}
-    <p class="text-muted small">{{ res.message }}</p>
+    </div>
+  </div>
+
+  <!-- Explanation panel -->
+  <div class="panel" style="margin-top:1rem">
+    <div class="panel-header">
+      <span class="panel-title">
+        <i class="bi bi-info-circle-fill"></i> How the Audit Chain Works
+      </span>
+    </div>
+    <div class="panel-body" style="font-size:.82rem;color:var(--text-secondary);line-height:1.7">
+      <p style="margin:0 0 .65rem">
+        Every row inserted into <code>access_log</code> is cryptographically linked
+        to the previous row via SHA-256:
+      </p>
+      <div style="background:var(--bg-surface);border:1px solid var(--border-dim);
+                  border-radius:var(--radius);padding:.75rem 1rem;
+                  font-family:var(--font-mono);font-size:.75rem;color:var(--cyan);
+                  margin-bottom:.65rem;overflow-x:auto;white-space:pre">
+hash_n = SHA256(JSON({ plate, timestamp, gate_id, direction, hash_(n-1) }))</div>
+      <p style="margin:0">
+        Row 1 uses the genesis salt <code>VAAS-GENESIS-2026</code> as its seed.
+        Any modification of a row — plate number, timestamp, gate, or direction —
+        breaks the chain at that point and all rows beyond it.
+      </p>
+    </div>
+  </div>
+
+  <!-- Re-run button -->
+  <div style="margin-top:1rem">
+    <a class="btn btn-primary" href="{{ url_for('manager.audit') }}">
+      <i class="bi bi-arrow-clockwise"></i> Re-verify Now
+    </a>
   </div>
 </div>
 {% endblock %}

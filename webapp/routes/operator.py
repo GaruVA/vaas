@@ -33,7 +33,7 @@ from flask import (
 
 from src.clahe import apply_clahe
 from src.config import CAMERA_INDEX_GATE_A, CAMERA_INDEX_GATE_B
-from src.pipeline import draw_overlays
+from src.pipeline import DEFAULT_COOLDOWN_SECONDS, PlateDebouncer, draw_overlays, process_frame
 
 logger = logging.getLogger(__name__)
 operator_bp = Blueprint("operator", __name__, url_prefix="/operator")
@@ -66,16 +66,20 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
     from src.classifier import CharClassifier
     from src.detection import PlateDetection, PlateDetector
 
-    logger.info("[%s] Camera worker starting (index=%d, direction=%s)",
-                gate_id, camera_index, direction)
+    logger.info("[%s] Camera worker starting (index=%d, direction=%s, cooldown=%ds)",
+                gate_id, camera_index, direction, DEFAULT_COOLDOWN_SECONDS)
 
-    # Load models once inside this thread (YOLO is thread-safe after loading)
+    # Load models once inside this thread (YOLO models are thread-safe post-load)
     try:
         detector = PlateDetector()
         classifier = CharClassifier()
     except Exception as exc:
         logger.error("[%s] Model load failed: %s", gate_id, exc)
         return
+
+    # One debouncer per gate — prevents the same plate string being submitted
+    # to the attendance engine multiple times within the cooldown window.
+    debouncer = PlateDebouncer(cooldown_seconds=DEFAULT_COOLDOWN_SECONDS)
 
     # Open camera with retries
     cam: Optional[USBCamera] = None
@@ -85,7 +89,8 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
             logger.info("[%s] Camera opened on index %d", gate_id, camera_index)
             break
         except Exception as exc:
-            logger.warning("[%s] Camera open attempt %d failed: %s", gate_id, attempt + 1, exc)
+            logger.warning("[%s] Camera open attempt %d failed: %s",
+                           gate_id, attempt + 1, exc)
             time.sleep(2)
 
     if cam is None:
@@ -99,40 +104,42 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
             frame = cam.read()
             if frame is None:
                 logger.warning("[%s] Camera read returned None — retrying", gate_id)
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
 
             t0 = time.perf_counter()
 
-            # ── Stage 1: plate detection ────────────────────────────────
-            detections: list[PlateDetection] = detector.detect(frame)
+            # ── Stages 1-4: detect → CLAHE → classify → engine (with debounce) ─
+            try:
+                results = process_frame(
+                    frame, detector, classifier, engine,
+                    gate_id, direction, debouncer=debouncer,
+                )
+            except Exception as exc:
+                logger.error("[%s] process_frame error: %s", gate_id, exc)
+                results = []
 
-            # ── Draw bbox overlays onto a copy ───────────────────────────
-            labels: list[str] = []
-            for det in detections:
-                labels.append(f"{det.confidence:.2f}")
+            # ── Build overlay labels (grey for debounced, green for new) ────
+            detections = [r.plate_detection for r in results]
+            debounced_idx = {i for i, r in enumerate(results) if r.debounced}
+            labels = []
+            for i, r in enumerate(results):
+                tag = "[cd]" if r.debounced else ""
+                labels.append(f"{tag}{r.raw_plate} {r.confidence:.2f}" if r.raw_plate
+                               else f"{r.plate_detection.confidence:.2f}")
 
-            annotated = draw_overlays(frame, detections, labels=labels)
+            annotated = draw_overlays(frame, detections,
+                                      labels=labels,
+                                      debounced_indices=debounced_idx)
             publish_overlay_frame(gate_id, annotated)
 
-            # ── Stage 2-4: CLAHE → classify → attendance, per detection ─
-            for det in detections:
-                try:
-                    enhanced = apply_clahe(det.crop)
-                    raw, conf = classifier.classify(enhanced)
-                    if not raw:
-                        continue
-                    ok, buf = cv2.imencode(".jpg", det.crop,
-                                          [cv2.IMWRITE_JPEG_QUALITY, 85])
-                    jpeg_bytes = buf.tobytes() if ok else b""
-                    result = engine.process_gate_event(
-                        raw, conf, gate_id, direction, jpeg_bytes
-                    )
-                    elapsed_ms = (time.perf_counter() - t0) * 1000
-                    logger.info("[%s] %s → %s (%.0f ms)",
-                                gate_id, raw, result.outcome, elapsed_ms)
-                except Exception as exc:
-                    logger.error("[%s] Pipeline error: %s", gate_id, exc)
+            # ── Log non-debounced events ─────────────────────────────────
+            for r in results:
+                if not r.debounced and r.gate_event is not None:
+                    logger.info("[%s] %s → %s (%.0f ms total)",
+                                gate_id, r.raw_plate,
+                                r.gate_event.outcome,
+                                r.timings_ms.get("total", 0))
 
             # ── Throttle to ~10 fps ──────────────────────────────────────
             elapsed = time.perf_counter() - t0
@@ -213,11 +220,17 @@ def sse():
             yield ": connected\n\n"
             while True:
                 try:
-                    evt = q.get(timeout=15)
+                    # 2s timeout (was 15s): GeneratorExit is only raised at a yield
+                    # point, so a long blocking get() keeps the Waitress thread
+                    # reserved for up to <timeout> seconds after the client drops.
+                    # 2s means threads are recycled within one tick of the event loop.
+                    evt = q.get(timeout=2)
                 except queue.Empty:
                     yield ": ping\n\n"
                     continue
                 yield f"data: {json.dumps(evt)}\n\n"
+        except GeneratorExit:
+            logger.debug("SSE client disconnected — releasing Waitress thread")
         finally:
             broker.unsubscribe(q)
 
@@ -272,39 +285,48 @@ def stream(gate_id: str):
     FRAME_INTERVAL = 1.0 / TARGET_FPS
 
     def _gen():
-        while True:
-            t_start = time.monotonic()
-            frame = _latest_frame(gate_id)
+        try:
+            while True:
+                t_start = time.monotonic()
+                frame = _latest_frame(gate_id)
 
-            if frame is None:
-                # Placeholder until the camera worker delivers its first real frame
-                frame = np.zeros((360, 640, 3), dtype=np.uint8)
-                cv2.putText(frame,
-                            f"{gate_id} — waiting for camera ({CAMERA_INDEX_GATE_A if gate_id == 'GATE_A' else CAMERA_INDEX_GATE_B})",
-                            (20, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
-                            (180, 180, 180), 2)
-                cv2.putText(frame,
-                            "Check VAAS_HW_MODE and camera index",
-                            (20, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
-                            (120, 120, 120), 1)
+                if frame is None:
+                    # Placeholder until the camera worker delivers its first real frame
+                    frame = np.zeros((360, 640, 3), dtype=np.uint8)
+                    cv2.putText(frame,
+                                f"{gate_id} — waiting for camera ({CAMERA_INDEX_GATE_A if gate_id == 'GATE_A' else CAMERA_INDEX_GATE_B})",
+                                (20, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                                (180, 180, 180), 2)
+                    cv2.putText(frame,
+                                "Check VAAS_HW_MODE and camera index",
+                                (20, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                                (120, 120, 120), 1)
 
-            ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            if not ok:
-                time.sleep(FRAME_INTERVAL)
-                continue
+                ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if not ok:
+                    time.sleep(FRAME_INTERVAL)
+                    continue
 
-            jpg = buf.tobytes()
-            yield (
-                b"\r\n" + BOUNDARY + b"\r\n"
-                b"Content-Type: image/jpeg\r\n"
-                + f"Content-Length: {len(jpg)}\r\n\r\n".encode()
-                + jpg
-            )
+                jpg = buf.tobytes()
+                yield (
+                    b"\r\n" + BOUNDARY + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    + f"Content-Length: {len(jpg)}\r\n\r\n".encode()
+                    + jpg
+                )
 
-            elapsed = time.monotonic() - t_start
-            sleep_for = max(0.0, FRAME_INTERVAL - elapsed)
-            if sleep_for:
-                time.sleep(sleep_for)
+                elapsed = time.monotonic() - t_start
+                sleep_for = max(0.0, FRAME_INTERVAL - elapsed)
+                if sleep_for:
+                    time.sleep(sleep_for)
+        except GeneratorExit:
+            # Client navigated away or closed the browser tab.  Python raises
+            # GeneratorExit at the generator's last yield point, so we get here
+            # quickly (within one FRAME_INTERVAL ~100ms) and the Waitress thread
+            # is released back to the pool immediately.
+            logger.debug("[%s] MJPEG client disconnected — releasing Waitress thread", gate_id)
+        finally:
+            logger.debug("[%s] MJPEG stream closed", gate_id)
 
     return Response(
         _gen(),

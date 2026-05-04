@@ -1,4 +1,6 @@
 ultralytics==8.0.196
+waitress>=3.0.0
+python-dotenv>=1.0.0
 opencv-python==4.9.0.80
 Flask==3.0.3
 reportlab==4.2.0

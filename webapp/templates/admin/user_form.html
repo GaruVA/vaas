@@ -1,26 +1,77 @@
 {% extends "base.html" %}
 {% block title %}New User — VAAS{% endblock %}
+
 {% block content %}
-<h3>New User</h3>
-<form method="post" style="max-width:400px">
-  <div class="mb-3">
-    <label class="form-label">Username <span class="text-danger">*</span></label>
-    <input class="form-control" name="username" required minlength="3" maxlength="40">
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-person-plus-fill"></i> New User</h1>
+    <p class="page-subtitle">Create a new system account</p>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Password <span class="text-danger">*</span></label>
-    <input class="form-control" type="password" name="password"
-           required minlength="8" placeholder="min 8 characters">
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.users') }}">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Role</label>
-    <select class="form-select" name="role">
-      <option value="OPERATOR" selected>OPERATOR</option>
-      <option value="MANAGER">MANAGER</option>
-      <option value="ADMIN">ADMIN</option>
-    </select>
-  </div>
-  <button class="btn btn-success">Create user</button>
-  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.users') }}">Cancel</a>
-</form>
+</div>
+
+<div class="form-card">
+  <form method="post">
+
+    <div class="form-section-title"><i class="bi bi-person-badge"></i> Account Details</div>
+
+    <div class="mb-3">
+      <label class="form-label" for="username">
+        Username <span style="color:var(--red)">*</span>
+      </label>
+      <input id="username"
+             class="form-control"
+             name="username"
+             required
+             minlength="3"
+             maxlength="40"
+             placeholder="e.g. john.operator"
+             autocomplete="off">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="new_password">
+        Password <span style="color:var(--red)">*</span>
+      </label>
+      <input id="new_password"
+             class="form-control"
+             type="password"
+             name="password"
+             required
+             minlength="8"
+             placeholder="Minimum 8 characters"
+             autocomplete="new-password">
+      <div class="form-text">
+        <i class="bi bi-shield-lock"></i> Stored as bcrypt hash (cost factor 12).
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label" for="role">Role</label>
+      <select id="role" class="form-select" name="role">
+        <option value="OPERATOR" selected>
+          OPERATOR — Live gate monitor, exception disposition
+        </option>
+        <option value="MANAGER">
+          MANAGER — All reports, analytics, audit verification
+        </option>
+        <option value="ADMIN">
+          ADMIN — Full system access including user management
+        </option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-person-check-fill"></i> Create User
+      </button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.users') }}">Cancel</a>
+    </div>
+
+  </form>
+</div>
 {% endblock %}

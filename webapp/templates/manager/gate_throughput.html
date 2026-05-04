@@ -1,19 +1,42 @@
 {% extends "base.html" %}
 {% from "manager/_report_macro.html" import report_table %}
+{% block title %}Gate Throughput — VAAS{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Gate Throughput</h3>
-  <div>
-    <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('manager.export_csv_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">CSV</a>
-    <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('manager.export_pdf_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">PDF</a>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-bar-chart-steps"></i> Gate Throughput</h1>
+    <p class="page-subtitle">Vehicle counts and dwell times per gate — {{ df }} to {{ dt }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_csv_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">
+      <i class="bi bi-filetype-csv"></i> CSV
+    </a>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_pdf_route', report_type='gate-throughput', **{'from':df.isoformat(),'to':dt.isoformat()}) }}">
+      <i class="bi bi-filetype-pdf"></i> PDF
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
+      <i class="bi bi-arrow-left"></i> Reports
+    </a>
   </div>
 </div>
-<form class="row g-2 mb-3">
-  <div class="col-auto"><input type="date" name="from" value="{{ df }}" class="form-control"></div>
-  <div class="col-auto"><input type="date" name="to"   value="{{ dt }}" class="form-control"></div>
-  <div class="col-auto"><button class="btn btn-primary">Filter</button></div>
-</form>
-{{ report_table(rows, ['gate_id','period','hour','entries','exits','avg_dwell_seconds']) }}
+
+<div class="report-card">
+  <div class="report-filter-bar">
+    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
+    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+      <input type="date" name="from" value="{{ df }}"
+             class="form-control form-control-sm" style="width:150px">
+      <span style="color:var(--text-muted);font-size:.8rem">to</span>
+      <input type="date" name="to" value="{{ dt }}"
+             class="form-control form-control-sm" style="width:150px">
+      <button class="btn btn-primary btn-sm">
+        <i class="bi bi-arrow-clockwise"></i> Filter
+      </button>
+    </form>
+  </div>
+  {{ report_table(rows, ['gate_id','period','hour','entries','exits','avg_dwell_seconds']) }}
+</div>
 {% endblock %}

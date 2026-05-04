@@ -1,40 +1,99 @@
 {% extends "base.html" %}
+{% block title %}Vehicles — VAAS{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3>Registered Vehicles</h3>
-  <a class="btn btn-success" href="{{ url_for('admin.new_vehicle') }}">+ New</a>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-car-front-fill"></i> Registered Vehicles</h1>
+    <p class="page-subtitle">{{ rows|length }} vehicle{{ 's' if rows|length != 1 }} on record</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-success" href="{{ url_for('admin.new_vehicle') }}">
+      <i class="bi bi-plus-lg"></i> New Vehicle
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('admin.home') }}">
+      <i class="bi bi-arrow-left"></i> Admin
+    </a>
+  </div>
 </div>
-<table class="table table-sm table-striped">
-  <thead><tr><th>Plate</th><th>Category</th><th>Contractor</th><th>Status</th><th>Created</th><th></th></tr></thead>
-  <tbody>
-  {% for r in rows %}
-    <tr>
-      <td><code>{{ r.plate_number }}</code></td>
-      <td>{{ r.vehicle_category }}</td>
-      <td>{{ r.contractor_name or '-' }}</td>
-      <td>
-        {% if r.registration_status == 'ACTIVE' %}<span class="badge bg-success">ACTIVE</span>
-        {% elif r.registration_status == 'SUSPENDED' %}<span class="badge bg-warning text-dark">SUSPENDED</span>
-        {% else %}<span class="badge bg-secondary">{{ r.registration_status }}</span>{% endif %}
-      </td>
-      <td>{{ r.created_at }}</td>
-      <td>
-        <form class="d-inline" method="post" action="{{ url_for('admin.update_status', plate=r.plate_number) }}">
-          <select name="status" class="form-select form-select-sm d-inline" style="width:auto">
-            <option {% if r.registration_status=='ACTIVE'%}selected{%endif%}>ACTIVE</option>
-            <option {% if r.registration_status=='SUSPENDED'%}selected{%endif%}>SUSPENDED</option>
-            <option {% if r.registration_status=='EXPIRED'%}selected{%endif%}>EXPIRED</option>
-          </select>
-          <button class="btn btn-sm btn-outline-primary">Update</button>
-        </form>
-        <form class="d-inline" method="post"
-              action="{{ url_for('admin.delete_vehicle', plate=r.plate_number) }}"
-              onsubmit="return confirm('Delete {{r.plate_number}}?')">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+
+<div class="panel" style="overflow:hidden">
+  <div style="overflow-x:auto">
+    <table class="vaas-table">
+      <thead>
+        <tr>
+          <th>Plate Number</th>
+          <th>Category</th>
+          <th>Contractor / Owner</th>
+          <th>Status</th>
+          <th>Registered</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="plate-cell">{{ r.plate_number }}</td>
+          <td style="color:var(--text-secondary);font-size:.78rem">{{ r.vehicle_category }}</td>
+          <td style="color:var(--text-secondary);font-size:.8rem">
+            {{ r.contractor_name or '—' }}
+          </td>
+          <td>
+            {% if r.registration_status == 'ACTIVE' %}
+              <span class="badge-status bs-ok">
+                <i class="bi bi-check-circle-fill"></i> Active
+              </span>
+            {% elif r.registration_status == 'SUSPENDED' %}
+              <span class="badge-status bs-late">
+                <i class="bi bi-pause-circle-fill"></i> Suspended
+              </span>
+            {% else %}
+              <span class="badge-status bs-rejected">
+                <i class="bi bi-x-circle-fill"></i> {{ r.registration_status }}
+              </span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:.75rem;font-family:var(--font-mono)">
+            {{ r.created_at[:10] if r.created_at else '—' }}
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <div style="display:inline-flex;align-items:center;gap:.4rem">
+              <!-- Inline status update -->
+              <form class="d-inline-flex align-items-center gap-1" method="post"
+                    action="{{ url_for('admin.update_status', plate=r.plate_number) }}">
+                <select name="status"
+                        class="form-select form-select-sm"
+                        style="width:120px;font-size:.75rem;padding:.25rem .5rem">
+                  <option {% if r.registration_status=='ACTIVE'    %}selected{% endif %}>ACTIVE</option>
+                  <option {% if r.registration_status=='SUSPENDED' %}selected{% endif %}>SUSPENDED</option>
+                  <option {% if r.registration_status=='EXPIRED'   %}selected{% endif %}>EXPIRED</option>
+                </select>
+                <button class="btn btn-sm btn-outline-primary" title="Update status">
+                  <i class="bi bi-check2"></i>
+                </button>
+              </form>
+              <!-- Delete -->
+              <form class="d-inline" method="post"
+                    action="{{ url_for('admin.delete_vehicle', plate=r.plate_number) }}"
+                    onsubmit="return confirm('Permanently delete {{ r.plate_number }}?')">
+                <button class="btn btn-sm btn-outline-danger" title="Delete vehicle">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">
+            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+            No vehicles registered yet.
+            <a href="{{ url_for('admin.new_vehicle') }}">Add the first one.</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}

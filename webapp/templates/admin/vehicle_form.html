@@ -1,38 +1,89 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit' if prefilled else 'New' }} Vehicle — VAAS{% endblock %}
+{% block title %}{{ 'Edit' if prefilled else 'New Vehicle' }} — VAAS{% endblock %}
+
 {% block content %}
-<h3>{{ 'Register new vehicle' if not prefilled else 'Edit / Register: ' ~ prefilled }}</h3>
-<form method="post" style="max-width:560px">
-  <div class="mb-3">
-    <label class="form-label">Plate number <span class="text-danger">*</span></label>
-    <input class="form-control text-uppercase" name="plate_number"
-           value="{{ prefilled }}" required
-           placeholder="e.g. CAB-1234" pattern="[A-Za-z0-9\-]+" maxlength=20>
-    <div class="form-text">Sri Lankan format: CAB-1234 / WP-CAB-9012 / KL-5678</div>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">
+      <i class="bi bi-car-front-fill"></i>
+      {{ 'Register: ' ~ prefilled if prefilled else 'New Vehicle' }}
+    </h1>
+    <p class="page-subtitle">
+      {{ 'Pre-filled from exception queue' if prefilled else 'Add a new vehicle to the system' }}
+    </p>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Category</label>
-    <select class="form-select" name="vehicle_category">
-      <option value="CONTRACTOR">CONTRACTOR</option>
-      <option value="EMPLOYEE">EMPLOYEE</option>
-      <option value="DELIVERY">DELIVERY</option>
-      <option value="VISITOR">VISITOR</option>
-    </select>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('admin.vehicles') }}">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Contractor / company name</label>
-    <input class="form-control" name="contractor_name" placeholder="Optional">
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Assign to shift</label>
-    <select class="form-select" name="shift_id">
-      <option value="">— none —</option>
-      {% for s in shifts %}
-        <option value="{{ s.shift_id }}">{{ s.shift_name }} ({{ s.shift_id }})</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button class="btn btn-success">Save vehicle</button>
-  <a class="btn btn-secondary ms-2" href="{{ url_for('admin.vehicles') }}">Cancel</a>
-</form>
+</div>
+
+<div class="form-card">
+  <form method="post">
+
+    <div class="form-section-title"><i class="bi bi-credit-card-2-front"></i> Plate Details</div>
+
+    <div class="mb-3">
+      <label class="form-label" for="plate_number">
+        Plate Number <span style="color:var(--red)">*</span>
+      </label>
+      <input id="plate_number"
+             class="form-control text-uppercase"
+             name="plate_number"
+             value="{{ prefilled or '' }}"
+             required
+             placeholder="e.g. CAB-1234"
+             pattern="[A-Za-z0-9\-]+"
+             maxlength="20"
+             style="font-family:var(--font-mono);font-size:1rem;letter-spacing:.05em">
+      <div class="form-text">
+        <i class="bi bi-info-circle"></i>
+        Sri Lankan formats: CAB-1234 · WP-CAB-9012 · KL-5678
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="vehicle_category">Category</label>
+      <select id="vehicle_category" class="form-select" name="vehicle_category">
+        <option value="EMPLOYEE">Employee</option>
+        <option value="CONTRACTOR">Contractor</option>
+        <option value="DELIVERY">Delivery</option>
+        <option value="VISITOR">Visitor</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="contractor_name">Contractor / Company Name</label>
+      <input id="contractor_name"
+             class="form-control"
+             name="contractor_name"
+             placeholder="Optional — leave blank for employees">
+    </div>
+
+    <div class="divider"></div>
+    <div class="form-section-title"><i class="bi bi-calendar-week"></i> Shift Assignment</div>
+
+    <div class="mb-4">
+      <label class="form-label" for="shift_id">Assign to Shift</label>
+      <select id="shift_id" class="form-select" name="shift_id">
+        <option value="">— None (unscheduled / visitor) —</option>
+        {% for s in shifts %}
+          <option value="{{ s.shift_id }}">{{ s.shift_name }} ({{ s.shift_id }})</option>
+        {% endfor %}
+      </select>
+      <div class="form-text">
+        Vehicles without a shift assignment will always be classified as VISITOR.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.65rem;flex-wrap:wrap">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-lg"></i> Save Vehicle
+      </button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.vehicles') }}">Cancel</a>
+    </div>
+
+  </form>
+</div>
 {% endblock %}

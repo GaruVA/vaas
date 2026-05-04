@@ -1,18 +1,85 @@
 {% extends "base.html" %}
-{% block title %}Login — VAAS{% endblock %}
+{% block title %}Sign In — VAAS{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-4">
-    <div class="card mt-5"><div class="card-body">
-      <h4 class="card-title">VAAS Login</h4>
-      <form method="post">
-        <div class="mb-3"><label class="form-label">Username</label>
-          <input class="form-control" name="username" required autofocus></div>
-        <div class="mb-3"><label class="form-label">Password</label>
-          <input class="form-control" type="password" name="password" required></div>
-        <button class="btn btn-primary w-100">Sign in</button>
-      </form>
-    </div></div>
+<div class="login-wrap" style="margin:-1.5rem">
+  <div class="login-card">
+
+    <!-- Logo -->
+    <div class="login-logo">
+      <div>
+        <div class="login-logo-mark mx-auto">
+          <i class="bi bi-camera-video-fill"></i>
+        </div>
+      </div>
+      <div class="login-logo-title">VAAS</div>
+      <div class="login-logo-sub">Vehicle Attendance &amp; Analytics System</div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" autocomplete="off">
+      <div class="mb-3">
+        <label class="form-label" for="username">
+          <i class="bi bi-person me-1"></i>Username
+        </label>
+        <input id="username"
+               class="form-control"
+               name="username"
+               required
+               autofocus
+               autocomplete="username"
+               placeholder="Enter your username">
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label" for="password">
+          <i class="bi bi-lock me-1"></i>Password
+        </label>
+        <div class="position-relative">
+          <input id="password"
+                 class="form-control"
+                 type="password"
+                 name="password"
+                 required
+                 autocomplete="current-password"
+                 placeholder="Enter your password"
+                 style="padding-right:2.5rem">
+          <button type="button" id="togglePw"
+                  style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);
+                         background:none;border:none;color:var(--text-muted);cursor:pointer;
+                         padding:0;font-size:.95rem;transition:color .12s"
+                  onmouseenter="this.style.color='var(--text-primary)'"
+                  onmouseleave="this.style.color='var(--text-muted)'"
+                  aria-label="Toggle password visibility">
+            <i class="bi bi-eye" id="togglePwIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100">
+        <i class="bi bi-box-arrow-in-right"></i>
+        Sign In
+      </button>
+    </form>
+
+    <!-- Footer -->
+    <div style="margin-top:1.75rem;padding-top:1.25rem;
+                border-top:1px solid var(--border-dim);
+                text-align:center;font-size:.7rem;color:var(--text-muted)">
+      VAAS · University of Plymouth (NSBM) · 2026
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const pwInput = document.getElementById('password');
+const pwIcon  = document.getElementById('togglePwIcon');
+document.getElementById('togglePw').addEventListener('click', () => {
+  const show = pwInput.type === 'password';
+  pwInput.type = show ? 'text' : 'password';
+  pwIcon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+});
+</script>
 {% endblock %}

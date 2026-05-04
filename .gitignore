@@ -1,0 +1,38 @@
+# Environment — never commit secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Database (runtime artefact — not source code)
+data/vaas.db
+data/vaas.db-shm
+data/vaas.db-wal
+
+# Plate crop images (contain vehicle data — regenerated at runtime)
+data/sample_plates/
+
+# Coverage / pytest
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Windows
+Thumbs.db
+desktop.ini
