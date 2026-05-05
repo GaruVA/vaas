@@ -17,7 +17,7 @@ from src.config import (
     ARDUINO_BAUD, ARDUINO_PORT, DB_PATH, HARDWARE_MODE,
     SECRET_KEY, SESSION_TIMEOUT_HOURS,
 )
-from src.database import connect, init_schema
+from src.database import connect, migrate_schema
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def create_app(config_overrides: Optional[dict] = None,
     # Database
     path = db_path or DB_PATH
     conn = connect(path)
-    init_schema(conn)
+    migrate_schema(conn)   # safe on fresh and existing databases alike
 
     # SSE broker
     broker = SSEBroker()

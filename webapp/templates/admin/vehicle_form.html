@@ -1,15 +1,19 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit' if prefilled else 'New Vehicle' }} — VAAS{% endblock %}
+{% block title %}{{ 'Edit' if editing else ('Register: ' ~ prefilled if prefilled else 'New Vehicle') }} — VAAS{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div class="page-header-left">
     <h1 class="page-title">
       <i class="bi bi-car-front-fill"></i>
-      {{ 'Register: ' ~ prefilled if prefilled else 'New Vehicle' }}
+      {% if editing %}Edit: {{ prefilled }}
+      {% elif prefilled %}Register: {{ prefilled }}
+      {% else %}New Vehicle{% endif %}
     </h1>
     <p class="page-subtitle">
-      {{ 'Pre-filled from exception queue' if prefilled else 'Add a new vehicle to the system' }}
+      {% if editing %}Update vehicle details, assignment, and shift
+      {% elif prefilled %}Pre-filled from exception queue
+      {% else %}Add a new vehicle to the system{% endif %}
     </p>
   </div>
   <div class="page-actions">
@@ -22,45 +26,102 @@
 <div class="form-card">
   <form method="post">
 
-    <div class="form-section-title"><i class="bi bi-credit-card-2-front"></i> Plate Details</div>
+    <!-- ── Identity ───────────────────────────────────────────────────────── -->
+    <div class="form-section-title"><i class="bi bi-credit-card-2-front"></i> Vehicle Identity</div>
 
-    <div class="mb-3">
-      <label class="form-label" for="plate_number">
-        Plate Number <span style="color:var(--red)">*</span>
-      </label>
-      <input id="plate_number"
-             class="form-control text-uppercase"
-             name="plate_number"
-             value="{{ prefilled or '' }}"
-             required
-             placeholder="e.g. CAB-1234"
-             pattern="[A-Za-z0-9\-]+"
-             maxlength="20"
-             style="font-family:var(--font-mono);font-size:1rem;letter-spacing:.05em">
-      <div class="form-text">
-        <i class="bi bi-info-circle"></i>
-        Sri Lankan formats: CAB-1234 · WP-CAB-9012 · KL-5678
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label" for="plate_number">
+          Plate Number <span style="color:var(--red)">*</span>
+        </label>
+        <input id="plate_number"
+               class="form-control text-uppercase"
+               name="plate_number"
+               value="{{ vehicle.plate_number if vehicle else prefilled or '' }}"
+               {% if editing %}readonly{% else %}required{% endif %}
+               placeholder="e.g. CAB-1234"
+               pattern="[A-Za-z0-9\-]+"
+               maxlength="20"
+               style="font-family:var(--font-mono);font-size:1rem;letter-spacing:.05em">
+        <div class="form-text"><i class="bi bi-info-circle"></i> WP-CAB-9012 · KL-5678 · CAB-1234</div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="vehicle_category">Category</label>
+        <select id="vehicle_category" class="form-select" name="vehicle_category">
+          {% for c in categories %}
+            <option value="{{ c }}"
+              {% if vehicle and vehicle.vehicle_category == c %}selected{% endif %}>
+              {{ c | title | replace('_', ' ') }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="vehicle_type">Vehicle Type</label>
+        <select id="vehicle_type" class="form-select" name="vehicle_type">
+          {% for t in vtypes %}
+            <option value="{{ t }}"
+              {% if vehicle and vehicle.vehicle_type == t %}selected{% endif %}>
+              {{ t | title }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label" for="make_model">Make &amp; Model</label>
+        <input id="make_model" class="form-control" name="make_model"
+               value="{{ vehicle.make_model or '' if vehicle else '' }}"
+               placeholder="e.g. Toyota Hilux, Isuzu NHR">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="department">Department / Cost Centre</label>
+        <input id="department" class="form-control" name="department"
+               value="{{ vehicle.department or '' if vehicle else '' }}"
+               placeholder="e.g. Operations, Engineering, HR">
       </div>
     </div>
 
     <div class="mb-3">
-      <label class="form-label" for="vehicle_category">Category</label>
-      <select id="vehicle_category" class="form-select" name="vehicle_category">
-        <option value="EMPLOYEE">Employee</option>
-        <option value="CONTRACTOR">Contractor</option>
-        <option value="DELIVERY">Delivery</option>
-        <option value="VISITOR">Visitor</option>
-      </select>
+      <label class="form-label" for="contractor_name">Contractor / Company Name</label>
+      <input id="contractor_name" class="form-control" name="contractor_name"
+             value="{{ vehicle.contractor_name or '' if vehicle else '' }}"
+             placeholder="Leave blank for direct employees">
     </div>
 
     <div class="mb-3">
-      <label class="form-label" for="contractor_name">Contractor / Company Name</label>
-      <input id="contractor_name"
-             class="form-control"
-             name="contractor_name"
-             placeholder="Optional — leave blank for employees">
+      <label class="form-label" for="notes">Notes</label>
+      <textarea id="notes" class="form-control" name="notes" rows="2"
+                placeholder="Optional notes (e.g. contract expiry, special access)">{{ vehicle.notes or '' if vehicle else '' }}</textarea>
     </div>
 
+    <!-- ── Driver assignment ──────────────────────────────────────────────── -->
+    <div class="divider"></div>
+    <div class="form-section-title"><i class="bi bi-person-badge-fill"></i> Driver / User Assignment</div>
+
+    <div class="mb-3">
+      <label class="form-label" for="user_id">Assigned Driver</label>
+      <select id="user_id" class="form-select" name="user_id">
+        <option value="">— Unassigned —</option>
+        {% for u in users %}
+          <option value="{{ u.id }}"
+            {% if current_user_id and u.id == current_user_id %}selected{% endif %}>
+            {{ u.display }} ({{ u.username }})
+          </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">
+        <i class="bi bi-info-circle"></i>
+        Links this vehicle to a user for payroll and OHS reporting.
+        Only one active driver assignment is permitted per vehicle.
+      </div>
+    </div>
+
+    <!-- ── Shift assignment ───────────────────────────────────────────────── -->
     <div class="divider"></div>
     <div class="form-section-title"><i class="bi bi-calendar-week"></i> Shift Assignment</div>
 
@@ -69,17 +130,18 @@
       <select id="shift_id" class="form-select" name="shift_id">
         <option value="">— None (unscheduled / visitor) —</option>
         {% for s in shifts %}
-          <option value="{{ s.shift_id }}">{{ s.shift_name }} ({{ s.shift_id }})</option>
+          <option value="{{ s.shift_id }}"
+            {% if current_shift and s.shift_id == current_shift %}selected{% endif %}>
+            {{ s.shift_name }} ({{ s.shift_id }})
+          </option>
         {% endfor %}
       </select>
-      <div class="form-text">
-        Vehicles without a shift assignment will always be classified as VISITOR.
-      </div>
+      <div class="form-text">Vehicles without a shift are classified as VISITOR on every gate event.</div>
     </div>
 
     <div style="display:flex;gap:.65rem;flex-wrap:wrap">
       <button type="submit" class="btn btn-success">
-        <i class="bi bi-check-lg"></i> Save Vehicle
+        <i class="bi bi-check-lg"></i> {{ 'Update Vehicle' if editing else 'Save Vehicle' }}
       </button>
       <a class="btn btn-secondary" href="{{ url_for('admin.vehicles') }}">Cancel</a>
     </div>

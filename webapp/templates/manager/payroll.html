@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Payroll Summary — VAAS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-wallet2"></i> Payroll Summary</h1>
+    <p class="page-subtitle">Hours worked per assigned driver × vehicle — {{ df }} to {{ dt }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_csv_route', report_type='payroll',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-csv"></i> CSV
+    </a>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_pdf_route', report_type='payroll',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-pdf"></i> PDF
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
+      <i class="bi bi-arrow-left"></i> Reports
+    </a>
+  </div>
+</div>
+
+<!-- KPI chips -->
+{% set total_hours = rows | sum(attribute='hours_worked') | round(1) %}
+{% set total_trips = rows | sum(attribute='trips') %}
+{% set late_total  = rows | sum(attribute='late_count') %}
+<div class="d-flex flex-wrap gap-3 mb-4">
+  <div class="stat-chip">
+    <div class="stat-chip-icon" style="background:rgba(68,138,255,.12);color:var(--blue)">
+      <i class="bi bi-people-fill"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ rows | map(attribute='username') | unique | list | length }}</div>
+      <div class="stat-chip-label">Drivers on record</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-chip-icon" style="background:rgba(38,198,218,.12);color:var(--cyan)">
+      <i class="bi bi-clock-history"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ total_hours }}</div>
+      <div class="stat-chip-label">Total Hours</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-chip-icon" style="background:rgba(0,230,118,.12);color:var(--green)">
+      <i class="bi bi-arrow-left-right"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ total_trips }}</div>
+      <div class="stat-chip-label">Total Trips</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-chip-icon" style="background:rgba(255,179,0,.12);color:var(--amber)">
+      <i class="bi bi-clock-fill"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ late_total }}</div>
+      <div class="stat-chip-label">Late Entries</div>
+    </div>
+  </div>
+</div>
+
+<div class="report-card">
+  <div class="report-filter-bar">
+    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
+    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+      <input type="date" name="from" value="{{ df }}" class="form-control form-control-sm" style="width:150px">
+      <span style="color:var(--text-muted);font-size:.8rem">to</span>
+      <input type="date" name="to"   value="{{ dt }}" class="form-control form-control-sm" style="width:150px">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Filter</button>
+    </form>
+  </div>
+
+  <div class="report-table-wrap">
+    <table class="vaas-table">
+      <thead>
+        <tr>
+          <th>Driver</th>
+          <th>Username</th>
+          <th>Plate</th>
+          <th>Category</th>
+          <th>Department</th>
+          <th>Date</th>
+          <th>Trips</th>
+          <th>Hours Worked</th>
+          <th>Entries</th>
+          <th>Late</th>
+          <th>Compliance</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td style="color:var(--text-primary);font-size:.8rem;font-weight:600">
+            {{ r.driver_name }}
+          </td>
+          <td style="color:var(--text-muted);font-size:.75rem;font-family:var(--font-mono)">
+            {{ r.username }}
+          </td>
+          <td style="font-family:var(--font-mono);font-weight:600;color:var(--amber);font-size:.8rem">
+            {{ r.plate_number }}
+          </td>
+          <td style="color:var(--text-secondary);font-size:.75rem">{{ r.vehicle_category }}</td>
+          <td style="color:var(--text-secondary);font-size:.75rem">{{ r.department }}</td>
+          <td style="font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted)">
+            {{ r.period }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--cyan)">{{ r.trips }}</td>
+          <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--cyan);font-weight:600">
+            {{ r.hours_worked }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--text-secondary)">
+            {{ r.entry_count }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.8rem;
+             color:{% if r.late_count > 0 %}var(--amber){% else %}var(--text-muted){% endif %}">
+            {{ r.late_count }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.8rem;
+             color:{% if r.compliance_rate >= 0.9 %}var(--green){% elif r.compliance_rate >= 0.7 %}var(--amber){% else %}var(--red){% endif %}">
+            {{ (r.compliance_rate * 100) | round(1) }}%
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="11" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
+            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+            No payroll data for this period. Vehicles must be assigned to users to appear here.
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel mt-3" style="max-width:680px">
+  <div class="panel-header">
+    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> How Payroll Hours Are Calculated</span>
+  </div>
+  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
+    <p style="margin:0 0 .5rem">
+      Hours worked = <code>SUM(dwell_time_seconds)</code> on EXIT events for the vehicle in the period,
+      divided by 3600. Only vehicles with an <strong>active driver assignment</strong> appear in this report.
+    </p>
+    <p style="margin:0">
+      Assign drivers in <strong>Admin → Vehicles → Edit</strong>.
+    </p>
+  </div>
+</div>
+{% endblock %}

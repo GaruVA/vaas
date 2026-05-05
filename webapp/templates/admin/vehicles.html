@@ -22,9 +22,11 @@
     <table class="vaas-table">
       <thead>
         <tr>
-          <th>Plate Number</th>
+          <th>Plate</th>
+          <th>Type</th>
           <th>Category</th>
-          <th>Contractor / Owner</th>
+          <th>Department</th>
+          <th>Assigned Driver</th>
           <th>Status</th>
           <th>Registered</th>
           <th style="text-align:right">Actions</th>
@@ -34,9 +36,40 @@
       {% for r in rows %}
         <tr>
           <td class="plate-cell">{{ r.plate_number }}</td>
-          <td style="color:var(--text-secondary);font-size:.78rem">{{ r.vehicle_category }}</td>
-          <td style="color:var(--text-secondary);font-size:.8rem">
-            {{ r.contractor_name or '—' }}
+          <td style="color:var(--text-muted);font-size:.75rem">
+            {{ r.vehicle_type or 'CAR' }}
+          </td>
+          <td>
+            <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
+              background:{% if r.vehicle_category=='STAFF' %}rgba(68,138,255,.12)
+              {% elif r.vehicle_category=='MANAGEMENT' %}rgba(156,39,176,.12)
+              {% elif r.vehicle_category=='EMERGENCY' %}rgba(255,61,90,.12)
+              {% elif r.vehicle_category=='FLEET' %}rgba(38,198,218,.12)
+              {% elif r.vehicle_category=='MAINTENANCE' %}rgba(255,179,0,.12)
+              {% else %}rgba(0,230,118,.08){% endif %};
+              color:{% if r.vehicle_category=='STAFF' %}var(--blue)
+              {% elif r.vehicle_category=='MANAGEMENT' %}#ce93d8
+              {% elif r.vehicle_category=='EMERGENCY' %}var(--red)
+              {% elif r.vehicle_category=='FLEET' %}var(--cyan)
+              {% elif r.vehicle_category=='MAINTENANCE' %}var(--amber)
+              {% else %}var(--green){% endif %}">
+              {{ r.vehicle_category }}
+            </span>
+          </td>
+          <td style="color:var(--text-secondary);font-size:.78rem">
+            {{ r.department or '—' }}
+          </td>
+          <td style="font-size:.78rem">
+            {% if r.assigned_driver_name %}
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <i class="bi bi-person-fill" style="color:var(--blue);font-size:.85rem"></i>
+                <span style="color:var(--text-primary)">{{ r.assigned_driver_name }}</span>
+              </div>
+            {% else %}
+              <span style="color:var(--red);font-size:.72rem">
+                <i class="bi bi-person-x-fill"></i> Unassigned
+              </span>
+            {% endif %}
           </td>
           <td>
             {% if r.registration_status == 'ACTIVE' %}
@@ -58,6 +91,12 @@
           </td>
           <td style="text-align:right;white-space:nowrap">
             <div style="display:inline-flex;align-items:center;gap:.4rem">
+              <!-- Edit -->
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{{ url_for('admin.edit_vehicle', plate=r.plate_number) }}"
+                 title="Edit vehicle">
+                <i class="bi bi-pencil-fill"></i>
+              </a>
               <!-- Inline status update -->
               <form class="d-inline-flex align-items-center gap-1" method="post"
                     action="{{ url_for('admin.update_status', plate=r.plate_number) }}">
@@ -85,7 +124,7 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">
+          <td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">
             <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
             No vehicles registered yet.
             <a href="{{ url_for('admin.new_vehicle') }}">Add the first one.</a>

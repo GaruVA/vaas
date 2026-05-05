@@ -24,6 +24,7 @@
         <tr>
           <th>ID</th>
           <th>Username</th>
+          <th>Full Name</th>
           <th>Role</th>
           <th>Last Login</th>
           <th style="text-align:right">Actions</th>
@@ -46,6 +47,9 @@
               <strong style="color:var(--text-primary)">{{ r.username }}</strong>
             </div>
           </td>
+          <td style="color:var(--text-secondary);font-size:.8rem">
+            {{ r.full_name or '—' }}
+          </td>
           <td>
             <span class="role-badge role-{{ r.role }}" style="padding:.2rem .6rem;border-radius:4px">
               {{ r.role }}
@@ -54,7 +58,7 @@
           <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem">
             {{ r.last_login[:16] if r.last_login else '—' }}
           </td>
-          <td style="text-align:right">
+          <td style="text-align:right;white-space:nowrap">
             <button class="btn btn-sm btn-outline-secondary"
                     data-bs-toggle="modal"
                     data-bs-target="#resetModal"
@@ -66,7 +70,7 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">
+          <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">
             No users found.
           </td>
         </tr>

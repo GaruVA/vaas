@@ -39,23 +39,54 @@ def seeded_db(db: sqlite3.Connection) -> sqlite3.Connection:
              json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
              json.dumps(["GATE_A", "GATE_B"]), 10),
         )
-        for plate in ("CAB-1234", "KL-5678", "WP-CAB-9012", "CAR-4521", "VAN-8801"):
+        # Active vehicles — varied categories and types for enterprise reports
+        for plate, cat, vtype, dept in [
+            ("CAB-1234",    "STAFF",       "CAR",   "Engineering"),
+            ("KL-5678",     "CONTRACTOR",  "VAN",   "Operations"),
+            ("WP-CAB-9012", "STAFF",       "CAR",   "Engineering"),
+            ("CAR-4521",    "MANAGEMENT",  "CAR",   "Management"),
+            ("VAN-8801",    "FLEET",       "VAN",   "Operations"),
+        ]:
             cur.execute(
                 "INSERT INTO registered_vehicles "
-                "(plate_number,vehicle_category,registration_status) VALUES (?,?,?)",
-                (plate, "CONTRACTOR", "ACTIVE"),
+                "(plate_number,vehicle_category,vehicle_type,department,registration_status) "
+                "VALUES (?,?,?,?,'ACTIVE')",
+                (plate, cat, vtype, dept),
             )
-            cur.execute("INSERT INTO vehicle_shifts VALUES (?,?)",
-                        (plate, "DAY_SHIFT"))
+            cur.execute("INSERT INTO vehicle_shifts VALUES (?,?)", (plate, "DAY_SHIFT"))
         cur.execute(
             "INSERT INTO registered_vehicles "
-            "(plate_number,vehicle_category,registration_status) VALUES (?,?,?)",
-            ("SUS-0001", "CONTRACTOR", "SUSPENDED"),
+            "(plate_number,vehicle_category,registration_status) VALUES (?,?,'SUSPENDED')",
+            ("SUS-0001", "CONTRACTOR"),
         )
         cur.execute(
             "INSERT INTO registered_vehicles "
-            "(plate_number,vehicle_category,registration_status) VALUES (?,?,?)",
-            ("EXP-0001", "CONTRACTOR", "EXPIRED"),
+            "(plate_number,vehicle_category,registration_status) VALUES (?,?,'EXPIRED')",
+            ("EXP-0001", "CONTRACTOR"),
+        )
+        # Users with full names (for payroll)
+        import bcrypt as _bcrypt
+        for uid, uname, fname, role in [
+            (1, "alice", "Alice M. Silva", "OPERATOR"),
+            (2, "bob",   "Bob R. Perera",  "OPERATOR"),
+        ]:
+            cur.execute(
+                "INSERT INTO users (id,username,full_name,password_hash,role) VALUES (?,?,?,?,?)",
+                (uid, uname, fname,
+                 _bcrypt.hashpw(b"test1234", _bcrypt.gensalt()).decode(), role),
+            )
+        # Assign CAB-1234 and WP-CAB-9012 to alice; KL-5678 to bob
+        cur.execute(
+            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,1)",
+            ("CAB-1234",),
+        )
+        cur.execute(
+            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,1)",
+            ("WP-CAB-9012",),
+        )
+        cur.execute(
+            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,2)",
+            ("KL-5678",),
         )
     return db
 

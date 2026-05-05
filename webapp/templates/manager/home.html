@@ -5,10 +5,71 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1 class="page-title"><i class="bi bi-bar-chart-line"></i> Reports &amp; Analytics</h1>
-    <p class="page-subtitle">Attendance summaries, gate throughput, and audit chain verification</p>
+    <p class="page-subtitle">Attendance summaries, gate throughput, absence tracking, and audit chain verification</p>
   </div>
 </div>
 
+<!-- ── KPI chips ──────────────────────────────────────────────────────────── -->
+<div class="d-flex flex-wrap gap-3 mb-4" style="max-width:960px">
+
+  <div class="stat-chip" style="--chip-accent:var(--blue)">
+    <div class="stat-chip-icon" style="background:rgba(68,138,255,.12);color:var(--blue)">
+      <i class="bi bi-car-front-fill"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ stats.kpis.active_vehicles }}</div>
+      <div class="stat-chip-label">Active Vehicles</div>
+    </div>
+  </div>
+
+  <div class="stat-chip" style="--chip-accent:var(--cyan)">
+    <div class="stat-chip-icon" style="background:rgba(38,198,218,.12);color:var(--cyan)">
+      <i class="bi bi-box-arrow-in-right"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ stats.kpis.today_entries }}</div>
+      <div class="stat-chip-label">Today's Entries</div>
+    </div>
+  </div>
+
+  <div class="stat-chip" style="--chip-accent:var(--amber)">
+    <div class="stat-chip-icon" style="background:rgba(255,179,0,.12);color:var(--amber)">
+      <i class="bi bi-clock-history"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ stats.kpis.today_late }}</div>
+      <div class="stat-chip-label">Late Today</div>
+    </div>
+  </div>
+
+  <div class="stat-chip" style="--chip-accent:var(--green)">
+    <div class="stat-chip-icon" style="background:rgba(0,230,118,.12);color:var(--green)">
+      <i class="bi bi-patch-check-fill"></i>
+    </div>
+    <div>
+      <div class="stat-chip-value">{{ (stats.kpis.compliance_rate * 100) | round(1) }}%</div>
+      <div class="stat-chip-label">Compliance (today)</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── 7-day trend chart ──────────────────────────────────────────────────── -->
+<div class="panel mb-4" style="max-width:960px">
+  <div class="panel-header">
+    <span class="panel-title">
+      <i class="bi bi-graph-up-arrow"></i> 7-Day Entry Trend
+    </span>
+    <span style="font-size:.75rem;color:var(--text-muted)">Last 7 days · On-time vs Late arrivals</span>
+  </div>
+  <div class="panel-body" style="padding:1.25rem 1.5rem">
+    <div style="position:relative;height:220px">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── Report cards ───────────────────────────────────────────────────────── -->
 <div class="row g-3" style="max-width:960px">
 
   <div class="col-md-6 col-lg-3">
@@ -47,9 +108,65 @@
     </a>
   </div>
 
-  <div class="col-12">
-    <div class="divider"></div>
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.absence') }}">
+      <div class="nav-card-icon" style="background:rgba(255,61,90,.1);color:var(--red)">
+        <i class="bi bi-person-x-fill"></i>
+      </div>
+      <div class="nav-card-title">Absence Report</div>
+      <div class="nav-card-desc">Expected vs actual attendance — present, late, absent, and partial days per vehicle.</div>
+      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
+    </a>
   </div>
+
+  <div class="col-12"><div class="divider"></div></div>
+
+  <!-- ── Enterprise reports ── -->
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.payroll') }}">
+      <div class="nav-card-icon" style="background:rgba(68,138,255,.1);color:var(--blue)">
+        <i class="bi bi-wallet2"></i>
+      </div>
+      <div class="nav-card-title">Payroll Summary</div>
+      <div class="nav-card-desc">Hours worked per driver × vehicle for any date range with late and compliance rates.</div>
+      <div class="nav-card-arrow"><span>View payroll</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.ohs') }}">
+      <div class="nav-card-icon" style="background:rgba(255,179,0,.1);color:var(--amber)">
+        <i class="bi bi-shield-exclamation"></i>
+      </div>
+      <div class="nav-card-title">OHS Compliance</div>
+      <div class="nav-card-desc">Driver assignment coverage, overstay flags, and vehicle status — occupational safety snapshot.</div>
+      <div class="nav-card-arrow"><span>View OHS</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.fuel') }}">
+      <div class="nav-card-icon" style="background:rgba(255,179,0,.1);color:var(--amber)">
+        <i class="bi bi-fuel-pump-fill"></i>
+      </div>
+      <div class="nav-card-title">Fuel Accountability</div>
+      <div class="nav-card-desc">Estimated fuel consumption by vehicle type and department using operational dwell time.</div>
+      <div class="nav-card-arrow"><span>View fuel</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.rejections') }}">
+      <div class="nav-card-icon" style="background:rgba(255,61,90,.1);color:var(--red)">
+        <i class="bi bi-slash-circle-fill"></i>
+      </div>
+      <div class="nav-card-title">Gate Rejections</div>
+      <div class="nav-card-desc">Post-incident audit trail of every gate rejection — plate, reason, confidence, and timestamp.</div>
+      <div class="nav-card-arrow"><span>View rejections</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-12"><div class="divider"></div></div>
 
   <div class="col-md-6 col-lg-4">
     <a class="nav-card" href="{{ url_for('manager.audit') }}">
@@ -66,4 +183,93 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const labels  = {{ stats.chart.labels  | tojson }};
+  const onTime  = {{ stats.chart.on_time | tojson }};
+  const late    = {{ stats.chart.late    | tojson }};
+
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'On Time',
+          data: onTime,
+          backgroundColor: 'rgba(0,230,118,0.70)',
+          borderColor:     'rgba(0,230,118,0.90)',
+          borderWidth: 1,
+          borderRadius: 4,
+          stack: 'arrivals',
+        },
+        {
+          label: 'Late Arrivals',
+          data: late,
+          backgroundColor: 'rgba(255,179,0,0.70)',
+          borderColor:     'rgba(255,179,0,0.90)',
+          borderWidth: 1,
+          borderRadius: 4,
+          stack: 'arrivals',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#9ba3af',
+            font: { family: 'Inter', size: 12 },
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+          },
+        },
+        tooltip: {
+          backgroundColor: '#131720',
+          borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: 1,
+          titleColor: '#e2e8f0',
+          bodyColor:  '#9ba3af',
+          padding: 10,
+          callbacks: {
+            footer: function (items) {
+              const total = items.reduce((s, i) => s + i.raw, 0);
+              return 'Total: ' + total;
+            }
+          }
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#9ba3af', font: { family: 'Inter', size: 11 } },
+          grid:  { color: 'rgba(255,255,255,0.04)' },
+          border: { color: 'rgba(255,255,255,0.08)' },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            color: '#9ba3af',
+            font: { family: 'Inter', size: 11 },
+            precision: 0,
+          },
+          grid:  { color: 'rgba(255,255,255,0.04)' },
+          border: { color: 'rgba(255,255,255,0.08)' },
+        },
+      },
+    },
+  });
+})();
+</script>
 {% endblock %}

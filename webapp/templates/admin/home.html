@@ -50,5 +50,20 @@
     </a>
   </div>
 
+  <div class="col-md-4">
+    <a class="nav-card h-100" href="{{ url_for('admin.audit_log') }}">
+      <div class="nav-card-icon" style="background:rgba(255,61,90,.1);color:var(--red)">
+        <i class="bi bi-journal-text"></i>
+      </div>
+      <div class="nav-card-title">Admin Audit Log</div>
+      <div class="nav-card-desc">
+        Tamper-evident record of all admin CRUD actions — vehicle, shift, user, and assignment changes.
+      </div>
+      <div class="nav-card-arrow">
+        <span>View log</span><i class="bi bi-arrow-right"></i>
+      </div>
+    </a>
+  </div>
+
 </div>
 {% endblock %}
