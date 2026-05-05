@@ -27,6 +27,21 @@ def db(tmp_path: Path) -> sqlite3.Connection:
 @pytest.fixture
 def seeded_db(db: sqlite3.Connection) -> sqlite3.Connection:
     with transaction(db) as cur:
+        # CDL operates a continuous three-shift pattern (24/7 shipyard operations).
+        # Shift 1: 07:00–15:00 (Day) | Shift 2: 15:00–23:00 (Evening) | Shift 3: 23:00–07:00 (Night)
+        # A 15-minute grace period accounts for the Port of Colombo entry queue.
+        for sid, sname, sstart, send in [
+            ("CDL_SHIFT_1", "Day Shift",     "07:00", "15:00"),
+            ("CDL_SHIFT_2", "Evening Shift", "15:00", "23:00"),
+            ("CDL_SHIFT_3", "Night Shift",   "23:00", "07:00"),
+        ]:
+            cur.execute(
+                "INSERT INTO shifts VALUES (?,?,?,?,?,?,?)",
+                (sid, sname, sstart, send,
+                 json.dumps(["MON","TUE","WED","THU","FRI","SAT","SUN"]),
+                 json.dumps(["GATE_A","GATE_B","GATE_C","GATE_D"]), 15),
+            )
+        # Legacy aliases kept so existing tests using "DAY_SHIFT" / "NIGHT_SHIFT" continue to pass
         cur.execute(
             "INSERT INTO shifts VALUES (?,?,?,?,?,?,?)",
             ("DAY_SHIFT", "Day", "08:00", "17:00",
@@ -39,6 +54,20 @@ def seeded_db(db: sqlite3.Connection) -> sqlite3.Connection:
              json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
              json.dumps(["GATE_A", "GATE_B"]), 10),
         )
+        # CDL physical zones — 4 graving drydocks + support zones
+        for zid, zname, ztype, gates, cap in [
+            ("DRYDOCK_1",   "Graving Drydock No. 1", "DRYDOCK",  ["GATE_A"], 25),
+            ("DRYDOCK_2",   "Graving Drydock No. 2", "DRYDOCK",  ["GATE_B"], 25),
+            ("DRYDOCK_3",   "Graving Drydock No. 3", "DRYDOCK",  ["GATE_C"], 40),
+            ("DRYDOCK_4",   "Graving Drydock No. 4", "DRYDOCK",  ["GATE_D"], 40),
+            ("WORKSHOP_ENG","Engineering Workshop",   "WORKSHOP", ["GATE_A","GATE_B"], 20),
+            ("ADMIN_BLOCK", "Administration Block",   "ADMIN",    ["GATE_MAIN"], 10),
+        ]:
+            cur.execute(
+                "INSERT INTO cdl_zones (zone_id,zone_name,zone_type,gate_ids,capacity_vehicles) "
+                "VALUES (?,?,?,?,?)",
+                (zid, zname, ztype, json.dumps(gates), cap),
+            )
         # Active vehicles — varied categories and types for enterprise reports
         for plate, cat, vtype, dept in [
             ("CAB-1234",    "STAFF",       "CAR",   "Engineering"),

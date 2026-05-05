@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 import sqlite3
 import threading
 from dataclasses import dataclass, field
@@ -29,6 +30,11 @@ Outcome = Literal[
 ]
 Disposition = Literal["ADMIT", "REJECT", "REGISTER"]
 DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+
+# Input validation constants (FR-01, §5.3)
+_MAX_PLATE_LENGTH = 20                        # Sri Lankan plates: max 10 chars + separators
+_VALID_PLATE_RE = re.compile(r'^[A-Z0-9\- ]{1,20}$', re.IGNORECASE)
+_VALID_DIRECTIONS: frozenset[str] = frozenset({"ENTRY", "EXIT"})
 
 
 @dataclass
@@ -90,6 +96,30 @@ class AttendanceEngine:
                            direction: Direction,
                            plate_crop_jpeg_bytes: bytes,
                            timestamp: Optional[datetime] = None) -> GateEventResult:
+        # ── Input validation (§5.3, FR-01) ──────────────────────────────────
+        if not isinstance(raw_plate, str):
+            raise TypeError(f"raw_plate must be str, got {type(raw_plate).__name__}")
+        raw_plate = raw_plate.strip()
+        if len(raw_plate) > _MAX_PLATE_LENGTH:
+            raise ValueError(
+                f"raw_plate exceeds maximum length of {_MAX_PLATE_LENGTH} "
+                f"characters: {raw_plate!r}"
+            )
+        if not isinstance(confidence, (int, float)) or not (0.0 <= float(confidence) <= 1.0):
+            raise ValueError(
+                f"confidence must be a float in [0.0, 1.0], got {confidence!r}"
+            )
+        confidence = float(confidence)
+        if not gate_id or not isinstance(gate_id, str) or not gate_id.strip():
+            raise ValueError(
+                f"gate_id must be a non-empty string, got {gate_id!r}"
+            )
+        gate_id = gate_id.strip()
+        if direction not in _VALID_DIRECTIONS:
+            raise ValueError(
+                f"direction must be 'ENTRY' or 'EXIT', got {direction!r}"
+            )
+        # ── End validation ───────────────────────────────────────────────────
         ts = timestamp or datetime.now(timezone.utc)
         ts_iso = _utc_iso(ts)
         crop_b64 = base64.b64encode(plate_crop_jpeg_bytes).decode("ascii") if plate_crop_jpeg_bytes else None
@@ -329,17 +359,29 @@ class AttendanceEngine:
                            confidence: float, status: str, crop_b64: Optional[str]) -> int:
         with transaction(self.conn) as cur:
             prev = get_prev_hash(cur)
-            row_hash = compute_row_hash(plate_number, timestamp, gate_id, direction, prev)
+            # Step 1: Insert with a placeholder hash to obtain the auto-assigned row id.
+            # The placeholder must never leave the transaction in a valid state if
+            # Step 2 fails — the surrounding transaction ensures atomicity.
             cur.execute(
                 "INSERT INTO access_log "
                 "(plate_number,timestamp,gate_id,direction,dwell_time_seconds,shift_id,"
                 " confidence_score,status,row_hash,plate_crop_b64) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (plate_number, timestamp, gate_id, direction, dwell, shift_id,
-                 confidence, status, row_hash, crop_b64),
+                 confidence, status, "PENDING", crop_b64),
             )
-            log_id = cur.lastrowid
-        return int(log_id)
+            log_id = int(cur.lastrowid)
+            # Step 2: Recompute hash binding the actual row id to prevent row-reordering
+            # attacks (§6.6).  Including the id means any swap of two rows will cause
+            # verify_chain() to detect a mismatch at the earlier of the two row ids.
+            row_hash = compute_row_hash(
+                log_id, plate_number, timestamp, gate_id, direction, prev
+            )
+            cur.execute(
+                "UPDATE access_log SET row_hash=? WHERE id=?",
+                (row_hash, log_id),
+            )
+        return log_id
 
     def _handle_visitor(self, raw_plate: str, confidence: float, gate_id: str,
                         direction: str, ts_iso: str, crop_b64: Optional[str]) -> GateEventResult:
@@ -463,10 +505,39 @@ class AttendanceEngine:
                     if end_dt < entry_ts:
                         end_dt += timedelta(days=1)
                     if now > end_dt + timedelta(minutes=30):
+                        # Conditional UPDATE guards against the race condition where
+                        # another thread inserts an EXIT record between the SELECT
+                        # above and this write.  The subquery re-checks for an EXIT
+                        # event at commit time; if one now exists, rowcount == 0 and
+                        # the OVERSTAY flag is not applied (§6.4).
                         with transaction(self.conn) as cur:
-                            cur.execute("UPDATE access_log SET status='OVERSTAY' WHERE id=?",
-                                        (r["id"],))
+                            cur.execute(
+                                "UPDATE access_log SET status='OVERSTAY' "
+                                "WHERE id=? "
+                                "AND status NOT IN ('OVERSTAY','VISITOR_REJECTED',"
+                                "                   'VISITOR_TIMEOUT_REJECT') "
+                                "AND NOT EXISTS ("
+                                "  SELECT 1 FROM access_log b "
+                                "  WHERE b.plate_number=("
+                                "    SELECT plate_number FROM access_log WHERE id=?) "
+                                "  AND b.direction='EXIT' "
+                                "  AND b.timestamp > ("
+                                "    SELECT timestamp FROM access_log WHERE id=?))",
+                                (r["id"], r["id"], r["id"]),
+                            )
             elif (now - entry_ts) > timedelta(hours=12):
                 with transaction(self.conn) as cur:
-                    cur.execute("UPDATE access_log SET status='OVERSTAY' WHERE id=?",
-                                (r["id"],))
+                    cur.execute(
+                        "UPDATE access_log SET status='OVERSTAY' "
+                        "WHERE id=? "
+                        "AND status NOT IN ('OVERSTAY','VISITOR_REJECTED',"
+                        "                   'VISITOR_TIMEOUT_REJECT') "
+                        "AND NOT EXISTS ("
+                        "  SELECT 1 FROM access_log b "
+                        "  WHERE b.plate_number=("
+                        "    SELECT plate_number FROM access_log WHERE id=?) "
+                        "  AND b.direction='EXIT' "
+                        "  AND b.timestamp > ("
+                        "    SELECT timestamp FROM access_log WHERE id=?))",
+                        (r["id"], r["id"], r["id"]),
+                    )
