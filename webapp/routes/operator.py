@@ -27,7 +27,7 @@ from typing import Optional
 import cv2
 import numpy as np
 from flask import (
-    Blueprint, Response, current_app, jsonify, render_template, request,
+    Blueprint, Response, g, jsonify, render_template, request,
     session, stream_with_context, url_for,
 )
 
@@ -98,7 +98,10 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
         return
 
     with app.app_context():
-        engine = current_app.config["VAAS_ENGINE"]
+        engine = app.config.get("VAAS_ENGINE")
+        if engine is None:
+            logger.error("[%s] VAAS_ENGINE not initialized", gate_id)
+            return
 
         while not stop_event.is_set():
             frame = cam.read()
@@ -193,13 +196,12 @@ def _requires_login(fn):
 @operator_bp.route("/dashboard")
 @_requires_login
 def dashboard():
-    conn = current_app.config["VAAS_DB"]
-    recent = conn.execute(
+    recent = g.db.execute(
         "SELECT id, plate_number, timestamp, gate_id, direction, "
         "       status, confidence_score "
         "FROM access_log ORDER BY id DESC LIMIT 20"
     ).fetchall()
-    pending = conn.execute(
+    pending = g.db.execute(
         "SELECT id, plate_number, timestamp, gate_id, confidence_score "
         "FROM access_log WHERE status='VISITOR' ORDER BY id DESC"
     ).fetchall()
@@ -211,7 +213,10 @@ def dashboard():
 @_requires_login
 def sse():
     """Server-Sent Events stream (pushes new gate events to the dashboard)."""
-    broker = current_app.config["VAAS_BROKER"]
+    broker = g.get("VAAS_BROKER") or app.config.get("VAAS_BROKER")
+    if broker is None:
+        logger.error("VAAS_BROKER not initialized")
+        return jsonify({"error": "Event broker not available"}), 503
     q = broker.subscribe()
 
     @stream_with_context
@@ -244,12 +249,15 @@ def sse():
 @operator_bp.route("/exception/<int:access_log_id>/dispose", methods=["POST"])
 @_requires_login
 def dispose(access_log_id: int):
+    from flask import current_app
     body = request.get_json(silent=True) or request.form
     disposition = (body.get("disposition") or "REJECT").upper()
     if disposition not in ("ADMIT", "REJECT", "REGISTER"):
         return jsonify({"error": "invalid disposition"}), 400
 
-    engine = current_app.config["VAAS_ENGINE"]
+    engine = current_app.config.get("VAAS_ENGINE")
+    if engine is None:
+        return jsonify({"error": "Attendance engine not initialized"}), 503
     new_status = engine.dispose_exception(
         access_log_id, disposition,
         operator_user_id=session.get("user_id"),

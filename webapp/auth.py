@@ -6,7 +6,7 @@ from functools import wraps
 
 import bcrypt
 from flask import (
-    Blueprint, current_app, flash, redirect, render_template, request,
+    Blueprint, g, flash, redirect, render_template, request,
     session, url_for,
 )
 
@@ -36,8 +36,7 @@ def login():
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
-        conn = current_app.config["VAAS_DB"]
-        row = conn.execute(
+        row = g.db.execute(
             "SELECT id, password_hash, role FROM users WHERE username=?",
             (username,),
         ).fetchone()
@@ -46,7 +45,7 @@ def login():
             session["user_id"] = row["id"]
             session["username"] = username
             session["role"] = row["role"]
-            conn.execute("UPDATE users SET last_login=? WHERE id=?",
+            g.db.execute("UPDATE users SET last_login=? WHERE id=?",
                          (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                           row["id"]))
             nxt = request.args.get("next") or url_for("index")

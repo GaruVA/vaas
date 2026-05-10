@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, Response, current_app, render_template, request
+from flask import Blueprint, Response, g, render_template, request
 
 from src.analytics import (
     admin_audit_report,
@@ -40,13 +40,13 @@ def home():
 @manager_bp.route("/reports/ohs")
 @requires_role("MANAGER", "ADMIN")
 def ohs():
-    rows = ohs_compliance_report(current_app.config["VAAS_DB"])
+    rows = ohs_compliance_report(g.db)
     return render_template("manager/ohs.html", rows=rows)
 
 
 def _rows_for(report_type: str):
     today = date.today()
-    db    = current_app.config["VAAS_DB"]
+    db    = g.db
     df    = _parse_date(request.args.get("from"), today - timedelta(days=7))
     dt    = _parse_date(request.args.get("to"),   today + timedelta(days=1))
     if report_type == "ohs":
@@ -73,7 +73,7 @@ def personal_allowance():
     today = date.today()
     df = _parse_date(request.args.get("from"), today - timedelta(days=30))
     dt = _parse_date(request.args.get("to"),   today + timedelta(days=1))
-    rows = personal_vehicle_allowance_report(current_app.config["VAAS_DB"],
+    rows = personal_vehicle_allowance_report(g.db,
                                              df.isoformat(), dt.isoformat())
     return render_template("manager/personal_allowance.html", rows=rows, df=df, dt=dt)
 
@@ -85,7 +85,7 @@ def gate_rejection_audit_view():
     df = _parse_date(request.args.get("from"), today - timedelta(days=30))
     dt = _parse_date(request.args.get("to"),   today + timedelta(days=1))
     gate_id = request.args.get("gate_id") or None
-    rows = gate_rejection_audit(current_app.config["VAAS_DB"],
+    rows = gate_rejection_audit(g.db,
                                 df.isoformat(), dt.isoformat(), gate_id=gate_id)
     return render_template("manager/gate_rejection_audit.html",
                            rows=rows, df=df, dt=dt, gate_id=gate_id)
@@ -99,7 +99,7 @@ def admin_audit_view():
     dt = _parse_date(request.args.get("to"),   today + timedelta(days=1))
     username    = request.args.get("username")    or None
     entity_type = request.args.get("entity_type") or None
-    rows = admin_audit_report(current_app.config["VAAS_DB"],
+    rows = admin_audit_report(g.db,
                               df.isoformat(), dt.isoformat(),
                               username=username, entity_type=entity_type)
     return render_template("manager/admin_audit.html",
@@ -110,7 +110,7 @@ def admin_audit_view():
 @manager_bp.route("/reports/zone-occupancy")
 @requires_role("MANAGER", "ADMIN")
 def zone_occupancy_view():
-    rows = zone_occupancy_snapshot(current_app.config["VAAS_DB"])
+    rows = zone_occupancy_snapshot(g.db)
     return render_template("manager/zone_occupancy.html", rows=rows)
 
 
@@ -121,7 +121,7 @@ def subcontractor_billing_view():
     df         = _parse_date(request.args.get("from"), today - timedelta(days=30))
     dt         = _parse_date(request.args.get("to"),   today + timedelta(days=1))
     company_id = request.args.get("company_id", "")
-    rows = subcontractor_billing_audit(current_app.config["VAAS_DB"],
+    rows = subcontractor_billing_audit(g.db,
                                        company_id, df.isoformat(), dt.isoformat())
     return render_template("manager/subcontractor_billing.html",
                            rows=rows, df=df, dt=dt, company_id=company_id)
@@ -150,5 +150,5 @@ def export_pdf_route(report_type: str):
 @manager_bp.route("/audit/verify")
 @requires_role("MANAGER", "ADMIN")
 def audit():
-    res = verify_chain(current_app.config["VAAS_DB"])
+    res = verify_chain(g.db)
     return render_template("manager/audit.html", res=res)

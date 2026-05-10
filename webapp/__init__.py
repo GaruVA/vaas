@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, g
 
 from src.config import DB_PATH, SECRET_KEY
 
@@ -37,20 +37,20 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     if config_overrides:
         app.config.update(config_overrides)
     
-    # Database connection (read-only fixture for routes)
+    # Database connection (per-request via Flask's g object for thread safety)
     @app.before_request
     def ensure_db():
         """Ensure database connection is available for each request."""
-        if "VAAS_DB" not in app.config:
-            app.config["VAAS_DB"] = sqlite3.connect(str(DB_PATH))
-            app.config["VAAS_DB"].isolation_level = None  # autocommit
-            app.config["VAAS_DB"].row_factory = sqlite3.Row
-            app.config["VAAS_DB"].execute("PRAGMA foreign_keys = ON")
+        if "db" not in g:
+            g.db = sqlite3.connect(str(DB_PATH))
+            g.db.isolation_level = None  # autocommit
+            g.db.row_factory = sqlite3.Row
+            g.db.execute("PRAGMA foreign_keys = ON")
     
     @app.teardown_appcontext
     def close_db(error):
         """Close database connection on app teardown."""
-        db = app.config.pop("VAAS_DB", None)
+        db = g.pop("db", None)
         if db is not None:
             db.close()
     

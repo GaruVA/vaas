@@ -55,11 +55,12 @@ def personal_vehicle_allowance_report(
         SELECT
             u.id                                    AS user_id,
             u.username,
-            u.full_name,
+            COALESCE(u.full_name, u.username)      AS driver_name,
             va.plate_number,
-            DATE(al.timestamp)                      AS event_date,
-            COUNT(al.id)                            AS on_time_entries,
-            CASE WHEN COUNT(al.id) > 0 THEN 1 ELSE 0 END AS eligible
+            DATE(al.timestamp)                      AS period,
+            COUNT(al.id)                            AS trips,
+            COALESCE(SUM(al.dwell_time_seconds) / 3600.0, 0) AS hours_on_site,
+            CASE WHEN COUNT(al.id) > 0 THEN 1 ELSE 0 END AS allowance_eligible
         FROM users u
         JOIN vehicle_assignments va
             ON va.user_id = u.id AND va.is_active = 1
@@ -74,7 +75,7 @@ def personal_vehicle_allowance_report(
     if driver_user_id is not None:
         sql += " AND u.id = ?"
         params.append(driver_user_id)
-    sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY event_date, u.username"
+    sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY period, u.username"
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
@@ -95,19 +96,22 @@ def ohs_compliance_report(conn) -> list[dict]:
         """
         SELECT
             rv.plate_number,
+            rv.vehicle_type,
             rv.vehicle_category,
             rv.registration_status,
             rv.contractor_name,
             rv.department,
             va.user_id,
-            u.username                          AS assigned_driver,
-            COUNT(al.id)                        AS total_events,
-            SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) AS overstay_count,
+            COALESCE(u.full_name, u.username, 'UNASSIGNED')  AS driver_name,
+            COUNT(al.id)                        AS total_access_events,
+            SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) AS overstay_events,
             CASE
-                WHEN rv.registration_status != 'ACTIVE' THEN 0
-                WHEN va.user_id IS NULL THEN 0
-                ELSE 1
-            END AS is_compliant
+                WHEN rv.registration_status != 'ACTIVE' THEN 'SUSPENDED'
+                WHEN va.user_id IS NULL THEN 'UNASSIGNED'
+                WHEN SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) >= 3 THEN 'HIGH_RISK'
+                WHEN SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) > 0 THEN 'MEDIUM_RISK'
+                ELSE 'OK'
+            END AS risk_flag
         FROM registered_vehicles rv
         LEFT JOIN vehicle_assignments va
             ON va.plate_number = rv.plate_number AND va.is_active = 1
@@ -116,7 +120,12 @@ def ohs_compliance_report(conn) -> list[dict]:
         LEFT JOIN access_log al
             ON al.plate_number = rv.plate_number
         GROUP BY rv.plate_number
-        ORDER BY is_compliant ASC, overstay_count DESC
+        ORDER BY CASE WHEN risk_flag = 'SUSPENDED' THEN 0
+                      WHEN risk_flag = 'UNASSIGNED' THEN 1
+                      WHEN risk_flag = 'HIGH_RISK' THEN 2
+                      WHEN risk_flag = 'MEDIUM_RISK' THEN 3
+                      ELSE 4 END,
+                 overstay_events DESC
         """
     ).fetchall()
     return [dict(r) for r in rows]
@@ -249,8 +258,8 @@ def subcontractor_billing_audit(
             pva.plate_number,
             pva.project_code,
             p.vessel_name                                        AS project_name,
-            MIN(DATE(al.timestamp))                             AS date_from,
-            MAX(DATE(al.timestamp))                             AS date_to,
+            COALESCE(MIN(DATE(al.timestamp)), ?)                AS date_from,
+            COALESCE(MAX(DATE(al.timestamp)), ?)                AS date_to,
             COUNT(al.id)                                        AS trips,
             COALESCE(SUM(al.dwell_time_seconds)/3600.0, 0)     AS billed_hours
         FROM project_vehicle_assignments pva
@@ -263,7 +272,7 @@ def subcontractor_billing_audit(
         WHERE pva.role = 'SUBCONTRACTOR'
           AND pva.removed_at IS NULL
     """
-    params: list = [date_from, date_to]
+    params: list = [date_from, date_to, date_from, date_to]
     if company_id:
         sql += " AND pva.company_id = ?"
         params.append(company_id)

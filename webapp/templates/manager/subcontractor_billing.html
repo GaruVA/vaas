@@ -53,7 +53,7 @@
       {% set ns = namespace(prev_co='') %}
       {% for r in rows %}
         <tr {% if r.company_id != ns.prev_co %}style="border-top:1px solid rgba(255,255,255,.07)"{% endif %}>
-          {% set _ = ns.__setattr__('prev_co', r.company_id) %}
+          {% set ns.prev_co = r.company_id %}
           <td>
             <div style="font-weight:600;font-size:.82rem">{{ r.company_name }}</div>
             <div style="font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted)">{{ r.company_id }}</div>

@@ -5,7 +5,7 @@ import json
 
 import bcrypt
 from flask import (
-    Blueprint, current_app, flash, redirect, render_template,
+    Blueprint, g, flash, redirect, render_template,
     request, session, url_for,
 )
 
@@ -51,7 +51,7 @@ def home():
 @admin_bp.route("/vehicles")
 @requires_role("ADMIN")
 def vehicles():
-    db   = current_app.config["VAAS_DB"]
+    db   = g.db
     rows = db.execute("""
         SELECT rv.*,
                va.user_id            AS assigned_user_id,
@@ -69,7 +69,7 @@ def vehicles():
 @admin_bp.route("/vehicles/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
 def new_vehicle():
-    db     = current_app.config["VAAS_DB"]
+    db     = g.db
     shifts = db.execute("SELECT shift_id, shift_name FROM shifts").fetchall()
     users  = db.execute("SELECT id, username, COALESCE(full_name,username) AS display "
                         "FROM users ORDER BY username").fetchall()
@@ -127,7 +127,7 @@ def new_vehicle():
 @admin_bp.route("/vehicles/<plate>/edit", methods=["GET", "POST"])
 @requires_role("ADMIN")
 def edit_vehicle(plate: str):
-    db     = current_app.config["VAAS_DB"]
+    db     = g.db
     shifts = db.execute("SELECT shift_id, shift_name FROM shifts").fetchall()
     users  = db.execute("SELECT id, username, COALESCE(full_name,username) AS display "
                         "FROM users ORDER BY username").fetchall()
@@ -210,7 +210,7 @@ def update_status(plate: str):
     new_status = request.form.get("status", "ACTIVE")
     if new_status not in ("ACTIVE", "SUSPENDED", "EXPIRED"):
         return "bad status", 400
-    db = current_app.config["VAAS_DB"]
+    db = g.db
     with transaction(db) as cur:
         cur.execute(
             "UPDATE registered_vehicles SET registration_status=? WHERE plate_number=?",
@@ -224,7 +224,7 @@ def update_status(plate: str):
 @admin_bp.route("/vehicles/<plate>/delete", methods=["POST"])
 @requires_role("ADMIN")
 def delete_vehicle(plate: str):
-    db = current_app.config["VAAS_DB"]
+    db = g.db
     with transaction(db) as cur:
         cur.execute("DELETE FROM registered_vehicles WHERE plate_number=?", (plate,))
     _audit(db, "DELETE", "VEHICLE", plate)
@@ -237,7 +237,7 @@ def delete_vehicle(plate: str):
 @admin_bp.route("/shifts")
 @requires_role("ADMIN")
 def shifts():
-    rows = current_app.config["VAAS_DB"].execute(
+    rows = g.db.execute(
         "SELECT * FROM shifts ORDER BY shift_id"
     ).fetchall()
     return render_template("admin/shifts.html", rows=rows)
@@ -254,7 +254,7 @@ def new_shift():
         days  = request.form.getlist("days")
         gates = request.form.getlist("gates")
         grace = int(request.form.get("grace_period_minutes") or 10)
-        db = current_app.config["VAAS_DB"]
+        db = g.db
         with transaction(db) as cur:
             cur.execute(
                 "INSERT OR REPLACE INTO shifts VALUES (?,?,?,?,?,?,?)",
@@ -269,7 +269,7 @@ def new_shift():
 @admin_bp.route("/shifts/<sid>/delete", methods=["POST"])
 @requires_role("ADMIN")
 def delete_shift(sid: str):
-    db = current_app.config["VAAS_DB"]
+    db = g.db
     with transaction(db) as cur:
         cur.execute("DELETE FROM shifts WHERE shift_id=?", (sid,))
     _audit(db, "DELETE", "SHIFT", sid)
@@ -282,7 +282,7 @@ def delete_shift(sid: str):
 @admin_bp.route("/users")
 @requires_role("ADMIN")
 def users():
-    rows = current_app.config["VAAS_DB"].execute(
+    rows = g.db.execute(
         "SELECT id, username, full_name, role, last_login FROM users ORDER BY username"
     ).fetchall()
     return render_template("admin/users.html", rows=rows)
@@ -299,7 +299,7 @@ def new_user():
         if role not in ("ADMIN", "MANAGER", "OPERATOR"):
             return "bad role", 400
         h  = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-        db = current_app.config["VAAS_DB"]
+        db = g.db
         with transaction(db) as cur:
             cur.execute(
                 "INSERT INTO users (username,full_name,password_hash,role) VALUES (?,?,?,?)",
@@ -316,7 +316,7 @@ def new_user():
 def reset_password(uid: int):
     p  = request.form["password"]
     h  = bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-    db = current_app.config["VAAS_DB"]
+    db = g.db
     with transaction(db) as cur:
         cur.execute("UPDATE users SET password_hash=? WHERE id=?", (h, uid))
     _audit(db, "UPDATE", "USER", str(uid), {"action": "password_reset"})
@@ -329,7 +329,8 @@ def reset_password(uid: int):
 @admin_bp.route("/audit-log")
 @requires_role("ADMIN")
 def audit_log():
-    rows = current_app.config["VAAS_DB"].execute(
+    rows = g.db.execute(
         "SELECT * FROM admin_audit_log ORDER BY occurred_at DESC LIMIT 500"
     ).fetchall()
     return render_template("admin/audit_log.html", rows=rows)
+
