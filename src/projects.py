@@ -1,457 +1,390 @@
-"""CDL Project and Zone Management (§6.4 — CDL Specialisation Layer).
-
-Colombo Dockyard PLC operates a continuous-throughput shipyard inside the Port
-of Colombo with four graving drydocks capable of handling vessels up to 125,000
-DWT.  Vehicle attendance must be attributed to an active drydock or infrastructure
-project so that:
-
-  1. CDL management can verify contractor billing hours against gate-log data.
-  2. The employee incentive programme (personal-vehicle allowance) can be
-     calculated per project rather than globally — an employee who drives to
-     site for a short turnaround project earns the same recognition as one on a
-     long refit (both logged; management filters by project as needed).
-  3. Sub-contractor compliance officers can view real-time headcounts per project.
-
-Public API
-----------
-create_zone(conn, zone_id, zone_name, zone_type, gate_ids, capacity, description)
-list_zones(conn) -> list[sqlite3.Row]
-
-create_subcontractor(conn, company_id, company_name, ...) -> None
-list_subcontractors(conn, status="APPROVED") -> list[sqlite3.Row]
-
-create_project(conn, project_code, project_name, zone_id, start_date, ...) -> None
-get_project(conn, project_code) -> sqlite3.Row | None
-list_projects(conn, status="ACTIVE") -> list[sqlite3.Row]
-close_project(conn, project_code, end_date) -> None
-
-assign_vehicle_to_project(conn, project_code, plate_number, role, company_id, assigned_by) -> int
-remove_vehicle_from_project(conn, assignment_id, removed_at) -> None
-list_project_vehicles(conn, project_code, active_only=True) -> list[sqlite3.Row]
-
-get_project_attendance_summary(conn, project_code, date_from, date_to) -> list[dict]
-get_zone_occupancy(conn, zone_id, as_of_ts) -> int
-get_subcontractor_hours(conn, company_id, date_from, date_to) -> list[dict]
-"""
 from __future__ import annotations
 
+"""CDL Specialisation Layer -- 17 public functions.
+
+Groups
+------
+A. Zones (4):        create_zone, get_zone, list_zones, get_zone_occupancy
+B. Companies (3):    create_company, get_company, list_companies
+C. Projects (5):     create_project, get_project, list_projects,
+                     close_project, assign_vehicle_to_project
+D. Assignments (3):  unassign_vehicle_from_project, list_project_vehicles,
+                     get_project_attendance_summary
+E. Cross-cutting (2): get_subcontractor_hours, resolve_event_attribution
+
+References: section 6.7 of BUILD_SPEC.md
+"""
+
 import json
-import sqlite3
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from src.database import transaction
-
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Zone management
+# A. Zones
 # ---------------------------------------------------------------------------
+
 
 def create_zone(
-    conn: sqlite3.Connection,
+    conn,
     zone_id: str,
     zone_name: str,
     zone_type: str,
-    gate_ids: list[str],
-    capacity_vehicles: int = 50,
-    description: str | None = None,
+    associated_gates: list[str],
+    vehicle_capacity: int = 50,
 ) -> None:
-    """Insert a new physical zone into cdl_zones.
-
-    Parameters
-    ----------
-    zone_id:           Short unique key, e.g. 'DRYDOCK_1'.
-    zone_name:         Human-readable label, e.g. 'Graving Drydock No. 1'.
-    zone_type:         One of DRYDOCK | BERTH | WORKSHOP | ADMIN | SECURITY.
-    gate_ids:          List of gate_id values that control access to this zone.
-    capacity_vehicles: Maximum number of vehicles permitted simultaneously.
-    description:       Optional free-text description.
-    """
-    if not zone_id or not zone_id.strip():
-        raise ValueError("zone_id must be a non-empty string")
-    if zone_type not in ("DRYDOCK", "BERTH", "WORKSHOP", "ADMIN", "SECURITY"):
-        raise ValueError(f"Invalid zone_type: {zone_type!r}")
-    if capacity_vehicles < 1:
-        raise ValueError("capacity_vehicles must be >= 1")
-    if not gate_ids:
-        raise ValueError("gate_ids must contain at least one gate")
-
-    with transaction(conn) as cur:
-        cur.execute(
-            "INSERT INTO cdl_zones (zone_id, zone_name, zone_type, gate_ids, "
-            "capacity_vehicles, description) VALUES (?,?,?,?,?,?)",
-            (zone_id.strip(), zone_name.strip(), zone_type,
-             json.dumps(gate_ids), capacity_vehicles, description),
-        )
+    """Create a CDL zone.  Raises ValueError for invalid zone_type."""
+    valid_types = ("DRYDOCK", "BERTH", "WORKSHOP", "ADMIN", "SECURITY")
+    if zone_type not in valid_types:
+        raise ValueError(f"zone_type must be one of {valid_types}, got {zone_type!r}")
+    conn.execute(
+        """INSERT INTO cdl_zones
+           (zone_id, zone_name, zone_type, associated_gates, vehicle_capacity)
+           VALUES (?,?,?,?,?)""",
+        (zone_id, zone_name, zone_type, json.dumps(associated_gates), vehicle_capacity),
+    )
+    logger.info("Zone created: %s (%s)", zone_id, zone_type)
 
 
-def list_zones(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Return all zones ordered by zone_type then zone_id."""
-    return conn.execute(
-        "SELECT * FROM cdl_zones ORDER BY zone_type, zone_id"
-    ).fetchall()
-
-
-def get_zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT * FROM cdl_zones WHERE zone_id=?", (zone_id,)
+def get_zone(conn, zone_id: str) -> dict | None:
+    """Return zone dict or None."""
+    row = conn.execute(
+        "SELECT * FROM cdl_zones WHERE zone_id = ?", (zone_id,)
     ).fetchone()
+    return dict(row) if row else None
+
+
+def list_zones(conn, zone_type: str | None = None) -> list[dict]:
+    """Return all zones, optionally filtered by zone_type."""
+    if zone_type:
+        rows = conn.execute(
+            "SELECT * FROM cdl_zones WHERE zone_type = ? ORDER BY zone_id",
+            (zone_type,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM cdl_zones ORDER BY zone_id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_zone_occupancy(conn, zone_id: str) -> int:
+    """Count vehicles currently inside a zone (ENTRY without matching EXIT)."""
+    row = conn.execute(
+        "SELECT associated_gates FROM cdl_zones WHERE zone_id = ?", (zone_id,)
+    ).fetchone()
+    if row is None:
+        return 0
+    gates: list[str] = json.loads(row[0])
+    if not gates:
+        return 0
+    placeholders = ",".join("?" * len(gates))
+    count = conn.execute(
+        f"""SELECT COUNT(DISTINCT al.plate_number)
+            FROM access_log al
+            WHERE al.gate_id IN ({placeholders})
+              AND al.direction = 'ENTRY'
+              AND NOT EXISTS (
+                SELECT 1 FROM access_log ex
+                WHERE ex.plate_number = al.plate_number
+                  AND ex.gate_id IN ({placeholders})
+                  AND ex.direction = 'EXIT'
+                  AND ex.id > al.id
+              )""",
+        gates + gates,
+    ).fetchone()[0]
+    return count or 0
 
 
 # ---------------------------------------------------------------------------
-# Subcontractor company management
+# B. Subcontractor companies
 # ---------------------------------------------------------------------------
 
-def create_subcontractor(
-    conn: sqlite3.Connection,
+
+def create_company(
+    conn,
     company_id: str,
     company_name: str,
     contact_name: str | None = None,
     contact_phone: str | None = None,
-    approved_until: str | None = None,
+    contact_email: str | None = None,
 ) -> None:
-    """Register an approved sub-contracting firm."""
-    if not company_id or not company_name:
-        raise ValueError("company_id and company_name are required")
-    with transaction(conn) as cur:
-        cur.execute(
-            "INSERT INTO subcontractor_companies "
-            "(company_id, company_name, contact_name, contact_phone, approved_until) "
-            "VALUES (?,?,?,?,?)",
-            (company_id.strip(), company_name.strip(), contact_name,
-             contact_phone, approved_until),
-        )
+    """Register a new subcontractor company."""
+    conn.execute(
+        """INSERT INTO subcontractor_companies
+           (company_id, company_name, contact_name, contact_phone, contact_email)
+           VALUES (?,?,?,?,?)""",
+        (company_id, company_name, contact_name, contact_phone, contact_email),
+    )
+    logger.info("Company created: %s", company_id)
 
 
-def list_subcontractors(
-    conn: sqlite3.Connection, status: str = "APPROVED"
-) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM subcontractor_companies WHERE status=? ORDER BY company_name",
-        (status,),
-    ).fetchall()
-
-
-def get_subcontractor(
-    conn: sqlite3.Connection, company_id: str
-) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT * FROM subcontractor_companies WHERE company_id=?", (company_id,)
+def get_company(conn, company_id: str) -> dict | None:
+    """Return company dict or None."""
+    row = conn.execute(
+        "SELECT * FROM subcontractor_companies WHERE company_id = ?", (company_id,)
     ).fetchone()
+    return dict(row) if row else None
 
 
-def suspend_subcontractor(conn: sqlite3.Connection, company_id: str) -> None:
-    """Mark a sub-contractor as SUSPENDED (e.g. failed safety audit)."""
-    with transaction(conn) as cur:
-        cur.execute(
-            "UPDATE subcontractor_companies SET status='SUSPENDED' WHERE company_id=?",
-            (company_id,),
-        )
+def list_companies(conn, approval_status: str | None = None) -> list[dict]:
+    """Return all companies, optionally filtered by approval_status."""
+    if approval_status:
+        rows = conn.execute(
+            "SELECT * FROM subcontractor_companies WHERE approval_status = ? ORDER BY company_id",
+            (approval_status,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM subcontractor_companies ORDER BY company_id"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
-# Project (vessel / drydock job) management
+# C. Projects
 # ---------------------------------------------------------------------------
+
 
 def create_project(
-    conn: sqlite3.Connection,
+    conn,
     project_code: str,
-    project_name: str,
+    vessel_name: str,
     zone_id: str,
     start_date: str,
-    vessel_name: str | None = None,
     end_date: str | None = None,
     project_manager: str | None = None,
-    notes: str | None = None,
 ) -> None:
-    """Create a new drydock / infrastructure project.
-
-    Parameters
-    ----------
-    project_code:    Unique code, e.g. 'CDL-2026-042'.
-    project_name:    Descriptive name, e.g. 'MV Colombo Trader — Annual Survey'.
-    zone_id:         Physical zone where the work is performed.
-    start_date:      ISO-8601 date string, e.g. '2026-03-01'.
-    vessel_name:     Name of the vessel (None for non-vessel projects).
-    end_date:        Planned completion date; may be None for open-ended projects.
-    project_manager: Name of the CDL project manager.
-    notes:           Free-text remarks.
-
-    Raises
-    ------
-    ValueError  if project_code, project_name, zone_id, or start_date are empty.
-    sqlite3.IntegrityError  if zone_id does not exist in cdl_zones.
-    """
-    for label, value in [("project_code", project_code),
-                         ("project_name", project_name),
-                         ("zone_id", zone_id),
-                         ("start_date", start_date)]:
-        if not value or not str(value).strip():
-            raise ValueError(f"{label} must be a non-empty string")
-
-    with transaction(conn) as cur:
-        cur.execute(
-            "INSERT INTO projects (project_code, project_name, vessel_name, zone_id, "
-            "start_date, end_date, project_manager, notes) VALUES (?,?,?,?,?,?,?,?)",
-            (project_code.strip(), project_name.strip(), vessel_name,
-             zone_id.strip(), start_date, end_date, project_manager, notes),
-        )
+    """Create a new CDL project.  Raises IntegrityError if zone_id is invalid."""
+    conn.execute(
+        """INSERT INTO projects
+           (project_code, vessel_name, zone_id, start_date, end_date,
+            status, project_manager)
+           VALUES (?,?,?,?,?,'ACTIVE',?)""",
+        (project_code, vessel_name, zone_id, start_date, end_date, project_manager),
+    )
+    logger.info("Project created: %s (vessel: %s)", project_code, vessel_name)
 
 
-def get_project(
-    conn: sqlite3.Connection, project_code: str
-) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT p.*, z.zone_name, z.zone_type "
-        "FROM projects p JOIN cdl_zones z ON p.zone_id=z.zone_id "
-        "WHERE p.project_code=?",
-        (project_code,),
+def get_project(conn, project_code: str) -> dict | None:
+    """Return project dict or None."""
+    row = conn.execute(
+        "SELECT * FROM projects WHERE project_code = ?", (project_code,)
     ).fetchone()
+    return dict(row) if row else None
 
 
-def list_projects(
-    conn: sqlite3.Connection, status: str = "ACTIVE"
-) -> list[sqlite3.Row]:
-    """Return projects filtered by status, newest first."""
-    return conn.execute(
-        "SELECT p.*, z.zone_name FROM projects p "
-        "JOIN cdl_zones z ON p.zone_id=z.zone_id "
-        "WHERE p.status=? ORDER BY p.start_date DESC",
-        (status,),
-    ).fetchall()
+def list_projects(conn, status: str | None = None) -> list[dict]:
+    """Return all projects, optionally filtered by status."""
+    if status:
+        rows = conn.execute(
+            "SELECT * FROM projects WHERE status = ? ORDER BY project_code",
+            (status,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM projects ORDER BY project_code"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
-def close_project(
-    conn: sqlite3.Connection,
-    project_code: str,
-    end_date: str | None = None,
-) -> None:
-    """Mark a project COMPLETED and record actual end_date."""
-    actual_end = end_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    with transaction(conn) as cur:
-        cur.execute(
-            "UPDATE projects SET status='COMPLETED', end_date=? "
-            "WHERE project_code=?",
-            (actual_end, project_code),
-        )
-        # Automatically remove all active vehicle assignments
-        cur.execute(
-            "UPDATE project_vehicle_assignments SET removed_at=? "
-            "WHERE project_code=? AND removed_at IS NULL",
-            (actual_end, project_code),
-        )
+def close_project(conn, project_code: str, closure_date: str) -> None:
+    """Set project status to CLOSED and soft-remove all active assignments.
 
+    Soft-removal: sets removed_at = closure_date on all project_vehicle_assignments
+    where removed_at IS NULL.  Does NOT hard-delete any rows.
+    """
+    conn.execute(
+        "UPDATE projects SET status = 'CLOSED', end_date = ? WHERE project_code = ?",
+        (closure_date, project_code),
+    )
+    conn.execute(
+        """UPDATE project_vehicle_assignments
+           SET removed_at = ?
+           WHERE project_code = ? AND removed_at IS NULL""",
+        (closure_date, project_code),
+    )
+    logger.info("Project %s closed at %s", project_code, closure_date)
 
-# ---------------------------------------------------------------------------
-# Vehicle ↔ Project assignment
-# ---------------------------------------------------------------------------
 
 def assign_vehicle_to_project(
-    conn: sqlite3.Connection,
+    conn,
     project_code: str,
     plate_number: str,
-    role: str = "EMPLOYEE",
+    role: str,
     company_id: str | None = None,
-    assigned_by: int | None = None,
-    notes: str | None = None,
-) -> int:
-    """Assign a vehicle to a project and return the assignment id.
+    assigned_at: str | None = None,
+) -> None:
+    """Assign a vehicle to a project with a given role.
 
-    A vehicle may be assigned to multiple concurrent projects (e.g. an
-    engineer's personal car used across two drydock jobs on the same day).
-    The attendance analytics join on gate timestamps to disambiguate.
-
-    Parameters
-    ----------
-    role:        EMPLOYEE | SUBCONTRACTOR | SUPERVISOR | VISITOR.
-    company_id:  Must reference subcontractor_companies if role=SUBCONTRACTOR.
-
-    Returns
-    -------
-    int  — the new project_vehicle_assignments.id value.
+    If role == SUBCONTRACTOR:
+    - company_id must be non-empty (raises ValueError otherwise).
+    - company_id must exist in subcontractor_companies (raises ValueError otherwise).
     """
-    if role not in ("EMPLOYEE", "SUBCONTRACTOR", "SUPERVISOR", "VISITOR"):
-        raise ValueError(f"Invalid role: {role!r}")
-    if role == "SUBCONTRACTOR" and not company_id:
-        raise ValueError("company_id is required when role='SUBCONTRACTOR'")
-    if company_id:
-        row = conn.execute(
-            "SELECT 1 FROM subcontractor_companies WHERE company_id=?",
+    if role == "SUBCONTRACTOR":
+        if not company_id:
+            raise ValueError("company_id is required for SUBCONTRACTOR role")
+        exists = conn.execute(
+            "SELECT 1 FROM subcontractor_companies WHERE company_id = ?",
             (company_id,),
         ).fetchone()
-        if row is None:
-            raise ValueError(f"company_id {company_id!r} not found in subcontractor_companies")
+        if not exists:
+            raise ValueError(f"company_id {company_id!r} does not exist")
 
-    with transaction(conn) as cur:
-        cur.execute(
-            "INSERT INTO project_vehicle_assignments "
-            "(project_code, plate_number, role, company_id, assigned_by, notes) "
-            "VALUES (?,?,?,?,?,?)",
-            (project_code, plate_number, role, company_id, assigned_by, notes),
-        )
-        return cur.lastrowid
+    conn.execute(
+        """INSERT INTO project_vehicle_assignments
+           (project_code, plate_number, role, company_id, assigned_at)
+           VALUES (?,?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%SZ','now')))""",
+        (project_code, plate_number, role, company_id, assigned_at),
+    )
+    logger.info("Vehicle %s assigned to project %s as %s", plate_number, project_code, role)
 
 
-def remove_vehicle_from_project(
-    conn: sqlite3.Connection,
-    assignment_id: int,
+# ---------------------------------------------------------------------------
+# D. Assignment queries
+# ---------------------------------------------------------------------------
+
+
+def unassign_vehicle_from_project(
+    conn,
+    project_code: str,
+    plate_number: str,
     removed_at: str | None = None,
 ) -> None:
-    """Set removed_at on an assignment, marking it no longer active."""
+    """Soft-remove a vehicle from a project by setting removed_at."""
     ts = removed_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with transaction(conn) as cur:
-        cur.execute(
-            "UPDATE project_vehicle_assignments SET removed_at=? WHERE id=?",
-            (ts, assignment_id),
-        )
+    conn.execute(
+        """UPDATE project_vehicle_assignments
+           SET removed_at = ?
+           WHERE project_code = ? AND plate_number = ? AND removed_at IS NULL""",
+        (ts, project_code, plate_number),
+    )
 
 
 def list_project_vehicles(
-    conn: sqlite3.Connection,
+    conn,
     project_code: str,
     active_only: bool = True,
-) -> list[sqlite3.Row]:
-    """Return vehicles assigned to a project, with vehicle metadata."""
-    base = (
-        "SELECT pva.*, rv.vehicle_category, rv.vehicle_type, rv.department, "
-        "sc.company_name "
-        "FROM project_vehicle_assignments pva "
-        "JOIN registered_vehicles rv ON pva.plate_number=rv.plate_number "
-        "LEFT JOIN subcontractor_companies sc ON pva.company_id=sc.company_id "
-        "WHERE pva.project_code=?"
-    )
+) -> list[dict]:
+    """Return vehicle assignments for a project."""
     if active_only:
-        base += " AND pva.removed_at IS NULL"
-    base += " ORDER BY pva.assigned_at"
-    return conn.execute(base, (project_code,)).fetchall()
+        rows = conn.execute(
+            """SELECT * FROM project_vehicle_assignments
+               WHERE project_code = ? AND removed_at IS NULL
+               ORDER BY assigned_at""",
+            (project_code,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT * FROM project_vehicle_assignments
+               WHERE project_code = ?
+               ORDER BY assigned_at""",
+            (project_code,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# Analytics — the core value-add for CDL management
-# ---------------------------------------------------------------------------
 
 def get_project_attendance_summary(
-    conn: sqlite3.Connection,
+    conn,
     project_code: str,
     date_from: str,
     date_to: str,
 ) -> list[dict]:
-    """Per-vehicle attendance summary for a project over a date range.
+    """Return attendance summary per vehicle for a project.
 
-    For each vehicle assigned to the project, computes the number of days
-    it was seen at the gate and total dwell time in hours.  This directly
-    feeds the employee incentive calculation and contractor billing audit.
-
-    Parameters
-    ----------
-    date_from, date_to:  ISO-8601 date strings inclusive, e.g. '2026-04-01'.
-
-    Returns
-    -------
-    list of dicts, one per vehicle, sorted by days_present descending.
-    Keys: plate_number, role, company_name, days_present, total_hours, vehicle_category.
+    days_present uses COUNT(DISTINCT DATE(timestamp)) to avoid double-counting
+    multiple events on the same calendar day.
     """
     rows = conn.execute(
-        """
-        SELECT
-            pva.plate_number,
-            pva.role,
-            COALESCE(sc.company_name, 'CDL Internal') AS company_name,
-            rv.vehicle_category,
-            COUNT(DISTINCT DATE(al.timestamp)) AS days_present,
-            ROUND(SUM(COALESCE(al.dwell_time_seconds, 0)) / 3600.0, 2) AS total_hours
-        FROM project_vehicle_assignments pva
-        JOIN registered_vehicles rv ON pva.plate_number = rv.plate_number
-        LEFT JOIN subcontractor_companies sc ON pva.company_id = sc.company_id
-        LEFT JOIN access_log al
-            ON  al.plate_number = pva.plate_number
-            AND al.direction    = 'ENTRY'
-            AND DATE(al.timestamp) BETWEEN ? AND ?
-        WHERE pva.project_code = ?
-          AND (pva.removed_at IS NULL OR DATE(pva.removed_at) >= ?)
-        GROUP BY pva.plate_number, pva.role, sc.company_name, rv.vehicle_category
-        ORDER BY days_present DESC, total_hours DESC
-        """,
-        (date_from, date_to, project_code, date_from),
+        """SELECT
+               pva.plate_number,
+               pva.role,
+               pva.company_id,
+               COUNT(al.id)                              AS total_events,
+               COUNT(DISTINCT DATE(al.timestamp))         AS days_present,
+               COALESCE(SUM(al.dwell_time_seconds)/3600, 0) AS total_dwell_hours
+           FROM project_vehicle_assignments pva
+           LEFT JOIN access_log al
+               ON al.plate_number = pva.plate_number
+               AND DATE(al.timestamp) BETWEEN ? AND ?
+           WHERE pva.project_code = ?
+             AND pva.removed_at IS NULL
+           GROUP BY pva.plate_number
+           ORDER BY pva.plate_number""",
+        (date_from, date_to, project_code),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_zone_occupancy(
-    conn: sqlite3.Connection,
-    zone_id: str,
-    as_of_ts: str | None = None,
-) -> int:
-    """Count vehicles currently inside a zone (ENTRY without matching EXIT).
-
-    Parameters
-    ----------
-    zone_id:   Zone to check.
-    as_of_ts:  ISO-8601 timestamp ceiling; defaults to now (UTC).
-
-    Returns
-    -------
-    int — number of vehicles with unmatched ENTRY events in the zone's gates.
-    """
-    ceiling = as_of_ts or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    zone = get_zone(conn, zone_id)
-    if zone is None:
-        raise ValueError(f"Unknown zone_id: {zone_id!r}")
-    gate_ids = json.loads(zone["gate_ids"])
-    placeholders = ",".join("?" * len(gate_ids))
-    result = conn.execute(
-        f"""
-        SELECT COUNT(DISTINCT e.plate_number) AS occupancy
-        FROM access_log e
-        WHERE e.gate_id IN ({placeholders})
-          AND e.direction = 'ENTRY'
-          AND e.timestamp <= ?
-          AND NOT EXISTS (
-              SELECT 1 FROM access_log x
-              WHERE x.plate_number = e.plate_number
-                AND x.gate_id IN ({placeholders})
-                AND x.direction = 'EXIT'
-                AND x.timestamp > e.timestamp
-                AND x.timestamp <= ?
-          )
-        """,
-        (*gate_ids, ceiling, *gate_ids, ceiling),
-    ).fetchone()
-    return int(result["occupancy"]) if result else 0
+# ---------------------------------------------------------------------------
+# E. Cross-cutting
+# ---------------------------------------------------------------------------
 
 
 def get_subcontractor_hours(
-    conn: sqlite3.Connection,
+    conn,
     company_id: str,
     date_from: str,
     date_to: str,
 ) -> list[dict]:
-    """Aggregate dwell hours per project for a given subcontractor company.
-
-    Used by the billing verification workflow: CDL finance compares this
-    report against the sub-contractor's invoice to detect discrepancies.
-
-    Returns
-    -------
-    list of dicts: project_code, project_name, plate_number, total_hours.
-    """
+    """Return billed hours per vehicle for a subcontractor company."""
     rows = conn.execute(
-        """
-        SELECT
-            pva.project_code,
-            p.project_name,
-            pva.plate_number,
-            ROUND(SUM(COALESCE(al.dwell_time_seconds, 0)) / 3600.0, 2) AS total_hours
-        FROM project_vehicle_assignments pva
-        JOIN projects p ON pva.project_code = p.project_code
-        LEFT JOIN access_log al
-            ON  al.plate_number = pva.plate_number
-            AND al.direction    = 'ENTRY'
-            AND DATE(al.timestamp) BETWEEN ? AND ?
-        WHERE pva.company_id = ?
-        GROUP BY pva.project_code, p.project_name, pva.plate_number
-        ORDER BY pva.project_code, total_hours DESC
-        """,
+        """SELECT
+               pva.plate_number,
+               pva.project_code,
+               pva.company_id,
+               COUNT(al.id)                              AS trips,
+               COALESCE(SUM(al.dwell_time_seconds)/3600, 0) AS billed_hours
+           FROM project_vehicle_assignments pva
+           JOIN access_log al
+               ON al.plate_number = pva.plate_number
+               AND al.direction = 'EXIT'
+               AND DATE(al.timestamp) BETWEEN ? AND ?
+           WHERE pva.company_id = ?
+             AND pva.role = 'SUBCONTRACTOR'
+             AND pva.removed_at IS NULL
+           GROUP BY pva.plate_number, pva.project_code
+           ORDER BY pva.company_id, pva.plate_number""",
         (date_from, date_to, company_id),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def resolve_event_attribution(
+    conn,
+    plate_number: str,
+    gate_id: str,
+    timestamp: str,
+) -> tuple[str | None, str | None]:
+    """Resolve (zone_id, project_code) for a gate event.
+
+    Looks for an ACTIVE project whose zone has *gate_id* in its
+    associated_gates JSON array and whose vehicle assignment includes
+    *plate_number*.
+
+    Returns (zone_id, project_code) or (None, None) if no match.
+    """
+    rows = conn.execute(
+        """SELECT cz.zone_id, p.project_code, cz.associated_gates
+           FROM projects p
+           JOIN cdl_zones cz ON cz.zone_id = p.zone_id
+           JOIN project_vehicle_assignments pva
+               ON pva.project_code = p.project_code
+               AND pva.plate_number = ?
+               AND pva.removed_at IS NULL
+           WHERE p.status = 'ACTIVE'""",
+        (plate_number,),
+    ).fetchall()
+
+    for row in rows:
+        zone_id, project_code, gates_json = row[0], row[1], row[2]
+        try:
+            gates: list[str] = json.loads(gates_json)
+        except (ValueError, TypeError):
+            gates = []
+        if gate_id in gates:
+            return (zone_id, project_code)
+
+    return (None, None)

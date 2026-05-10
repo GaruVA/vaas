@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Personal Vehicle Allowance — VAAS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-cash-coin"></i> Personal Vehicle Allowance</h1>
+    <p class="page-subtitle">Daily allowance eligibility per driver — {{ df }} to {{ dt }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_csv_route', report_type='personal-allowance',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-csv"></i> CSV
+    </a>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_pdf_route', report_type='personal-allowance',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-pdf"></i> PDF
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
+      <i class="bi bi-arrow-left"></i> Reports
+    </a>
+  </div>
+</div>
+
+<div class="report-card">
+  <div class="report-filter-bar">
+    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
+    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+      <input type="date" name="from" value="{{ df }}" class="form-control form-control-sm" style="width:150px">
+      <span style="color:var(--text-muted);font-size:.8rem">to</span>
+      <input type="date" name="to"   value="{{ dt }}" class="form-control form-control-sm" style="width:150px">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Filter</button>
+    </form>
+  </div>
+
+  <div class="report-table-wrap">
+    <table class="vaas-table">
+      <thead>
+        <tr>
+          <th>Driver</th>
+          <th>Plate</th>
+          <th>Date</th>
+          <th>Trips</th>
+          <th>Hours on Site</th>
+          <th>Allowance Eligible</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>
+            <div style="font-weight:600;font-size:.82rem">{{ r.driver_name or r.username }}</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">{{ r.username }}</div>
+          </td>
+          <td style="font-family:var(--font-mono);font-weight:600;color:var(--amber);font-size:.8rem">
+            {{ r.plate_number }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted)">
+            {{ r.period }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.82rem;text-align:center">
+            {{ r.trips }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.82rem">
+            {{ r.hours_on_site | round(1) }} h
+          </td>
+          <td>
+            {% if r.allowance_eligible %}
+              <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
+                background:rgba(118,189,51,.12);color:var(--green)">
+                <i class="bi bi-check-circle-fill"></i> Eligible
+              </span>
+            {% else %}
+              <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
+                background:rgba(255,61,90,.10);color:var(--red)">
+                <i class="bi bi-x-circle-fill"></i> Not Eligible
+              </span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
+            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+            No allowance records for this period.
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel mt-3" style="max-width:680px">
+  <div class="panel-header">
+    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Eligibility Criteria</span>
+  </div>
+  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
+    A driver is eligible for the personal vehicle allowance on a given day if at least one
+    of their access events is recorded as an <strong>ON_TIME_ENTRY</strong>.
+    Late arrivals and exit-only records do not qualify.
+    Export to CSV or PDF for submission to the Finance department.
+  </div>
+</div>
+{% endblock %}

@@ -1,69 +1,111 @@
-"""Arduino Nano serial barrier controller (§5.9)."""
 from __future__ import annotations
+
+"""Arduino Nano barrier (gate) controller.
+
+Modes
+-----
+MOCK:
+    No serial port opened.  All commands are logged only.  Used in
+    development / CI where no hardware is present.
+
+LIVE:
+    Opens the Arduino serial port and sends ``b"OPEN\n"`` / ``b"CLOSE\n"``.
+    Hardware: Arduino Nano on ``/dev/ttyUSB0`` (Linux) or ``COM4`` (Windows)
+    at 9600 baud.
+
+References: section 6.9 of BUILD_SPEC.md
+"""
 
 import logging
 import threading
-from typing import Literal, Optional
+from typing import Literal
 
-from src.config import ARDUINO_BAUD, ARDUINO_PORT, HARDWARE_MODE
+from src.config import HARDWARE_MODE, ARDUINO_PORT, ARDUINO_BAUD
 
 logger = logging.getLogger(__name__)
 
 
 class BarrierController:
-    """Controls servo barriers via Arduino Nano over serial.
+    """Controls a physical gate barrier via Arduino Nano serial link.
 
-    Both gates share one USB serial multiplexer in the testbed; commands
-    are tagged with gate_id so the firmware can route to the correct servo.
+    Parameters
+    ----------
+    mode:
+        ``"MOCK"`` (default from config) or ``"LIVE"``.
+    port:
+        Serial port path.  Defaults to ``src.config.ARDUINO_PORT``.
+    baud:
+        Baud rate.  Defaults to ``src.config.ARDUINO_BAUD`` (9600).
     """
 
-    VALID_GATES = {"GATE_A", "GATE_B"}
-
-    def __init__(self, mode: Literal["MOCK", "LIVE"] = HARDWARE_MODE,
-                 port: str = ARDUINO_PORT, baud: int = ARDUINO_BAUD):
-        self.mode = mode
-        self.port = port
-        self.baud = baud
+    def __init__(
+        self,
+        mode: str | None = None,
+        port: str | None = None,
+        baud: int = ARDUINO_BAUD,
+    ) -> None:
+        self._mode = (mode or HARDWARE_MODE).upper()
+        self._port = port or ARDUINO_PORT
+        self._baud = baud
         self._serial = None
-        self._lock = threading.Lock()
-        if self.mode == "LIVE":
-            self._open_serial()
+        self._lock   = threading.Lock()
+        self._log: list[tuple[str, str]] = []   # (gate_id, command) pairs for MOCK
 
-    def _open_serial(self) -> None:
-        try:
-            import serial
-            self._serial = serial.Serial(self.port, self.baud, timeout=1)
-            logger.info("Barrier serial opened on %s @ %d", self.port, self.baud)
-        except Exception as exc:
-            logger.error("Failed to open Arduino on %s: %s", self.port, exc)
-            raise
+        if self._mode == "LIVE":
+            import serial  # pyserial -- optional at import time
+            self._serial = serial.Serial(self._port, self._baud, timeout=1)
+            logger.info("Barrier LIVE on %s @ %d baud", self._port, self._baud)
+        else:
+            logger.info("Barrier MOCK mode active")
 
-    def _validate_gate(self, gate_id: str) -> None:
-        if gate_id not in self.VALID_GATES:
-            raise ValueError(f"Unknown gate_id: {gate_id}")
-
-    def _send(self, command: str, gate_id: str) -> None:
-        self._validate_gate(gate_id)
-        payload = f"{command}:{gate_id}\n".encode("ascii")
-        if self.mode == "MOCK":
-            logger.info("[MOCK BARRIER] %s -> %s", command, gate_id)
-            return
-        with self._lock:
-            if self._serial is None:
-                raise RuntimeError("Serial not open")
-            self._serial.write(payload)
-            self._serial.flush()
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
 
     def open(self, gate_id: str) -> None:
-        self._send("OPEN", gate_id)
+        """Send OPEN command to the barrier for *gate_id*."""
+        self._send(gate_id, "OPEN")
 
     def close(self, gate_id: str) -> None:
-        self._send("CLOSE", gate_id)
+        """Send CLOSE command to the barrier for *gate_id*."""
+        self._send(gate_id, "CLOSE")
 
-    def shutdown(self) -> None:
-        if self._serial is not None:
-            try:
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _send(self, gate_id: str, command: str) -> None:
+        with self._lock:
+            if self._mode == "LIVE" and self._serial:
+                self._serial.write(f"{command}\n".encode())
+                self._serial.flush()
+                logger.debug("Barrier[%s] LIVE -> %s", gate_id, command)
+            else:
+                self._log.append((gate_id, command))
+                logger.info("Barrier[%s] MOCK -> %s", gate_id, command)
+
+    def last_command(self, gate_id: str | None = None) -> tuple[str, str] | None:
+        """Return the most recent (gate_id, command) pair, or None.
+
+        Used by tests to inspect MOCK-mode behaviour without real hardware.
+        If *gate_id* is given, returns the most recent entry for that gate.
+        """
+        if not self._log:
+            return None
+        if gate_id is None:
+            return self._log[-1]
+        for g, c in reversed(self._log):
+            if g == gate_id:
+                return (g, c)
+        return None
+
+    def command_log(self) -> list[tuple[str, str]]:
+        """Return a copy of all (gate_id, command) pairs sent (MOCK only)."""
+        return list(self._log)
+
+    def close_port(self) -> None:
+        """Close the serial port (LIVE mode only; no-op in MOCK)."""
+        if self._serial:
+            with self._lock:
                 self._serial.close()
-            except Exception:
-                pass
-            self._serial = None
+                self._serial = None

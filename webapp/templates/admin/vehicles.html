@@ -41,12 +41,12 @@
           </td>
           <td>
             <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
-              background:{% if r.vehicle_category=='STAFF' %}rgba(68,138,255,.12)
+              background:{% if r.vehicle_category=='STAFF' %}rgba(74,130,255,.12)
               {% elif r.vehicle_category=='MANAGEMENT' %}rgba(156,39,176,.12)
               {% elif r.vehicle_category=='EMERGENCY' %}rgba(255,61,90,.12)
-              {% elif r.vehicle_category=='FLEET' %}rgba(38,198,218,.12)
-              {% elif r.vehicle_category=='MAINTENANCE' %}rgba(255,179,0,.12)
-              {% else %}rgba(0,230,118,.08){% endif %};
+              {% elif r.vehicle_category=='FLEET' %}rgba(74,130,255,.12)
+              {% elif r.vehicle_category=='MAINTENANCE' %}rgba(244,189,15,.12)
+              {% else %}rgba(118,189,51,.08){% endif %};
               color:{% if r.vehicle_category=='STAFF' %}var(--blue)
               {% elif r.vehicle_category=='MANAGEMENT' %}#ce93d8
               {% elif r.vehicle_category=='EMERGENCY' %}var(--red)

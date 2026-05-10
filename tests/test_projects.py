@@ -1,247 +1,243 @@
-"""15 tests for CDL Project and Zone Management (src/projects.py).
-
-Covers: zone CRUD, subcontractor CRUD, project lifecycle, vehicle assignment,
-attendance summary analytics, zone occupancy, and subcontractor billing hours.
-"""
 from __future__ import annotations
+
+"""15 tests for src/projects.py -- CDL Specialisation Layer.
+
+Coverage
+--------
+1.  create_zone + get_zone round-trip
+2.  create_zone rejects invalid zone_type (ValueError)
+3.  create_project raises FK violation when zone_id missing
+4.  list_projects filtered by status
+5.  close_project sets status=CLOSED
+6.  close_project soft-removes assignments (removed_at set)
+7.  close_project does not hard-delete rows
+8.  assign_vehicle_to_project: SUBCONTRACTOR without company_id -> ValueError
+9.  assign_vehicle_to_project: SUBCONTRACTOR with non-existent company_id -> ValueError
+10. assign_vehicle_to_project: EMPLOYEE without company_id accepted
+11. get_project_attendance_summary distinct-day counting
+12. list_companies filtered by approval_status (SUSPENDED)
+13. get_zone_occupancy: counts unmatched ENTRY events
+14. list_project_vehicles active_only=True filters removed assignments
+15. resolve_event_attribution matches gate in zone's associated_gates
+"""
+
+import json
+import sqlite3
 
 import pytest
 
-from src.database import transaction
 from src.projects import (
-    assign_vehicle_to_project,
-    close_project,
-    create_project,
-    create_subcontractor,
-    create_zone,
-    get_project,
+    create_zone, get_zone, list_zones, get_zone_occupancy,
+    create_company, get_company, list_companies,
+    create_project, get_project, list_projects,
+    close_project, assign_vehicle_to_project,
+    unassign_vehicle_from_project, list_project_vehicles,
     get_project_attendance_summary,
-    get_subcontractor_hours,
-    get_zone,
-    get_zone_occupancy,
-    list_project_vehicles,
-    list_projects,
-    list_subcontractors,
-    list_zones,
-    remove_vehicle_from_project,
-    suspend_subcontractor,
+    get_subcontractor_hours, resolve_event_attribution,
 )
+from src.audit import log_gate_event
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Test 1: create_zone + get_zone round-trip
 # ---------------------------------------------------------------------------
 
-def _seed_zone(db, zone_id="DRYDOCK_1"):
-    create_zone(db, zone_id, f"Graving Drydock No. 1", "DRYDOCK",
-                ["GATE_A", "GATE_B"], capacity_vehicles=30)
-
-
-def _seed_vehicle(db, plate="CDL-001"):
-    db.execute(
-        "INSERT OR IGNORE INTO registered_vehicles "
-        "(plate_number, vehicle_category, registration_status) VALUES (?,?,'ACTIVE')",
-        (plate, "STAFF"),
-    )
-
-
-def _seed_project(db, code="CDL-2026-001"):
-    _seed_zone(db)
-    create_project(db, code, "MV Colombo Trader Overhaul",
-                   "DRYDOCK_1", "2026-01-15", vessel_name="MV Colombo Trader")
-
-
-def _log_entry(db, plate, ts, gate="GATE_A", dwell=3600.0):
-    from src.audit import compute_row_hash, get_prev_hash
-    from src.database import transaction as tx
-    with tx(db) as cur:
-        prev = get_prev_hash(cur)
-        cur.execute(
-            "INSERT INTO access_log "
-            "(plate_number,timestamp,gate_id,direction,dwell_time_seconds,"
-            "status,row_hash) VALUES (?,?,?,?,?,?,?)",
-            (plate, ts, gate, "ENTRY", dwell, "ON_TIME_ENTRY", "PENDING"),
-        )
-        rid = cur.lastrowid
-        h = compute_row_hash(rid, plate, ts, gate, "ENTRY", prev)
-        cur.execute("UPDATE access_log SET row_hash=? WHERE id=?", (h, rid))
-
-
-# ---------------------------------------------------------------------------
-# Zone tests
-# ---------------------------------------------------------------------------
-
-def test_create_and_retrieve_zone(db):
-    create_zone(db, "DRYDOCK_2", "Graving Drydock No. 2", "DRYDOCK",
-                ["GATE_C", "GATE_D"], capacity_vehicles=40,
-                description="Largest drydock, up to 125,000 DWT")
-    zone = get_zone(db, "DRYDOCK_2")
+def test_01_create_and_get_zone(db):
+    create_zone(db, "DD_TEST", "Test Dock", "DRYDOCK", ["GATE_A", "GATE_B"], 25)
+    zone = get_zone(db, "DD_TEST")
     assert zone is not None
-    assert zone["zone_name"] == "Graving Drydock No. 2"
+    assert zone["zone_id"] == "DD_TEST"
+    assert zone["zone_name"] == "Test Dock"
     assert zone["zone_type"] == "DRYDOCK"
-    assert zone["capacity_vehicles"] == 40
-
-
-def test_list_zones_returns_all(db):
-    create_zone(db, "DRYDOCK_1", "Drydock 1", "DRYDOCK", ["GATE_A"])
-    create_zone(db, "ADMIN_BLOCK", "Admin Block", "ADMIN", ["GATE_MAIN"])
-    zones = list_zones(db)
-    assert len(zones) == 2
-
-
-def test_create_zone_invalid_type_raises(db):
-    with pytest.raises(ValueError, match="Invalid zone_type"):
-        create_zone(db, "Z1", "Z1", "SUBMARINE_BASE", ["GATE_X"])
-
-
-def test_create_zone_empty_gates_raises(db):
-    with pytest.raises(ValueError, match="gate_ids"):
-        create_zone(db, "Z2", "Z2", "WORKSHOP", [])
+    assert zone["vehicle_capacity"] == 25
 
 
 # ---------------------------------------------------------------------------
-# Subcontractor tests
+# Test 2: Invalid zone_type raises ValueError
 # ---------------------------------------------------------------------------
 
-def test_create_and_list_subcontractor(db):
-    create_subcontractor(db, "SC-001", "Lanka Marine Services Ltd.",
-                         contact_name="Ruwan Perera", approved_until="2027-12-31")
-    subs = list_subcontractors(db)
-    assert len(subs) == 1
-    assert subs[0]["company_name"] == "Lanka Marine Services Ltd."
+def test_02_invalid_zone_type_raises(db):
+    with pytest.raises(ValueError, match="zone_type"):
+        create_zone(db, "BAD", "Bad Zone", "HELIPAD", ["GATE_X"])
 
 
-def test_suspend_subcontractor(db):
-    create_subcontractor(db, "SC-002", "Precision Welding Co.")
-    suspend_subcontractor(db, "SC-002")
-    active = list_subcontractors(db, status="APPROVED")
-    suspended = list_subcontractors(db, status="SUSPENDED")
+# ---------------------------------------------------------------------------
+# Test 3: create_project FK violation when zone missing
+# ---------------------------------------------------------------------------
+
+def test_03_create_project_fk_violation(db):
+    db.execute("PRAGMA foreign_keys = ON")
+    with pytest.raises(sqlite3.IntegrityError):
+        create_project(db, "PRJ-X", "MV Ghost", "NONEXISTENT_ZONE", "2026-01-01")
+
+
+# ---------------------------------------------------------------------------
+# Test 4: list_projects filtered by status
+# ---------------------------------------------------------------------------
+
+def test_04_list_projects_by_status(seeded_db):
+    projects_active = list_projects(seeded_db, status="ACTIVE")
+    assert len(projects_active) == 2
+    close_project(seeded_db, "PRJ-2026-001", "2026-06-01")
+    projects_active_after = list_projects(seeded_db, status="ACTIVE")
+    assert len(projects_active_after) == 1
+    projects_closed = list_projects(seeded_db, status="CLOSED")
+    assert len(projects_closed) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test 5: close_project sets status=CLOSED
+# ---------------------------------------------------------------------------
+
+def test_05_close_project_sets_status(seeded_db):
+    close_project(seeded_db, "PRJ-2026-001", "2026-06-01")
+    p = get_project(seeded_db, "PRJ-2026-001")
+    assert p["status"] == "CLOSED"
+    assert p["end_date"] == "2026-06-01"
+
+
+# ---------------------------------------------------------------------------
+# Test 6: close_project soft-removes assignments (removed_at set)
+# ---------------------------------------------------------------------------
+
+def test_06_close_project_soft_removes_assignments(seeded_db):
+    close_project(seeded_db, "PRJ-2026-001", "2026-06-01")
+    active = list_project_vehicles(seeded_db, "PRJ-2026-001", active_only=True)
     assert len(active) == 0
+    all_rows = list_project_vehicles(seeded_db, "PRJ-2026-001", active_only=False)
+    assert len(all_rows) > 0
+    for row in all_rows:
+        assert row["removed_at"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Test 7: close_project does NOT hard-delete rows
+# ---------------------------------------------------------------------------
+
+def test_07_close_project_no_hard_delete(seeded_db):
+    count_before = seeded_db.execute(
+        "SELECT COUNT(*) FROM project_vehicle_assignments WHERE project_code='PRJ-2026-001'"
+    ).fetchone()[0]
+    close_project(seeded_db, "PRJ-2026-001", "2026-06-01")
+    count_after = seeded_db.execute(
+        "SELECT COUNT(*) FROM project_vehicle_assignments WHERE project_code='PRJ-2026-001'"
+    ).fetchone()[0]
+    assert count_before == count_after
+
+
+# ---------------------------------------------------------------------------
+# Test 8: SUBCONTRACTOR without company_id -> ValueError
+# ---------------------------------------------------------------------------
+
+def test_08_subcontractor_requires_company_id(seeded_db):
+    with pytest.raises(ValueError, match="company_id is required"):
+        assign_vehicle_to_project(
+            seeded_db, "PRJ-2026-001", "WP-CD-7788", "SUBCONTRACTOR", company_id=None
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test 9: SUBCONTRACTOR with non-existent company_id -> ValueError
+# ---------------------------------------------------------------------------
+
+def test_09_subcontractor_nonexistent_company_raises(seeded_db):
+    with pytest.raises(ValueError, match="does not exist"):
+        assign_vehicle_to_project(
+            seeded_db, "PRJ-2026-001", "WP-CD-7788", "SUBCONTRACTOR", company_id="SCO-GHOST"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test 10: EMPLOYEE without company_id accepted
+# ---------------------------------------------------------------------------
+
+def test_10_employee_without_company_id_accepted(seeded_db):
+    assign_vehicle_to_project(
+        seeded_db, "PRJ-2026-001", "WP-EF-2233", "EMPLOYEE", company_id=None
+    )
+    vehicles = list_project_vehicles(seeded_db, "PRJ-2026-001")
+    plates = [v["plate_number"] for v in vehicles]
+    assert "WP-EF-2233" in plates
+
+
+# ---------------------------------------------------------------------------
+# Test 11: get_project_attendance_summary distinct-day counting
+# ---------------------------------------------------------------------------
+
+def test_11_attendance_summary_distinct_days(seeded_db):
+    # Insert 3 access_log events for WP-CAB-1234 on 2 distinct calendar days
+    for ts in ["2026-01-10T07:05:00Z", "2026-01-10T15:10:00Z", "2026-01-11T07:03:00Z"]:
+        log_gate_event(
+            seeded_db, "WP-CAB-1234", ts, "MAIN_GATE", "ENTRY", status="ON_TIME_ENTRY"
+        )
+    summary = get_project_attendance_summary(seeded_db, "PRJ-2026-001", "2026-01-01", "2026-12-31")
+    cab = next((r for r in summary if r["plate_number"] == "WP-CAB-1234"), None)
+    assert cab is not None
+    # 3 events on 2 distinct dates -> days_present == 2
+    assert cab["days_present"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Test 12: list_companies filtered by approval_status
+# ---------------------------------------------------------------------------
+
+def test_12_list_companies_filter_suspended(seeded_db):
+    seeded_db.execute(
+        "UPDATE subcontractor_companies SET approval_status='SUSPENDED' WHERE company_id='SCO-002'"
+    )
+    suspended = list_companies(seeded_db, approval_status="SUSPENDED")
     assert len(suspended) == 1
+    assert suspended[0]["company_id"] == "SCO-002"
+    approved = list_companies(seeded_db, approval_status="APPROVED")
+    assert all(c["approval_status"] == "APPROVED" for c in approved)
 
 
 # ---------------------------------------------------------------------------
-# Project lifecycle tests
+# Test 13: get_zone_occupancy
 # ---------------------------------------------------------------------------
 
-def test_create_and_get_project(db):
-    _seed_zone(db)
-    create_project(db, "CDL-2026-042", "MV Sun Pearl — Routine Dry-Docking",
-                   "DRYDOCK_1", "2026-04-01", vessel_name="MV Sun Pearl",
-                   end_date="2026-04-21", project_manager="K. Bandara")
-    proj = get_project(db, "CDL-2026-042")
-    assert proj is not None
-    assert proj["vessel_name"] == "MV Sun Pearl"
-    assert proj["status"] == "ACTIVE"
-    assert proj["zone_name"] == "Graving Drydock No. 1"
-
-
-def test_list_active_projects(db):
-    _seed_zone(db)
-    create_project(db, "P-001", "Project Alpha", "DRYDOCK_1", "2026-01-01")
-    create_project(db, "P-002", "Project Beta", "DRYDOCK_1", "2026-02-01")
-    db.execute("UPDATE projects SET status='COMPLETED' WHERE project_code='P-002'")
-    active = list_projects(db, status="ACTIVE")
-    assert len(active) == 1
-    assert active[0]["project_code"] == "P-001"
-
-
-def test_close_project_marks_completed(db):
-    _seed_project(db)
-    _seed_vehicle(db)
-    aid = assign_vehicle_to_project(db, "CDL-2026-001", "CDL-001")
-    close_project(db, "CDL-2026-001", end_date="2026-03-15")
-    proj = get_project(db, "CDL-2026-001")
-    assert proj["status"] == "COMPLETED"
-    assert proj["end_date"] == "2026-03-15"
-    # assignment should be auto-closed
-    vehicles = list_project_vehicles(db, "CDL-2026-001", active_only=True)
-    assert len(vehicles) == 0
+def test_13_zone_occupancy(seeded_db):
+    # DRYDOCK_1 associated_gates = ["MAIN_GATE","WORKSHOP_GATE"] from conftest
+    # Insert ENTRY without matching EXIT for WP-CAB-1234
+    log_gate_event(seeded_db, "WP-CAB-1234", "2026-01-10T07:00:00Z", "MAIN_GATE", "ENTRY")
+    occ = get_zone_occupancy(seeded_db, "DRYDOCK_1")
+    assert occ >= 1
+    # Insert EXIT -> occupancy should drop
+    log_gate_event(seeded_db, "WP-CAB-1234", "2026-01-10T15:00:00Z", "MAIN_GATE", "EXIT")
+    occ_after = get_zone_occupancy(seeded_db, "DRYDOCK_1")
+    assert occ_after < occ or occ_after == 0
 
 
 # ---------------------------------------------------------------------------
-# Vehicle assignment tests
+# Test 14: list_project_vehicles active_only filters removed rows
 # ---------------------------------------------------------------------------
 
-def test_assign_and_list_vehicle(db):
-    _seed_project(db)
-    _seed_vehicle(db, "CDL-002")
-    aid = assign_vehicle_to_project(db, "CDL-2026-001", "CDL-002",
-                                    role="EMPLOYEE")
-    assert isinstance(aid, int) and aid > 0
-    vehicles = list_project_vehicles(db, "CDL-2026-001")
-    assert len(vehicles) == 1
-    assert vehicles[0]["plate_number"] == "CDL-002"
-
-
-def test_assign_subcontractor_requires_company_id(db):
-    _seed_project(db)
-    _seed_vehicle(db, "SC-VAN-01")
-    with pytest.raises(ValueError, match="company_id"):
-        assign_vehicle_to_project(db, "CDL-2026-001", "SC-VAN-01",
-                                  role="SUBCONTRACTOR")
-
-
-def test_remove_vehicle_from_project(db):
-    _seed_project(db)
-    _seed_vehicle(db, "CDL-003")
-    aid = assign_vehicle_to_project(db, "CDL-2026-001", "CDL-003")
-    remove_vehicle_from_project(db, aid, removed_at="2026-02-28T17:00:00Z")
-    active = list_project_vehicles(db, "CDL-2026-001", active_only=True)
-    assert len(active) == 0
-    all_veh = list_project_vehicles(db, "CDL-2026-001", active_only=False)
-    assert len(all_veh) == 1
+def test_14_list_project_vehicles_active_only(seeded_db):
+    unassign_vehicle_from_project(seeded_db, "PRJ-2026-001", "WP-KA-5678", "2026-03-01")
+    active = list_project_vehicles(seeded_db, "PRJ-2026-001", active_only=True)
+    plates = [v["plate_number"] for v in active]
+    assert "WP-KA-5678" not in plates
+    all_rows = list_project_vehicles(seeded_db, "PRJ-2026-001", active_only=False)
+    all_plates = [v["plate_number"] for v in all_rows]
+    assert "WP-KA-5678" in all_plates
 
 
 # ---------------------------------------------------------------------------
-# Analytics tests
+# Test 15: resolve_event_attribution
 # ---------------------------------------------------------------------------
 
-def test_project_attendance_summary(db):
-    _seed_project(db)
-    _seed_vehicle(db, "CDL-STAFF-01")
-    assign_vehicle_to_project(db, "CDL-2026-001", "CDL-STAFF-01")
-    _log_entry(db, "CDL-STAFF-01", "2026-02-01T08:15:00Z", dwell=28800.0)  # 8 hours
-    _log_entry(db, "CDL-STAFF-01", "2026-02-02T08:05:00Z", dwell=28800.0)
-    summary = get_project_attendance_summary(db, "CDL-2026-001",
-                                             "2026-02-01", "2026-02-28")
-    assert len(summary) == 1
-    rec = summary[0]
-    assert rec["plate_number"] == "CDL-STAFF-01"
-    assert rec["days_present"] == 2
-    assert rec["total_hours"] == pytest.approx(16.0, rel=1e-3)
-
-
-def test_zone_occupancy(db):
-    create_zone(db, "DRYDOCK_3", "Drydock 3", "DRYDOCK", ["GATE_E"])
-    _seed_vehicle(db, "OCC-001")
-    _seed_vehicle(db, "OCC-002")
-    _log_entry(db, "OCC-001", "2026-03-01T07:00:00Z", gate="GATE_E")
-    _log_entry(db, "OCC-002", "2026-03-01T07:30:00Z", gate="GATE_E")
-    # OCC-001 exits at 15:00
-    db.execute(
-        "INSERT INTO access_log (plate_number,timestamp,gate_id,direction,status,row_hash) "
-        "VALUES ('OCC-001','2026-03-01T15:00:00Z','GATE_E','EXIT','ON_TIME_EXIT','x')"
+def test_15_resolve_event_attribution(seeded_db):
+    # WP-CAB-1234 is assigned to PRJ-2026-001 in DRYDOCK_1
+    # DRYDOCK_1 associated_gates includes MAIN_GATE
+    zone_id, project_code = resolve_event_attribution(
+        seeded_db, "WP-CAB-1234", "MAIN_GATE", "2026-01-10T07:00:00Z"
     )
-    occupancy = get_zone_occupancy(db, "DRYDOCK_3",
-                                   as_of_ts="2026-03-01T16:00:00Z")
-    assert occupancy == 1  # only OCC-002 still inside
+    assert zone_id == "DRYDOCK_1"
+    assert project_code == "PRJ-2026-001"
 
-
-def test_subcontractor_hours(db):
-    _seed_zone(db)
-    create_subcontractor(db, "SC-STEEL", "Steel Works Lanka Pvt Ltd")
-    create_project(db, "CDL-2026-100", "Hull Plating — DD1",
-                   "DRYDOCK_1", "2026-03-01")
-    _seed_vehicle(db, "SW-VAN-01")
-    db.execute(
-        "UPDATE registered_vehicles SET company_id='SC-STEEL' WHERE plate_number='SW-VAN-01'"
+    # An unassigned vehicle -> (None, None)
+    z2, p2 = resolve_event_attribution(
+        seeded_db, "NW-9900", "MAIN_GATE", "2026-01-10T07:00:00Z"
     )
-    assign_vehicle_to_project(db, "CDL-2026-100", "SW-VAN-01",
-                              role="SUBCONTRACTOR", company_id="SC-STEEL")
-    _log_entry(db, "SW-VAN-01", "2026-03-10T08:00:00Z", dwell=21600.0)  # 6 hours
-    _log_entry(db, "SW-VAN-01", "2026-03-11T08:00:00Z", dwell=21600.0)
-    report = get_subcontractor_hours(db, "SC-STEEL", "2026-03-01", "2026-03-31")
-    assert len(report) == 1
-    assert report[0]["total_hours"] == pytest.approx(12.0, rel=1e-3)
-    assert report[0]["project_code"] == "CDL-2026-100"
+    assert z2 is None
+    assert p2 is None

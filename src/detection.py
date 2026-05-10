@@ -1,55 +1,83 @@
-"""YOLOv8 plate detection - Stage 1 of ALPR pipeline (FR-01.1)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+"""YOLOv8 licence plate detector (Stage 1 of the ALPR pipeline).
+
+Intentionally imports ``ultralytics`` at module level WITHOUT a try/except
+guard.  In CI (no GPU, no ultralytics installed) this module fails at import
+-- which is by design.  ``test_detection.py`` is excluded from the non-YOLO
+test count.
+
+References: section 6.4 of BUILD_SPEC.md
+"""
+
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
+from ultralytics import YOLO
 
-from src.config import PLATE_CONF_THRESHOLD, PLATE_DETECTOR
+from src.config import PLATE_DETECTOR, PLATE_CONF_THRESHOLD
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PlateDetection:
-    bbox: tuple[int, int, int, int]  # x1, y1, x2, y2
+    """A single detected licence plate bounding box."""
+    xyxy: tuple[float, float, float, float]
     confidence: float
     crop: np.ndarray
 
 
 class PlateDetector:
-    def __init__(self, model_path: Optional[Path] = None,
-                 conf_threshold: float = PLATE_CONF_THRESHOLD):
-        from ultralytics import YOLO
-        self.model_path = Path(model_path) if model_path else PLATE_DETECTOR
-        if not self.model_path.exists():
-            raise FileNotFoundError(f"Plate detector model not found: {self.model_path}")
-        self.model = YOLO(str(self.model_path))
+    """Wraps YOLOv8n plate detector.
+
+    Parameters
+    ----------
+    model_path:
+        Path to the ``plate_detector.pt`` weights file.
+        Defaults to ``src.config.PLATE_DETECTOR``.
+    conf_threshold:
+        Minimum confidence to accept a detection.
+        Defaults to ``src.config.PLATE_CONF_THRESHOLD`` (0.70).
+    """
+
+    def __init__(
+        self,
+        model_path: Path | None = None,
+        conf_threshold: float = PLATE_CONF_THRESHOLD,
+    ) -> None:
+        path = model_path or PLATE_DETECTOR
+        logger.info("Loading plate detector from %s", path)
+        self._model = YOLO(str(path))
         self.conf_threshold = conf_threshold
 
     def detect(self, frame: np.ndarray) -> list[PlateDetection]:
-        if frame is None or frame.size == 0:
-            return []
-        results = self.model.predict(frame, verbose=False, conf=self.conf_threshold)
+        """Run inference on *frame* and return bounding boxes above threshold.
+
+        Parameters
+        ----------
+        frame:
+            BGR ``uint8`` image (H x W x 3).
+
+        Returns
+        -------
+        list[PlateDetection]
+            Detections sorted by descending confidence.
+        """
+        results = self._model(frame, verbose=False)[0]
         detections: list[PlateDetection] = []
-        for r in results:
-            if r.boxes is None:
+        for box in results.boxes:
+            conf = float(box.conf[0])
+            if conf < self.conf_threshold:
                 continue
-            for box in r.boxes:
-                conf = float(box.conf[0]) if box.conf is not None else 0.0
-                if conf < self.conf_threshold:
-                    continue
-                xyxy = box.xyxy[0].cpu().numpy().astype(int)
-                x1, y1, x2, y2 = int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])
-                x1, y1 = max(0, x1), max(0, y1)
-                x2 = min(frame.shape[1], x2)
-                y2 = min(frame.shape[0], y2)
-                if x2 <= x1 or y2 <= y1:
-                    continue
-                crop = frame[y1:y2, x1:x2].copy()
-                detections.append(PlateDetection(
-                    bbox=(x1, y1, x2, y2),
-                    confidence=conf,
-                    crop=crop,
-                ))
+            x1, y1, x2, y2 = (int(v) for v in box.xyxy[0])
+            crop = frame[y1:y2, x1:x2].copy()
+            detections.append(PlateDetection(
+                xyxy=(x1, y1, x2, y2),
+                confidence=conf,
+                crop=crop,
+            ))
+        detections.sort(key=lambda d: d.confidence, reverse=True)
         return detections

@@ -55,7 +55,7 @@
                 style="font-size:.8rem;padding:.3rem .85rem">
           <i class="bi bi-table"></i> Summary
           <span class="badge rounded-pill ms-1"
-                style="background:rgba(68,138,255,.2);color:var(--blue);font-size:.7rem">
+                style="background:rgba(74,130,255,.2);color:var(--blue);font-size:.7rem">
             {{ summary_rows | length }}
           </span>
         </button>
@@ -66,7 +66,7 @@
                 style="font-size:.8rem;padding:.3rem .85rem">
           <i class="bi bi-list-ul"></i> Per-Day Detail
           <span class="badge rounded-pill ms-1"
-                style="background:rgba(68,138,255,.2);color:var(--blue);font-size:.7rem">
+                style="background:rgba(74,130,255,.2);color:var(--blue);font-size:.7rem">
             {{ detail_rows | length }}
           </span>
         </button>
@@ -165,13 +165,13 @@
               <td style="color:var(--text-muted);font-size:.8rem">{{ r.day_name }}</td>
               <td style="font-size:.75rem">
                 {% if r.attendance_status == 'PRESENT' %}
-                  <span class="badge" style="background:rgba(0,230,118,.15);color:var(--green);
-                                             border:1px solid rgba(0,230,118,.3)">
+                  <span class="badge" style="background:rgba(118,189,51,.15);color:var(--green);
+                                             border:1px solid rgba(118,189,51,.3)">
                     <i class="bi bi-check-circle-fill me-1"></i>PRESENT
                   </span>
                 {% elif r.attendance_status == 'LATE' %}
-                  <span class="badge" style="background:rgba(255,179,0,.15);color:var(--amber);
-                                             border:1px solid rgba(255,179,0,.3)">
+                  <span class="badge" style="background:rgba(244,189,15,.15);color:var(--amber);
+                                             border:1px solid rgba(244,189,15,.3)">
                     <i class="bi bi-clock-fill me-1"></i>LATE
                   </span>
                 {% elif r.attendance_status == 'ABSENT' %}
@@ -180,8 +180,8 @@
                     <i class="bi bi-x-circle-fill me-1"></i>ABSENT
                   </span>
                 {% else %}
-                  <span class="badge" style="background:rgba(68,138,255,.15);color:var(--blue);
-                                             border:1px solid rgba(68,138,255,.3)">
+                  <span class="badge" style="background:rgba(74,130,255,.15);color:var(--blue);
+                                             border:1px solid rgba(74,130,255,.3)">
                     <i class="bi bi-dash-circle-fill me-1"></i>PARTIAL
                   </span>
                 {% endif %}
@@ -220,11 +220,11 @@
   <div class="panel-body" style="font-size:.8rem;line-height:1.8">
     <div class="d-flex flex-wrap gap-3">
       <span>
-        <span class="badge me-1" style="background:rgba(0,230,118,.15);color:var(--green);border:1px solid rgba(0,230,118,.3)">PRESENT</span>
+        <span class="badge me-1" style="background:rgba(118,189,51,.15);color:var(--green);border:1px solid rgba(118,189,51,.3)">PRESENT</span>
         Arrived on time (at least one <code>ON_TIME_ENTRY</code> detected)
       </span>
       <span>
-        <span class="badge me-1" style="background:rgba(255,179,0,.15);color:var(--amber);border:1px solid rgba(255,179,0,.3)">LATE</span>
+        <span class="badge me-1" style="background:rgba(244,189,15,.15);color:var(--amber);border:1px solid rgba(244,189,15,.3)">LATE</span>
         Arrived but after the shift grace period
       </span>
       <span>
@@ -232,7 +232,7 @@
         No access events recorded on an expected working day
       </span>
       <span>
-        <span class="badge me-1" style="background:rgba(68,138,255,.15);color:var(--blue);border:1px solid rgba(68,138,255,.3)">PARTIAL</span>
+        <span class="badge me-1" style="background:rgba(74,130,255,.15);color:var(--blue);border:1px solid rgba(74,130,255,.3)">PARTIAL</span>
         Entry detected but no matching exit — incomplete day
       </span>
     </div>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#07090f">
-<title>{% block title %}VAAS{% endblock %}</title>
+<title>{% block title %}VAAS{% endblock %} — Colombo Dockyard</title>
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,6 +28,8 @@
 
     <a class="navbar-brand" href="{{ url_for('index') if 'index' in (url_for('index') or '') else '/' }}">
       <div class="brand-dot"></div>
+      <span class="brand-cdl">CDL</span>
+      <span class="brand-sep">·</span>
       VAAS
     </a>
 

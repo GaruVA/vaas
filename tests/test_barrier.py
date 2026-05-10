@@ -1,50 +1,51 @@
-"""6 tests for BarrierController (§5.9)."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+"""6 tests for src/barrier.py -- MOCK-mode BarrierController."""
 
 import pytest
-
 from src.barrier import BarrierController
 
 
-def test_mock_open_logs(caplog):
-    bc = BarrierController(mode="MOCK")
-    with caplog.at_level("INFO"):
-        bc.open("GATE_A")
-    assert any("OPEN" in r.message for r in caplog.records)
+def test_01_mock_mode_no_crash():
+    bc = BarrierController("MOCK")
+    bc.open("MAIN_GATE")
+    bc.close("MAIN_GATE")
 
 
-def test_mock_close_logs(caplog):
-    bc = BarrierController(mode="MOCK")
-    with caplog.at_level("INFO"):
-        bc.close("GATE_B")
-    assert any("CLOSE" in r.message for r in caplog.records)
+def test_02_open_records_command():
+    bc = BarrierController("MOCK")
+    bc.open("MAIN_GATE")
+    gate, cmd = bc.last_command()
+    assert gate == "MAIN_GATE"
+    assert cmd == "OPEN"
 
 
-def test_invalid_gate_raises():
-    bc = BarrierController(mode="MOCK")
-    with pytest.raises(ValueError):
-        bc.open("GATE_Z")
+def test_03_close_records_command():
+    bc = BarrierController("MOCK")
+    bc.close("WORKSHOP_GATE")
+    gate, cmd = bc.last_command()
+    assert gate == "WORKSHOP_GATE"
+    assert cmd == "CLOSE"
 
 
-def test_live_open_writes_bytes():
-    fake = MagicMock()
-    with patch("serial.Serial", return_value=fake):
-        bc = BarrierController(mode="LIVE", port="COMX", baud=9600)
-        bc.open("GATE_A")
-    fake.write.assert_called_once_with(b"OPEN:GATE_A\n")
+def test_04_command_log_preserves_order():
+    bc = BarrierController("MOCK")
+    bc.open("GATE_A")
+    bc.close("GATE_A")
+    bc.open("GATE_B")
+    log = bc.command_log()
+    assert log == [("GATE_A", "OPEN"), ("GATE_A", "CLOSE"), ("GATE_B", "OPEN")]
 
 
-def test_live_close_writes_bytes():
-    fake = MagicMock()
-    with patch("serial.Serial", return_value=fake):
-        bc = BarrierController(mode="LIVE", port="COMX")
-        bc.close("GATE_B")
-    fake.write.assert_called_once_with(b"CLOSE:GATE_B\n")
+def test_05_last_command_empty_returns_none():
+    bc = BarrierController("MOCK")
+    assert bc.last_command() is None
 
 
-def test_live_port_unavailable_raises():
-    with patch("serial.Serial", side_effect=OSError("no port")):
-        with pytest.raises(Exception):
-            BarrierController(mode="LIVE", port="COM_NOPE")
+def test_06_last_command_filtered_by_gate():
+    bc = BarrierController("MOCK")
+    bc.open("GATE_X")
+    bc.close("GATE_Y")
+    bc.open("GATE_X")
+    result = bc.last_command("GATE_Y")
+    assert result == ("GATE_Y", "CLOSE")

@@ -40,10 +40,10 @@
           </td>
           <td>
             <span style="font-size:.72rem;padding:.2rem .55rem;border-radius:4px;font-weight:600;
-              background:{% if r.action=='CREATE' %}rgba(0,230,118,.12)
+              background:{% if r.action=='CREATE' %}rgba(118,189,51,.12)
               {% elif r.action=='DELETE' %}rgba(255,61,90,.12)
-              {% elif r.action=='ASSIGN' or r.action=='UNASSIGN' %}rgba(68,138,255,.12)
-              {% else %}rgba(255,179,0,.12){% endif %};
+              {% elif r.action=='ASSIGN' or r.action=='UNASSIGN' %}rgba(74,130,255,.12)
+              {% else %}rgba(244,189,15,.12){% endif %};
               color:{% if r.action=='CREATE' %}var(--green)
               {% elif r.action=='DELETE' %}var(--red)
               {% elif r.action=='ASSIGN' or r.action=='UNASSIGN' %}var(--blue)

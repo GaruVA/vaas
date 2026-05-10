@@ -1,54 +1,141 @@
-"""8 tests for CLAHE (FR-01.2)."""
 from __future__ import annotations
+
+"""8 tests for src/clahe.py -- LAB L-channel CLAHE.
+
+Coverage
+--------
+1. BGR-to-BGR contract: output shape matches input
+2. Output dtype is uint8
+3. Output dimensions (H, W, channels) identical to input
+4. Mean luminance increases on a synthetically darkened plate
+5. A and B channels are preserved (LAB-CLAHE vs RGB-CLAHE distinguisher)
+6. Fully black input does not crash
+7. Fully white input does not crash
+8. Config parameters: clipLimit == 3.0, tileGridSize == (8, 8)
+"""
 
 import cv2
 import numpy as np
+import pytest
 
 from src.clahe import apply_clahe
+from src.config import CLAHE_CLIP_LIMIT, CLAHE_TILE_SIZE
 
 
-def test_output_shape_matches_input(sample_plate_image):
-    out = apply_clahe(sample_plate_image)
-    assert out.shape == sample_plate_image.shape
+def _make_plate(brightness: int = 128, h: int = 80, w: int = 200) -> np.ndarray:
+    """Create a solid-colour BGR plate crop."""
+    img = np.full((h, w, 3), brightness, dtype=np.uint8)
+    return img
 
 
-def test_output_dtype_uint8(sample_plate_image):
-    assert apply_clahe(sample_plate_image).dtype == np.uint8
+def _dark_plate(h: int = 80, w: int = 200) -> np.ndarray:
+    """Create a synthetically darkened plate with noise for CLAHE effect."""
+    rng = np.random.default_rng(42)
+    base = rng.integers(10, 60, (h, w, 3), dtype=np.uint8)
+    return base
 
 
-def test_grayscale_input_handled():
-    gray = np.full((50, 100), 120, dtype=np.uint8)
-    out = apply_clahe(gray)
-    assert out.shape == (50, 100, 3)
+# ---------------------------------------------------------------------------
+# 1. BGR-to-BGR contract
+# ---------------------------------------------------------------------------
 
-
-def test_low_contrast_input_increases_contrast():
-    img = np.full((100, 100, 3), 128, dtype=np.uint8)
-    img[40:60, 40:60] = 138  # subtle bump
-    enh = apply_clahe(img)
-    g_in = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    g_out = cv2.cvtColor(enh, cv2.COLOR_BGR2GRAY)
-    assert g_out.std() >= g_in.std()
-
-
-def test_returns_3channel_bgr(sample_plate_image):
-    out = apply_clahe(sample_plate_image)
-    assert out.ndim == 3 and out.shape[2] == 3
-
-
-def test_idempotent_on_uniform_image():
-    img = np.full((20, 20, 3), 200, dtype=np.uint8)
+def test_01_output_shape_matches_input():
+    img = _make_plate()
     out = apply_clahe(img)
     assert out.shape == img.shape
 
 
-def test_handles_small_crop():
-    img = np.full((10, 10, 3), 100, dtype=np.uint8)
+# ---------------------------------------------------------------------------
+# 2. Output dtype is uint8
+# ---------------------------------------------------------------------------
+
+def test_02_output_dtype_uint8():
+    img = _make_plate()
     out = apply_clahe(img)
-    assert out.shape == (10, 10, 3)
+    assert out.dtype == np.uint8
 
 
-def test_output_range_valid():
-    img = np.random.randint(0, 256, (60, 200, 3), dtype=np.uint8)
+# ---------------------------------------------------------------------------
+# 3. Dimensions identical
+# ---------------------------------------------------------------------------
+
+def test_03_dimensions_preserved():
+    img = np.zeros((120, 320, 3), dtype=np.uint8)
     out = apply_clahe(img)
-    assert out.min() >= 0 and out.max() <= 255
+    assert out.shape == (120, 320, 3)
+
+
+# ---------------------------------------------------------------------------
+# 4. Mean luminance increases on a dark plate
+# ---------------------------------------------------------------------------
+
+def test_04_luminance_increases_on_dark_plate():
+    dark = _dark_plate()
+    result = apply_clahe(dark)
+
+    def mean_l(bgr: np.ndarray) -> float:
+        lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+        return float(cv2.split(lab)[0].mean())
+
+    assert mean_l(result) > mean_l(dark)
+
+
+# ---------------------------------------------------------------------------
+# 5. A and B channels preserved (LAB-CLAHE distinguisher)
+# ---------------------------------------------------------------------------
+
+def test_05_ab_channels_preserved():
+    """The A and B colour channels must be identical before and after CLAHE.
+
+    This is the key distinction between LAB L-channel CLAHE and naive
+    full-RGB CLAHE -- only the luminance (L) channel is modified.
+    """
+    rng = np.random.default_rng(7)
+    img = rng.integers(30, 200, (80, 200, 3), dtype=np.uint8)
+    result = apply_clahe(img)
+
+    # Split both into LAB and compare A, B channels
+    lab_in  = cv2.cvtColor(img,    cv2.COLOR_BGR2LAB)
+    lab_out = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
+    _, a_in,  b_in  = cv2.split(lab_in)
+    _, a_out, b_out = cv2.split(lab_out)
+
+    # Allow ±10 rounding from uint8 round-trip through LAB colour space.
+    # The BGR->LAB->modify-L->LAB->BGR->LAB pipeline introduces quantisation
+    # errors of a few counts in A/B due to uint8 clamping; the key property
+    # under test is that A/B are NOT systematically modified (which CLAHE on
+    # all channels would cause -- errors >> 10).
+    assert int(np.abs(a_in.astype(int) - a_out.astype(int)).max()) <= 10
+    assert int(np.abs(b_in.astype(int) - b_out.astype(int)).max()) <= 10
+
+
+# ---------------------------------------------------------------------------
+# 6. Fully black input does not crash
+# ---------------------------------------------------------------------------
+
+def test_06_fully_black_does_not_crash():
+    black = np.zeros((80, 200, 3), dtype=np.uint8)
+    out = apply_clahe(black)
+    assert out.shape == black.shape
+    assert out.dtype == np.uint8
+
+
+# ---------------------------------------------------------------------------
+# 7. Fully white input does not crash
+# ---------------------------------------------------------------------------
+
+def test_07_fully_white_does_not_crash():
+    white = np.full((80, 200, 3), 255, dtype=np.uint8)
+    out = apply_clahe(white)
+    assert out.shape == white.shape
+    assert out.dtype == np.uint8
+
+
+# ---------------------------------------------------------------------------
+# 8. Config parameters match spec
+# ---------------------------------------------------------------------------
+
+def test_08_config_parameters():
+    """CLAHE_CLIP_LIMIT == 3.0 and CLAHE_TILE_SIZE == (8, 8) per BUILD_SPEC."""
+    assert CLAHE_CLIP_LIMIT == 3.0
+    assert CLAHE_TILE_SIZE  == (8, 8)

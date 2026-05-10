@@ -30,39 +30,39 @@
 {% set late_total  = rows | sum(attribute='late_count') %}
 <div class="d-flex flex-wrap gap-3 mb-4">
   <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(68,138,255,.12);color:var(--blue)">
+    <div class="stat-chip-icon" style="background:rgba(74,130,255,.12);color:var(--blue)">
       <i class="bi bi-people-fill"></i>
     </div>
     <div>
-      <div class="stat-chip-value">{{ rows | map(attribute='username') | unique | list | length }}</div>
-      <div class="stat-chip-label">Drivers on record</div>
+      <div class="stat-chip-val">{{ rows | map(attribute='username') | unique | list | length }}</div>
+      <div class="stat-chip-lbl">Drivers on record</div>
     </div>
   </div>
   <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(38,198,218,.12);color:var(--cyan)">
+    <div class="stat-chip-icon" style="background:rgba(74,130,255,.12);color:var(--cyan)">
       <i class="bi bi-clock-history"></i>
     </div>
     <div>
-      <div class="stat-chip-value">{{ total_hours }}</div>
-      <div class="stat-chip-label">Total Hours</div>
+      <div class="stat-chip-val">{{ total_hours }}</div>
+      <div class="stat-chip-lbl">Total Hours</div>
     </div>
   </div>
   <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(0,230,118,.12);color:var(--green)">
+    <div class="stat-chip-icon" style="background:rgba(118,189,51,.12);color:var(--green)">
       <i class="bi bi-arrow-left-right"></i>
     </div>
     <div>
-      <div class="stat-chip-value">{{ total_trips }}</div>
-      <div class="stat-chip-label">Total Trips</div>
+      <div class="stat-chip-val">{{ total_trips }}</div>
+      <div class="stat-chip-lbl">Total Trips</div>
     </div>
   </div>
   <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(255,179,0,.12);color:var(--amber)">
+    <div class="stat-chip-icon" style="background:rgba(244,189,15,.12);color:var(--amber)">
       <i class="bi bi-clock-fill"></i>
     </div>
     <div>
-      <div class="stat-chip-value">{{ late_total }}</div>
-      <div class="stat-chip-label">Late Entries</div>
+      <div class="stat-chip-val">{{ late_total }}</div>
+      <div class="stat-chip-lbl">Late Entries</div>
     </div>
   </div>
 </div>

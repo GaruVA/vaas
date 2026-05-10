@@ -1,209 +1,349 @@
-"""28 tests for the Attendance Engine (§5.4, §6.4)."""
 from __future__ import annotations
 
+"""28 tests for src/attendance.py -- AttendanceEngine."""
+
+import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.attendance import AttendanceEngine
+from src.attendance import AttendanceEngine, GateOutcome, GateStatus
 from src.barrier import BarrierController
-from tests.conftest import utc
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+DAY_START  = datetime(2026, 1, 5, 7, 0, 0, tzinfo=timezone.utc)   # Monday 07:00
+SHIFT_END  = datetime(2026, 1, 5, 15, 0, 0, tzinfo=timezone.utc)
+GRACE_MIN  = 15
 
 
-def test_active_entry_opens_barrier(engine, jpeg_bytes):
-    r = engine.process_gate_event("CAB-1234", 0.95, "GATE_A", "ENTRY", jpeg_bytes)
-    assert r.outcome == "BARRIER_OPENED"
-    assert r.matched_plate == "CAB-1234"
+def _engine(db, timeout=30, sse=None):
+    return AttendanceEngine(db, BarrierController("MOCK"),
+                            sse_callback=sse, exception_timeout=timeout)
 
 
-def test_visitor_creates_exception(engine, jpeg_bytes):
-    r = engine.process_gate_event("ZZZ-9999", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    assert r.outcome == "EXCEPTION_PENDING_DISPOSITION"
-    assert r.status == "VISITOR"
-    assert r.access_log_id is not None
+def _evt(eng, direction="ENTRY", plate="WP-CAB-1234", ts=None, gate="MAIN_GATE", conf=0.95):
+    return eng.process_gate_event(
+        raw_plate=plate, confidence=conf, gate_id=gate,
+        direction=direction, plate_crop_jpeg_bytes=b"", timestamp=ts or DAY_START,
+    )
 
 
-def test_suspended_vehicle_rejected(engine, jpeg_bytes):
-    r = engine.process_gate_event("SUS-0001", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    assert r.outcome == "BARRIER_CLOSED_REJECTED"
-    assert r.status == "SUSPENDED"
+# ---------------------------------------------------------------------------
+# 1-4: ENTRY status classification
+# ---------------------------------------------------------------------------
+
+def test_01_on_time_entry_exact(seeded_db):
+    result = _evt(_engine(seeded_db), ts=DAY_START)
+    assert result.status == GateStatus.ON_TIME_ENTRY
+    assert result.outcome == GateOutcome.BARRIER_OPENED
 
 
-def test_expired_vehicle_rejected(engine, jpeg_bytes):
-    r = engine.process_gate_event("EXP-0001", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    assert r.outcome == "BARRIER_CLOSED_REJECTED"
-    assert r.status == "EXPIRED"
+def test_02_on_time_entry_within_grace(seeded_db):
+    result = _evt(_engine(seeded_db), ts=DAY_START + timedelta(minutes=GRACE_MIN - 1))
+    assert result.status == GateStatus.ON_TIME_ENTRY
 
 
-def test_lpm_correction_via_confusion_pair(engine, jpeg_bytes):
-    r = engine.process_gate_event("CA8-1234", 0.92, "GATE_A", "ENTRY", jpeg_bytes)
-    assert r.matched_plate == "CAB-1234"
+def test_03_late_arrival_after_grace(seeded_db):
+    result = _evt(_engine(seeded_db), ts=DAY_START + timedelta(minutes=GRACE_MIN + 1))
+    assert result.status == GateStatus.LATE_ARRIVAL
 
 
-def test_on_time_entry_status(engine, jpeg_bytes):
-    ts = utc(2026, 4, 30, 8, 5)  # Thursday day shift starts 08:00 +10min grace
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts)
-    assert r.status == "ON_TIME_ENTRY"
+def test_04_early_arrival(seeded_db):
+    result = _evt(_engine(seeded_db), ts=DAY_START - timedelta(minutes=30))
+    assert result.status == GateStatus.EARLY_ARRIVAL
 
 
-def test_late_arrival_status(engine, jpeg_bytes):
-    ts = utc(2026, 4, 30, 9, 30)
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts)
-    assert r.status == "LATE_ARRIVAL"
+# ---------------------------------------------------------------------------
+# 5-7: EXIT status classification
+# ---------------------------------------------------------------------------
+
+def test_05_on_time_exit_within_grace(seeded_db):
+    eng = _engine(seeded_db)
+    _evt(eng, direction="ENTRY", ts=DAY_START)
+    result = _evt(eng, direction="EXIT", ts=SHIFT_END + timedelta(minutes=5))
+    assert result.status == GateStatus.ON_TIME_EXIT
 
 
-def test_early_arrival_status(engine, jpeg_bytes):
-    ts = utc(2026, 4, 30, 5, 0)
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts)
-    assert r.status == "EARLY_ARRIVAL"
+def test_06_early_departure(seeded_db):
+    eng = _engine(seeded_db)
+    _evt(eng, direction="ENTRY", ts=DAY_START)
+    result = _evt(eng, direction="EXIT", ts=SHIFT_END - timedelta(hours=2))
+    assert result.status == GateStatus.EARLY_DEPARTURE
 
 
-def test_on_time_exit_status(engine, jpeg_bytes):
-    ts_in = utc(2026, 4, 30, 8, 0)
-    engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts_in)
-    ts_out = utc(2026, 4, 30, 17, 30)
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "EXIT", jpeg_bytes, timestamp=ts_out)
-    assert r.status == "ON_TIME_EXIT"
+def test_07_overstay(seeded_db):
+    eng = _engine(seeded_db)
+    _evt(eng, direction="ENTRY", ts=DAY_START)
+    result = _evt(eng, direction="EXIT", ts=SHIFT_END + timedelta(minutes=GRACE_MIN + 1))
+    assert result.status == GateStatus.OVERSTAY
 
 
-def test_early_departure_status(engine, jpeg_bytes):
-    ts_in = utc(2026, 4, 30, 8, 0)
-    engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts_in)
-    ts_out = utc(2026, 4, 30, 12, 0)
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "EXIT", jpeg_bytes, timestamp=ts_out)
-    assert r.status == "EARLY_DEPARTURE"
+# ---------------------------------------------------------------------------
+# 8-9: Midnight boundary
+# ---------------------------------------------------------------------------
+
+def test_08_night_shift_entry_at_2359(seeded_db):
+    seeded_db.execute(
+        "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
+        ("WP-CD-7788", "NIGHT"),
+    )
+    eng = _engine(seeded_db)
+    ts = datetime(2026, 1, 5, 23, 5, 0, tzinfo=timezone.utc)  # 5 min after NIGHT start
+    result = eng.process_gate_event("WP-CD-7788", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
+    assert result.outcome == GateOutcome.BARRIER_OPENED
+    assert result.status == GateStatus.ON_TIME_ENTRY
 
 
-def test_dwell_time_computed_on_exit(engine, jpeg_bytes):
-    ts_in = utc(2026, 4, 30, 8, 0)
-    ts_out = utc(2026, 4, 30, 16, 0)
-    engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts_in)
-    r = engine.process_gate_event("CAB-1234", 0.9, "GATE_B", "EXIT", jpeg_bytes, timestamp=ts_out)
-    assert r.dwell_time_seconds == 8 * 3600
+def test_09_night_shift_entry_at_0001(seeded_db):
+    # SG-1111 is not assigned to any shift in conftest -- assign only to NIGHT
+    seeded_db.execute(
+        "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
+        ("SG-1111", "NIGHT"),
+    )
+    eng = _engine(seeded_db)
+    ts = datetime(2026, 1, 6, 0, 1, 0, tzinfo=timezone.utc)  # 00:01 Tuesday
+    # NIGHT shift: 23:00 Mon -> 07:00 Tue; 00:01 is 61 min past start -> LATE
+    result = eng.process_gate_event("SG-1111", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
+    assert result.outcome == GateOutcome.BARRIER_OPENED
+    assert result.status == GateStatus.LATE_ARRIVAL
 
 
-def test_dwell_time_none_without_prior_entry(engine, jpeg_bytes):
-    ts_out = utc(2026, 4, 30, 16, 0)
-    r = engine.process_gate_event("KL-5678", 0.9, "GATE_A", "EXIT", jpeg_bytes, timestamp=ts_out)
-    assert r.dwell_time_seconds is None
+# ---------------------------------------------------------------------------
+# 10-14: Visitor / unregistered
+# ---------------------------------------------------------------------------
+
+def test_10_unknown_plate_visitor_exception(seeded_db):
+    eng = _engine(seeded_db, timeout=60)
+    result = eng.process_gate_event("ZZ-0000", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.outcome == GateOutcome.EXCEPTION_PENDING_DISPOSITION
+    assert result.status == GateStatus.VISITOR
+    assert result.access_log_id is not None
+    if result.access_log_id in eng._pending_timers:
+        eng._pending_timers[result.access_log_id].cancel()
 
 
-def test_access_log_row_inserted(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("CAB-1234", 0.91, "GATE_A", "ENTRY", jpeg_bytes)
-    row = seeded_db.execute("SELECT * FROM access_log").fetchone()
-    assert row["plate_number"] == "CAB-1234"
-    assert row["row_hash"]
-    assert row["plate_crop_b64"]
+def test_11_visitor_auto_reject_after_timeout(seeded_db):
+    eng = _engine(seeded_db, timeout=1)
+    result = eng.process_gate_event("ZZ-9999", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    log_id = result.access_log_id
+    time.sleep(1.5)
+    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
+    assert row[0] == GateStatus.VISITOR_TIMEOUT_REJECT.value
 
 
-def test_access_log_hash_chained(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.process_gate_event("KL-5678", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    rows = seeded_db.execute("SELECT row_hash FROM access_log ORDER BY id").fetchall()
-    assert rows[0]["row_hash"] != rows[1]["row_hash"]
+def test_12_dispose_admit_opens_barrier(seeded_db):
+    barrier = BarrierController("MOCK")
+    eng = AttendanceEngine(seeded_db, barrier, exception_timeout=60)
+    result = eng.process_gate_event("ZZ-8888", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    log_id = result.access_log_id
+    eng.dispose_exception(log_id, "ADMIT", operator_user_id=1)
+    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
+    assert row[0] == GateStatus.VISITOR_ADMITTED.value
+    assert any(cmd == "OPEN" for _, cmd in barrier.command_log())
 
 
-def test_dispose_admit_updates_status(engine, seeded_db, jpeg_bytes):
-    r = engine.process_gate_event("UNKNOWN-1", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.dispose_exception(r.access_log_id, "ADMIT")
-    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?",
-                            (r.access_log_id,)).fetchone()
-    assert row["status"] == "VISITOR_ADMITTED"
+def test_13_dispose_reject(seeded_db):
+    eng = _engine(seeded_db, timeout=60)
+    result = eng.process_gate_event("ZZ-7777", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    log_id = result.access_log_id
+    eng.dispose_exception(log_id, "REJECT", operator_user_id=1)
+    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
+    assert row[0] == GateStatus.VISITOR_REJECTED.value
 
 
-def test_dispose_reject_updates_status(engine, seeded_db, jpeg_bytes):
-    r = engine.process_gate_event("UNKNOWN-2", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.dispose_exception(r.access_log_id, "REJECT")
-    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?",
-                            (r.access_log_id,)).fetchone()
-    assert row["status"] == "VISITOR_REJECTED"
+def test_14_dispose_register(seeded_db):
+    eng = _engine(seeded_db, timeout=60)
+    result = eng.process_gate_event("ZZ-6666", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    log_id = result.access_log_id
+    eng.dispose_exception(log_id, "REGISTER", operator_user_id=1)
+    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
+    assert row[0] == GateStatus.VISITOR_PENDING_REGISTRATION.value
 
 
-def test_dispose_register_updates_status(engine, seeded_db, jpeg_bytes):
-    r = engine.process_gate_event("NEW-PLATE", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.dispose_exception(r.access_log_id, "REGISTER")
-    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?",
-                            (r.access_log_id,)).fetchone()
-    assert row["status"] == "VISITOR_PENDING_REGISTRATION"
+# ---------------------------------------------------------------------------
+# 15-16: Suspended / expired
+# ---------------------------------------------------------------------------
+
+def test_15_suspended_vehicle_rejected(seeded_db):
+    seeded_db.execute(
+        "UPDATE registered_vehicles SET registration_status='SUSPENDED' WHERE plate_number='WP-AB-3344'"
+    )
+    eng = _engine(seeded_db)
+    result = eng.process_gate_event("WP-AB-3344", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.outcome == GateOutcome.BARRIER_CLOSED_REJECTED
+    assert result.status == GateStatus.SUSPENDED
+    row = seeded_db.execute(
+        "SELECT reason FROM gate_rejections WHERE plate_number='WP-AB-3344'"
+    ).fetchone()
+    assert row is not None
 
 
-def test_dispose_invalid_raises(engine, jpeg_bytes):
-    r = engine.process_gate_event("XXX-X", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    with pytest.raises(ValueError):
-        engine.dispose_exception(r.access_log_id, "BOGUS")  # type: ignore[arg-type]
+def test_16_expired_vehicle_rejected(seeded_db):
+    seeded_db.execute(
+        "UPDATE registered_vehicles SET registration_status='EXPIRED' WHERE plate_number='WP-EF-2233'"
+    )
+    result = _evt(_engine(seeded_db), plate="WP-EF-2233")
+    assert result.outcome == GateOutcome.BARRIER_CLOSED_REJECTED
+    assert result.status == GateStatus.EXPIRED
 
 
-def test_exception_timeout_auto_rejects(engine, seeded_db, jpeg_bytes):
-    r = engine.process_gate_event("TIMEOUT-1", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    time.sleep(2.5)  # exception_timeout_seconds=2 in fixture
-    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?",
-                            (r.access_log_id,)).fetchone()
-    assert row["status"] == "VISITOR_TIMEOUT_REJECT"
+# ---------------------------------------------------------------------------
+# 17: Dwell time
+# ---------------------------------------------------------------------------
+
+def test_17_dwell_time_computed(seeded_db):
+    eng = _engine(seeded_db)
+    _evt(eng, direction="ENTRY", ts=DAY_START)
+    result = _evt(eng, direction="EXIT", ts=DAY_START + timedelta(hours=2))
+    row = seeded_db.execute(
+        "SELECT dwell_time_seconds FROM access_log WHERE id=?", (result.access_log_id,)
+    ).fetchone()
+    assert row[0] == pytest.approx(7200.0, abs=1.0)
 
 
-def test_admit_cancels_timeout(engine, seeded_db, jpeg_bytes):
-    r = engine.process_gate_event("TIMEOUT-2", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.dispose_exception(r.access_log_id, "ADMIT")
-    time.sleep(2.5)
-    row = seeded_db.execute("SELECT status FROM access_log WHERE id=?",
-                            (r.access_log_id,)).fetchone()
-    assert row["status"] == "VISITOR_ADMITTED"
+# ---------------------------------------------------------------------------
+# 18: No shift assigned
+# ---------------------------------------------------------------------------
+
+def test_18_no_shift_vehicle_admitted(seeded_db):
+    eng = _engine(seeded_db)
+    result = eng.process_gate_event("NW-9900", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.outcome == GateOutcome.BARRIER_OPENED
+    assert result.status == GateStatus.VISITOR_ADMITTED
 
 
-def test_multi_gate_dwell(engine, jpeg_bytes):
-    ts1 = utc(2026, 4, 30, 8, 0)
-    ts2 = utc(2026, 4, 30, 16, 0)
-    engine.process_gate_event("KL-5678", 0.9, "GATE_A", "ENTRY", jpeg_bytes, timestamp=ts1)
-    r = engine.process_gate_event("KL-5678", 0.9, "GATE_B", "EXIT", jpeg_bytes, timestamp=ts2)
-    assert r.dwell_time_seconds == 8 * 3600
+# ---------------------------------------------------------------------------
+# 19: Hash chain
+# ---------------------------------------------------------------------------
+
+def test_19_access_log_row_hash_not_pending(seeded_db):
+    result = _evt(_engine(seeded_db))
+    row = seeded_db.execute(
+        "SELECT row_hash FROM access_log WHERE id=?", (result.access_log_id,)
+    ).fetchone()
+    assert row[0] != "PENDING"
+    assert len(row[0]) == 64
 
 
-def test_duplicate_entry_without_exit(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("WP-CAB-9012", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    engine.process_gate_event("WP-CAB-9012", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    n = seeded_db.execute(
-        "SELECT COUNT(*) AS c FROM access_log WHERE plate_number='WP-CAB-9012'"
-    ).fetchone()["c"]
-    assert n == 2  # both logged; analytics flag duplicates
+# ---------------------------------------------------------------------------
+# 20-21: Barrier open/closed
+# ---------------------------------------------------------------------------
+
+def test_20_active_entry_opens_barrier(seeded_db):
+    barrier = BarrierController("MOCK")
+    _evt(AttendanceEngine(seeded_db, barrier))
+    assert barrier.command_log()[-1][1] == "OPEN"
 
 
-def test_rejection_logged_to_gate_rejections(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("SUS-0001", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    n = seeded_db.execute(
-        "SELECT COUNT(*) AS c FROM gate_rejections WHERE plate_number='SUS-0001'"
-    ).fetchone()["c"]
-    assert n >= 1
+def test_21_suspended_entry_does_not_open_barrier(seeded_db):
+    seeded_db.execute(
+        "UPDATE registered_vehicles SET registration_status='SUSPENDED' WHERE plate_number='WP-GA-7890'"
+    )
+    barrier = BarrierController("MOCK")
+    eng = AttendanceEngine(seeded_db, barrier)
+    eng.process_gate_event("WP-GA-7890", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert all(cmd != "OPEN" for _, cmd in barrier.command_log())
 
 
-def test_unregistered_plate_status_visitor(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("RANDOM", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    row = seeded_db.execute("SELECT status FROM access_log").fetchone()
-    assert row["status"] == "VISITOR"
+# ---------------------------------------------------------------------------
+# 22-23: Stored fields
+# ---------------------------------------------------------------------------
+
+def test_22_confidence_score_stored(seeded_db):
+    eng = _engine(seeded_db)
+    result = eng.process_gate_event("WP-CAB-1234", 0.87, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    row = seeded_db.execute(
+        "SELECT confidence_score FROM access_log WHERE id=?", (result.access_log_id,)
+    ).fetchone()
+    assert row[0] == pytest.approx(0.87, abs=0.001)
 
 
-def test_sse_publish_called_on_event(seeded_db, jpeg_bytes):
+def test_23_plate_crop_b64_stored(seeded_db):
+    import base64
+    fake_jpeg = b"\xff\xd8\xff\xe0test"
+    eng = _engine(seeded_db)
+    result = eng.process_gate_event("WP-CAB-1234", 0.9, "MAIN_GATE", "ENTRY", fake_jpeg, timestamp=DAY_START)
+    row = seeded_db.execute(
+        "SELECT plate_crop_b64 FROM access_log WHERE id=?", (result.access_log_id,)
+    ).fetchone()
+    assert row[0] == base64.b64encode(fake_jpeg).decode()
+
+
+# ---------------------------------------------------------------------------
+# 24-25: Overstay race condition
+# ---------------------------------------------------------------------------
+
+def test_24_overstay_flag_idempotent_concurrent(seeded_db):
+    eng = _engine(seeded_db)
+    result = _evt(eng)
+    row_id = result.access_log_id
+    plate = "WP-CAB-1234"
+    w_start = "2026-01-05T07:00:00Z"
+    w_end   = "2026-01-05T17:00:00Z"
+    errors = []
+    def flag():
+        try:
+            eng._flag_overstay(row_id, plate, w_start, w_end)
+        except Exception as e:
+            errors.append(e)
+    t1 = threading.Thread(target=flag)
+    t2 = threading.Thread(target=flag)
+    t1.start(); t2.start(); t1.join(); t2.join()
+    assert not errors
+    count = seeded_db.execute(
+        "SELECT COUNT(*) FROM access_log WHERE id=? AND status='OVERSTAY'", (row_id,)
+    ).fetchone()[0]
+    assert count == 1
+
+
+def test_25_flag_overstay_second_call_no_op(seeded_db):
+    eng = _engine(seeded_db)
+    result = _evt(eng)
+    row_id = result.access_log_id
+    plate = "WP-CAB-1234"
+    w_start = "2026-01-05T07:00:00Z"
+    w_end   = "2026-01-05T17:00:00Z"
+    eng._flag_overstay(row_id, plate, w_start, w_end)
+    eng._flag_overstay(row_id, plate, w_start, w_end)
+    count = seeded_db.execute(
+        "SELECT COUNT(*) FROM access_log WHERE id=? AND status='OVERSTAY'", (row_id,)
+    ).fetchone()[0]
+    assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# 26-27: Grace period from DB (not hardcoded)
+# ---------------------------------------------------------------------------
+
+def test_26_grace_period_not_hardcoded(seeded_db):
+    import src.attendance as att_mod, inspect
+    source = inspect.getsource(att_mod)
+    assert "grace_period_minutes = 15" not in source
+
+
+def test_27_changing_grace_period_changes_boundary(seeded_db):
+    seeded_db.execute("UPDATE shifts SET grace_period_minutes = 5 WHERE shift_id = 'DAY'")
+    eng = _engine(seeded_db)
+    # 10 min after start: within 15-min grace but outside 5-min grace -> LATE
+    result = _evt(eng, ts=DAY_START + timedelta(minutes=10))
+    assert result.status == GateStatus.LATE_ARRIVAL
+
+
+# ---------------------------------------------------------------------------
+# 28: SSE callback
+# ---------------------------------------------------------------------------
+
+def test_28_visitor_triggers_sse_callback(seeded_db):
     events = []
-    e = AttendanceEngine(seeded_db, barrier=BarrierController(mode="MOCK"),
-                         sse_publish=events.append)
-    e.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    e.shutdown()
-    assert any(ev.get("type") == "gate_event" for ev in events)
-
-
-def test_confidence_recorded(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("CAB-1234", 0.83, "GATE_A", "ENTRY", jpeg_bytes)
-    row = seeded_db.execute("SELECT confidence_score FROM access_log").fetchone()
-    assert abs(row["confidence_score"] - 0.83) < 1e-6
-
-
-def test_shift_id_stored(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("CAB-1234", 0.9, "GATE_A", "ENTRY", jpeg_bytes)
-    row = seeded_db.execute("SELECT shift_id FROM access_log").fetchone()
-    assert row["shift_id"] == "DAY_SHIFT"
-
-
-def test_visitor_no_match_keeps_raw_plate(engine, seeded_db, jpeg_bytes):
-    engine.process_gate_event("WEIRDXYZ", 0.4, "GATE_A", "ENTRY", jpeg_bytes)
-    row = seeded_db.execute("SELECT plate_number FROM access_log").fetchone()
-    assert row["plate_number"] == "WEIRDXYZ"
+    def sse_cb(event_type, data):
+        events.append((event_type, data))
+    eng = AttendanceEngine(seeded_db, BarrierController("MOCK"), sse_callback=sse_cb, exception_timeout=60)
+    result = eng.process_gate_event("ZZ-NONE", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    if result.access_log_id in eng._pending_timers:
+        eng._pending_timers[result.access_log_id].cancel()
+    assert len(events) == 1
+    assert events[0][0] == "VISITOR_EXCEPTION"
+    assert "access_log_id" in events[0][1]

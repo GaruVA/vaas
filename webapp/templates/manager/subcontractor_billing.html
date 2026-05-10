@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Subcontractor Billing Audit — VAAS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title"><i class="bi bi-building-fill-gear"></i> Subcontractor Billing Audit</h1>
+    <p class="page-subtitle">Billed hours per company × vehicle × project — {{ df }} to {{ dt }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_csv_route', report_type='subcontractor',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-csv"></i> CSV
+    </a>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('manager.export_pdf_route', report_type='subcontractor',
+                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+      <i class="bi bi-filetype-pdf"></i> PDF
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
+      <i class="bi bi-arrow-left"></i> Reports
+    </a>
+  </div>
+</div>
+
+<div class="report-card">
+  <div class="report-filter-bar">
+    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
+    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+      <input type="date" name="from" value="{{ df }}" class="form-control form-control-sm" style="width:150px">
+      <span style="color:var(--text-muted);font-size:.8rem">to</span>
+      <input type="date" name="to"   value="{{ dt }}" class="form-control form-control-sm" style="width:150px">
+      <input type="text" name="company_id" value="{{ company_id or '' }}"
+             placeholder="Company ID (optional)" class="form-control form-control-sm" style="width:190px">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Filter</button>
+    </form>
+  </div>
+
+  <div class="report-table-wrap">
+    <table class="vaas-table">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Project</th>
+          <th>Plate</th>
+          <th>Period</th>
+          <th>Trips</th>
+          <th>Billed Hours</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% set ns = namespace(prev_co='') %}
+      {% for r in rows %}
+        <tr {% if r.company_id != ns.prev_co %}style="border-top:1px solid rgba(255,255,255,.07)"{% endif %}>
+          {% set _ = ns.__setattr__('prev_co', r.company_id) %}
+          <td>
+            <div style="font-weight:600;font-size:.82rem">{{ r.company_name }}</div>
+            <div style="font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted)">{{ r.company_id }}</div>
+          </td>
+          <td>
+            <div style="font-size:.82rem">{{ r.project_name }}</div>
+            <div style="font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted)">{{ r.project_code }}</div>
+          </td>
+          <td style="font-family:var(--font-mono);font-weight:600;color:var(--amber);font-size:.8rem">
+            {{ r.plate_number }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);white-space:nowrap">
+            {{ r.date_from[:10] }} → {{ r.date_to[:10] }}
+          </td>
+          <td style="font-family:var(--font-mono);font-size:.82rem;text-align:center">
+            {{ r.trips }}
+          </td>
+          <td style="font-family:var(--font-mono);font-weight:700;font-size:.9rem;color:var(--cyan)">
+            {{ r.billed_hours | round(2) }} h
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
+            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+            No subcontractor billing records for this period.
+            {% if not company_id %}<br>Enter a Company ID above to filter by specific contractor.{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if rows %}
+  <!-- Totals footer -->
+  <div style="padding:.75rem 1.25rem;border-top:1px solid rgba(255,255,255,.06);
+    display:flex;justify-content:flex-end;gap:2rem;font-size:.82rem">
+    <span style="color:var(--text-muted)">
+      Total trips: <strong style="color:var(--text-primary)">{{ rows | sum(attribute='trips') }}</strong>
+    </span>
+    <span style="color:var(--text-muted)">
+      Total billed hours:
+      <strong style="color:var(--cyan)">{{ rows | sum(attribute='billed_hours') | round(2) }} h</strong>
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="panel mt-3" style="max-width:680px">
+  <div class="panel-header">
+    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Billing Derivation</span>
+  </div>
+  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
+    Billed hours are derived from the <strong>dwell_time_seconds</strong> field on EXIT events in the
+    access log, cross-referenced against <strong>project_vehicle_assignments</strong> to attribute hours
+    to the correct project. Only vehicles assigned with the <code>SUBCONTRACTOR</code> role are included.
+    Export to CSV for submission to the CDL Finance department for invoice verification.
+  </div>
+</div>
+{% endblock %}

@@ -1,48 +1,82 @@
-"""YOLOv8 character classification - Stage 2 of ALPR pipeline (FR-01.3)."""
 from __future__ import annotations
 
+"""YOLOv8 37-class character classifier (Stage 2 of the ALPR pipeline).
+
+Intentionally imports ``ultralytics`` at module level WITHOUT a try/except
+guard -- CI exclusion is by design (see BUILD_SPEC §6.4).
+
+The classifier detects individual characters within a cropped plate image
+and sorts them by the **x-coordinate of each bounding-box centre** before
+concatenating to form the plate string.
+
+37 classes: 0-9 (10) + A-Z (26) + hyphen '-' (1) = 37.
+
+References: section 6.4 of BUILD_SPEC.md
+"""
+
+import logging
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
+from ultralytics import YOLO
 
-from src.config import CHAR_CONF_THRESHOLD, CHAR_CLASSIFIER
+from src.config import CHAR_CLASSIFIER, CHAR_CONF_THRESHOLD
+
+logger = logging.getLogger(__name__)
+
+# 37-class label list: 0-9, A-Z, hyphen
+_LABELS: list[str] = [str(i) for i in range(10)] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["-"]
 
 
 class CharClassifier:
-    def __init__(self, model_path: Optional[Path] = None,
-                 conf_threshold: float = CHAR_CONF_THRESHOLD):
-        from ultralytics import YOLO
-        self.model_path = Path(model_path) if model_path else CHAR_CLASSIFIER
-        if not self.model_path.exists():
-            raise FileNotFoundError(f"Character classifier model not found: {self.model_path}")
-        self.model = YOLO(str(self.model_path))
+    """Wraps the 37-class YOLOv8 character classifier.
+
+    Parameters
+    ----------
+    model_path:
+        Path to ``char_classifier.pt``.  Defaults to config.CHAR_CLASSIFIER.
+    conf_threshold:
+        Minimum confidence to accept a character detection.
+        Defaults to config.CHAR_CONF_THRESHOLD (0.65).
+    """
+
+    def __init__(
+        self,
+        model_path: Path | None = None,
+        conf_threshold: float = CHAR_CONF_THRESHOLD,
+    ) -> None:
+        path = model_path or CHAR_CLASSIFIER
+        logger.info("Loading character classifier from %s", path)
+        self._model = YOLO(str(path))
         self.conf_threshold = conf_threshold
 
-    def classify(self, plate_crop: np.ndarray) -> tuple[str, float]:
-        if plate_crop is None or plate_crop.size == 0:
-            return "", 0.0
-        results = self.model.predict(plate_crop, verbose=False, conf=self.conf_threshold)
-        chars: list[tuple[int, str, float]] = []
-        for r in results:
-            if r.boxes is None:
+    def classify(self, plate_crop: np.ndarray) -> str:
+        """Classify characters in *plate_crop* and return the plate string.
+
+        Characters are sorted by the x-coordinate of their bounding-box
+        centre before concatenation.
+
+        Parameters
+        ----------
+        plate_crop:
+            BGR ``uint8`` crop of the detected plate region.
+
+        Returns
+        -------
+        str
+            Concatenated character string (e.g. ``"WP-CAB-1234"``).
+        """
+        results = self._model(plate_crop, verbose=False)[0]
+        chars: list[tuple[float, str]] = []
+        for box in results.boxes:
+            conf = float(box.conf[0])
+            if conf < self.conf_threshold:
                 continue
-            names = r.names if hasattr(r, "names") else {}
-            for box in r.boxes:
-                conf = float(box.conf[0]) if box.conf is not None else 0.0
-                if conf < self.conf_threshold:
-                    continue
-                cls_id = int(box.cls[0]) if box.cls is not None else -1
-                label = names.get(cls_id, str(cls_id))
-                # The 37-class model's "background" class should be ignored.
-                if label.lower() in ("background", "bg", "_"):
-                    continue
-                xyxy = box.xyxy[0].cpu().numpy()
-                x_centre = int((xyxy[0] + xyxy[2]) / 2)
-                chars.append((x_centre, label, conf))
-        if not chars:
-            return "", 0.0
-        chars.sort(key=lambda c: c[0])
-        plate_str = "".join(c[1] for c in chars)
-        mean_conf = float(np.mean([c[2] for c in chars]))
-        return plate_str, mean_conf
+            cls_idx = int(box.cls[0])
+            label = _LABELS[cls_idx] if cls_idx < len(_LABELS) else "?"
+            x1, _, x2, _ = box.xyxy[0]
+            centre_x = float((x1 + x2) / 2)
+            chars.append((centre_x, label))
+        # Sort by x-centre to maintain left-to-right reading order
+        chars.sort(key=lambda t: t[0])
+        return "".join(c for _, c in chars)

@@ -144,16 +144,6 @@
     </a>
   </div>
 
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.fuel') }}">
-      <div class="nav-card-icon" style="background:rgba(255,179,0,.1);color:var(--amber)">
-        <i class="bi bi-fuel-pump-fill"></i>
-      </div>
-      <div class="nav-card-title">Fuel Accountability</div>
-      <div class="nav-card-desc">Estimated fuel consumption by vehicle type and department using operational dwell time.</div>
-      <div class="nav-card-arrow"><span>View fuel</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
 
   <div class="col-md-6 col-lg-3">
     <a class="nav-card h-100" href="{{ url_for('manager.rejections') }}">
@@ -168,9 +158,68 @@
 
   <div class="col-12"><div class="divider"></div></div>
 
+  <!-- ── CDL Operations reports ── -->
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.personal_allowance') }}">
+      <div class="nav-card-icon" style="background:rgba(74,130,255,.1);color:var(--blue)">
+        <i class="bi bi-cash-coin"></i>
+      </div>
+      <div class="nav-card-title">Personal Allowance</div>
+      <div class="nav-card-desc">Daily allowance eligibility per driver based on on-time entry records.</div>
+      <div class="nav-card-arrow"><span>View allowances</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.gate_rejection_audit_view') }}">
+      <div class="nav-card-icon" style="background:rgba(244,189,15,.1);color:var(--amber)">
+        <i class="bi bi-shield-exclamation"></i>
+      </div>
+      <div class="nav-card-title">Gate Rejection Audit</div>
+      <div class="nav-card-desc">Enriched rejection log with vehicle registration status for security investigations.</div>
+      <div class="nav-card-arrow"><span>View audit</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.zone_occupancy_view') }}">
+      <div class="nav-card-icon" style="background:rgba(118,189,51,.1);color:var(--green)">
+        <i class="bi bi-map-fill"></i>
+      </div>
+      <div class="nav-card-title">Zone Occupancy</div>
+      <div class="nav-card-desc">Real-time vehicle headcount across all CDL drydocks, berths, and workshops.</div>
+      <div class="nav-card-arrow"><span>View occupancy</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.subcontractor_billing_view') }}">
+      <div class="nav-card-icon" style="background:rgba(74,130,255,.08);color:var(--cyan)">
+        <i class="bi bi-building-fill-gear"></i>
+      </div>
+      <div class="nav-card-title">Subcontractor Billing</div>
+      <div class="nav-card-desc">Billed hours per sub-contractor vehicle and project for finance verification.</div>
+      <div class="nav-card-arrow"><span>View billing</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-12"><div class="divider"></div></div>
+
+  <!-- ── Security & integrity ── -->
   <div class="col-md-6 col-lg-4">
-    <a class="nav-card" href="{{ url_for('manager.audit') }}">
-      <div class="nav-card-icon" style="background:rgba(0,230,118,.08);color:var(--green)">
+    <a class="nav-card h-100" href="{{ url_for('manager.admin_audit_view') }}">
+      <div class="nav-card-icon" style="background:rgba(255,61,90,.08);color:var(--red)">
+        <i class="bi bi-journal-text"></i>
+      </div>
+      <div class="nav-card-title">Admin Audit Log</div>
+      <div class="nav-card-desc">Full administrative action trail — restricted to ADMIN role users.</div>
+      <div class="nav-card-arrow"><span>View log</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-4">
+    <a class="nav-card h-100" href="{{ url_for('manager.audit') }}">
+      <div class="nav-card-icon" style="background:rgba(118,189,51,.08);color:var(--green)">
         <i class="bi bi-shield-check"></i>
       </div>
       <div class="nav-card-title">Audit Chain Verification</div>

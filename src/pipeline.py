@@ -1,209 +1,129 @@
-"""End-to-end ALPR pipeline: frame -> plate -> gate event (§5.3)."""
 from __future__ import annotations
+
+"""src/pipeline.py — ALPR pipeline: frame → gate event.
+
+run_pipeline(camera, detector, classifier, attendance_engine,
+             gate_id, direction, stop_event, frame_callback) -> None
+
+References: §6.11 of BUILD_SPEC.md.
+"""
 
 import logging
 import threading
-import time
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Callable, Literal
 
-import cv2
 import numpy as np
 
-from src.attendance import AttendanceEngine, GateEventResult
-from src.classifier import CharClassifier
 from src.clahe import apply_clahe
-from src.detection import PlateDetection, PlateDetector
 
 logger = logging.getLogger(__name__)
 
-# Default debounce window in seconds (configurable via PlateDebouncer constructor)
-DEFAULT_COOLDOWN_SECONDS = 15
 
+def run_pipeline(
+    camera,
+    detector,
+    classifier,
+    attendance_engine,
+    gate_id: str,
+    direction: Literal["ENTRY", "EXIT"],
+    stop_event: threading.Event | None = None,
+    frame_callback: Callable[[np.ndarray], None] | None = None,
+) -> None:
+    """Run the ALPR recognition loop until *stop_event* is set.
 
-class PlateDebouncer:
-    """Prevents the same plate from being submitted to the attendance engine
-    multiple times within *cooldown_seconds*.
+    Each iteration:
+    1. Read a frame from *camera*.
+    2. Call *frame_callback* (if provided) with the raw frame.
+    3. Run plate *detector* → list of detection objects (each with .crop, .confidence).
+    4. Apply CLAHE pre-processing to each crop.
+    5. Run character *classifier* on each CLAHE crop → raw OCR string.
+    6. Call ``attendance_engine.process_gate_event()`` — the engine handles
+       LPM-MLED correction internally before writing to the DB.
 
-    Thread-safe — the CameraWorker runs in a background daemon thread.
-
-    Debouncing rules
-    ----------------
-    * A plate string is considered "seen" once ``record(plate)`` is called.
-    * Any subsequent ``is_duplicate(plate)`` call within the cooldown window
-      returns ``True`` — the caller should skip the event.
-    * After the cooldown expires the plate is eligible again (e.g., a genuine
-      second entry on the next shift or a vehicle that left and returned).
-    * The internal registry is pruned on every ``is_duplicate`` call so memory
-      does not grow unbounded during long sessions.
+    Parameters
+    ----------
+    camera:
+        Object exposing ``read() -> np.ndarray | None`` and ``release()``.
+    detector:
+        Object exposing ``detect(frame) -> list`` where each element has
+        ``.crop`` (np.ndarray) and ``.confidence`` (float) attributes.
+    classifier:
+        Object exposing ``classify(crop: np.ndarray) -> str``.
+    attendance_engine:
+        ``AttendanceEngine`` instance with an open DB connection.
+    gate_id:
+        Gate identifier (e.g. ``"GATE-A"``).
+    direction:
+        ``"ENTRY"`` or ``"EXIT"``.
+    stop_event:
+        ``threading.Event``; loop exits when set.  Pass ``None`` to run until
+        the camera returns ``None``.
+    frame_callback:
+        Optional callable invoked with each BGR frame before detection.
     """
+    logger.info("Pipeline started: gate=%s direction=%s", gate_id, direction)
 
-    def __init__(self, cooldown_seconds: float = DEFAULT_COOLDOWN_SECONDS) -> None:
-        self.cooldown = cooldown_seconds
-        self._last_seen: dict[str, float] = {}   # plate → monotonic timestamp
-        self._lock = threading.Lock()
-
-    def is_duplicate(self, plate: str) -> bool:
-        """Return True if *plate* was processed within the cooldown window."""
-        now = time.monotonic()
-        with self._lock:
-            self._prune(now)
-            last = self._last_seen.get(plate)
-            return last is not None and (now - last) < self.cooldown
-
-    def record(self, plate: str) -> None:
-        """Mark *plate* as just-processed."""
-        now = time.monotonic()
-        with self._lock:
-            self._last_seen[plate] = now
-
-    def reset(self, plate: str) -> None:
-        """Explicitly clear a plate's cooldown (e.g., after manual disposition)."""
-        with self._lock:
-            self._last_seen.pop(plate, None)
-
-    def _prune(self, now: float) -> None:
-        """Remove entries that have expired (must be called under self._lock)."""
-        cutoff = now - self.cooldown
-        expired = [p for p, t in self._last_seen.items() if t < cutoff]
-        for p in expired:
-            del self._last_seen[p]
-
-    @property
-    def active_count(self) -> int:
-        with self._lock:
-            return len(self._last_seen)
-
-
-@dataclass
-class PipelineResult:
-    plate_detection: PlateDetection
-    raw_plate: str
-    confidence: float
-    gate_event: Optional[GateEventResult]
-    timings_ms: dict
-    debounced: bool = False   # True when the plate was suppressed by debouncer
-
-
-def process_frame(frame: np.ndarray,
-                  detector: PlateDetector,
-                  classifier: CharClassifier,
-                  engine: AttendanceEngine,
-                  gate_id: str,
-                  direction: str,
-                  debouncer: Optional[PlateDebouncer] = None) -> list[PipelineResult]:
-    """Process one camera frame through the full ALPR pipeline.
-
-    Args:
-        debouncer: If provided, plates seen within the cooldown window are
-                   skipped — the returned PipelineResult has debounced=True
-                   and gate_event=None for those entries.
-    """
-    results: list[PipelineResult] = []
-    if frame is None:
-        return results
-
-    t0 = time.perf_counter()
-    detections = detector.detect(frame)
-    t1 = time.perf_counter()
-
-    for det in detections:
-        enhanced = apply_clahe(det.crop)
-        t2 = time.perf_counter()
-        raw, conf = classifier.classify(enhanced)
-        t3 = time.perf_counter()
-        if not raw:
-            continue
-
-        # ── Debounce check ────────────────────────────────────────────────
-        if debouncer is not None and debouncer.is_duplicate(raw):
-            logger.debug("[%s] DEBOUNCED %s (within %ss cooldown)",
-                         gate_id, raw, debouncer.cooldown)
-            results.append(PipelineResult(
-                plate_detection=det,
-                raw_plate=raw,
-                confidence=conf,
-                gate_event=None,
-                timings_ms={},
-                debounced=True,
-            ))
-            continue
-
-        ok, jpg = cv2.imencode(".jpg", det.crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        jpeg_bytes = jpg.tobytes() if ok else b""
-        evt = engine.process_gate_event(raw, conf, gate_id, direction, jpeg_bytes)
-        t4 = time.perf_counter()
-
-        # Record in debouncer AFTER a successful engine call
-        if debouncer is not None:
-            debouncer.record(raw)
-
-        results.append(PipelineResult(
-            plate_detection=det,
-            raw_plate=raw,
-            confidence=conf,
-            gate_event=evt,
-            timings_ms={
-                "detect":   round((t1 - t0) * 1000, 1),
-                "clahe":    round((t2 - t1) * 1000, 1),
-                "classify": round((t3 - t2) * 1000, 1),
-                "engine":   round((t4 - t3) * 1000, 1),
-                "total":    round((t4 - t0) * 1000, 1),
-            },
-        ))
-
-    return results
-
-
-def run_pipeline(camera,
-                 detector: PlateDetector,
-                 classifier: CharClassifier,
-                 engine: AttendanceEngine,
-                 gate_id: str,
-                 direction: str,
-                 debouncer: Optional[PlateDebouncer] = None,
-                 frame_callback: Optional[Callable[[np.ndarray, list[PlateDetection]], None]] = None,
-                 stop_event=None,
-                 max_frames: Optional[int] = None) -> int:
-    """Continuous pipeline loop (used by run_demo.py and tests)."""
-    if debouncer is None:
-        debouncer = PlateDebouncer()
-    n = 0
     while True:
         if stop_event is not None and stop_event.is_set():
+            logger.info("Pipeline stop_event set — exiting loop")
             break
-        if max_frames is not None and n >= max_frames:
-            break
+
         frame = camera.read()
         if frame is None:
+            logger.debug("Camera returned None — stopping pipeline")
             break
-        results = process_frame(frame, detector, classifier, engine,
-                                gate_id, direction, debouncer)
+
+        # Frame callback is called even if no plates are detected
         if frame_callback is not None:
-            dets = [r.plate_detection for r in results]
-            frame_callback(frame, dets)
-        n += 1
-    return n
+            try:
+                frame_callback(frame)
+            except Exception:
+                logger.exception("frame_callback raised an exception")
 
+        # --- Detection -------------------------------------------------------
+        try:
+            detections = detector.detect(frame)
+        except Exception:
+            logger.exception("Detector raised — skipping frame")
+            continue
 
-def draw_overlays(frame: np.ndarray,
-                  detections: list[PlateDetection],
-                  labels: Optional[list[str]] = None,
-                  debounced_indices: Optional[set[int]] = None) -> np.ndarray:
-    """Draw bounding boxes on *frame*.
+        if not detections:
+            logger.debug("No plates detected in frame")
+            continue
 
-    Debounced plates are drawn in grey instead of green so the operator can
-    see the camera is detecting without confusion about repeated DB writes.
-    """
-    out = frame.copy()
-    for i, det in enumerate(detections):
-        x1, y1, x2, y2 = det.bbox
-        suppressed = debounced_indices is not None and i in debounced_indices
-        colour = (160, 160, 160) if suppressed else (0, 255, 0)
-        cv2.rectangle(out, (x1, y1), (x2, y2), colour, 2)
-        label = labels[i] if labels and i < len(labels) else f"{det.confidence:.2f}"
-        if suppressed:
-            label = f"[cd] {label}"
-        cv2.putText(out, label, (x1, max(15, y1 - 6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, colour, 2)
-    return out
+        # --- Classification --------------------------------------------------
+        for det in detections:
+            try:
+                crop = apply_clahe(det.crop)
+                raw_plate = classifier.classify(crop)
+            except Exception:
+                logger.exception("Classification failed — skipping detection")
+                continue
+
+            if not raw_plate:
+                logger.debug("Classifier returned empty string")
+                continue
+
+            confidence = float(getattr(det, "confidence", 0.0))
+
+            logger.info(
+                "Pipeline: raw=%r gate=%s dir=%s conf=%.3f",
+                raw_plate, gate_id, direction, confidence,
+            )
+
+            # --- Gate event (engine handles LPM-MLED + DB write) -------------
+            try:
+                attendance_engine.process_gate_event(
+                    raw_plate=raw_plate,
+                    confidence=confidence,
+                    gate_id=gate_id,
+                    direction=direction,
+                    plate_crop_jpeg_bytes=b"",
+                )
+            except Exception:
+                logger.exception(
+                    "process_gate_event raised for raw_plate=%r", raw_plate
+                )
+
+    camera.release()
+    logger.info("Pipeline stopped: gate=%s direction=%s", gate_id, direction)

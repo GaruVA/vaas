@@ -1,152 +1,237 @@
-"""Pytest fixtures: temp DB, sample images, attendance engine."""
 from __future__ import annotations
 
-import json
-import sqlite3
+"""Shared pytest fixtures for VAAS test suite."""
+
+import io
+import tempfile
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Generator
+from unittest.mock import MagicMock
 
-import cv2
-import numpy as np
 import pytest
 
-from src.attendance import AttendanceEngine
-from src.barrier import BarrierController
-from src.database import connect, init_schema, transaction
+from src.database import init_db, migrate_db, connect as db_connect
 
 
+# ---------------------------------------------------------------------------
+# db — in-memory SQLite connection, fresh schema each test
+# ---------------------------------------------------------------------------
 @pytest.fixture
-def db(tmp_path: Path) -> sqlite3.Connection:
-    p = tmp_path / "test.db"
-    conn = connect(p)
-    init_schema(conn)
+def db():
+    """Bare in-memory SQLite connection with VAAS schema applied."""
+    conn = db_connect(":memory:")
+    init_db(conn)
     yield conn
     conn.close()
 
 
+# ---------------------------------------------------------------------------
+# seeded_db — in-memory DB with minimal demo data
+# ---------------------------------------------------------------------------
 @pytest.fixture
-def seeded_db(db: sqlite3.Connection) -> sqlite3.Connection:
-    with transaction(db) as cur:
-        # CDL operates a continuous three-shift pattern (24/7 shipyard operations).
-        # Shift 1: 07:00–15:00 (Day) | Shift 2: 15:00–23:00 (Evening) | Shift 3: 23:00–07:00 (Night)
-        # A 15-minute grace period accounts for the Port of Colombo entry queue.
-        for sid, sname, sstart, send in [
-            ("CDL_SHIFT_1", "Day Shift",     "07:00", "15:00"),
-            ("CDL_SHIFT_2", "Evening Shift", "15:00", "23:00"),
-            ("CDL_SHIFT_3", "Night Shift",   "23:00", "07:00"),
-        ]:
-            cur.execute(
-                "INSERT INTO shifts VALUES (?,?,?,?,?,?,?)",
-                (sid, sname, sstart, send,
-                 json.dumps(["MON","TUE","WED","THU","FRI","SAT","SUN"]),
-                 json.dumps(["GATE_A","GATE_B","GATE_C","GATE_D"]), 15),
-            )
-        # Legacy aliases kept so existing tests using "DAY_SHIFT" / "NIGHT_SHIFT" continue to pass
-        cur.execute(
-            "INSERT INTO shifts VALUES (?,?,?,?,?,?,?)",
-            ("DAY_SHIFT", "Day", "08:00", "17:00",
-             json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
-             json.dumps(["GATE_A", "GATE_B"]), 10),
+def seeded_db(db):
+    """In-memory DB seeded with 3 shifts, demo zones, companies, projects,
+    registered vehicles, and users."""
+    import json
+    import bcrypt
+
+    conn = db
+    gates = json.dumps(["MAIN_GATE", "WORKSHOP_GATE"])
+
+    # Users
+    pw = bcrypt.hashpw(b"testpass", bcrypt.gensalt(rounds=4)).decode()
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role, full_name) VALUES (?,?,?,?)",
+        ("admin", pw, "ADMIN", "Admin User"),
+    )
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role, full_name) VALUES (?,?,?,?)",
+        ("manager", pw, "MANAGER", "Manager User"),
+    )
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role, full_name) VALUES (?,?,?,?)",
+        ("operator", pw, "OPERATOR", "Operator User"),
+    )
+
+    # Shifts
+    for sid, name, start, end in [
+        ("DAY",     "Day Shift",     "07:00", "15:00"),
+        ("EVENING", "Evening Shift", "15:00", "23:00"),
+        ("NIGHT",   "Night Shift",   "23:00", "07:00"),
+    ]:
+        conn.execute(
+            """INSERT INTO shifts
+               (shift_id, shift_name, start_time, end_time,
+                days_of_week, permitted_gates, grace_period_minutes)
+               VALUES (?,?,?,?,?,?,?)""",
+            (sid, name, start, end,
+             json.dumps(["MON","TUE","WED","THU","FRI"]),
+             gates, 15),
         )
-        cur.execute(
-            "INSERT INTO shifts VALUES (?,?,?,?,?,?,?)",
-            ("NIGHT_SHIFT", "Night", "20:00", "05:00",
-             json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]),
-             json.dumps(["GATE_A", "GATE_B"]), 10),
+
+    # CDL zones
+    import json as _j
+    for zid, zname, ztype, cap in [
+        ("DRYDOCK_1",    "Dry Dock 1",          "DRYDOCK",  30),
+        ("DRYDOCK_2",    "Dry Dock 2",          "DRYDOCK",  30),
+        ("BERTH_NORTH",  "Berth North",         "BERTH",    20),
+        ("WORKSHOP_ENG", "Engineering Workshop","WORKSHOP", 40),
+        ("ADMIN_BLOCK",  "Administration Block","ADMIN",    60),
+    ]:
+        conn.execute(
+            """INSERT INTO cdl_zones
+               (zone_id, zone_name, zone_type, associated_gates, vehicle_capacity)
+               VALUES (?,?,?,?,?)""",
+            (zid, zname, ztype, gates, cap),
         )
-        # CDL physical zones — 4 graving drydocks + support zones
-        for zid, zname, ztype, gates, cap in [
-            ("DRYDOCK_1",   "Graving Drydock No. 1", "DRYDOCK",  ["GATE_A"], 25),
-            ("DRYDOCK_2",   "Graving Drydock No. 2", "DRYDOCK",  ["GATE_B"], 25),
-            ("DRYDOCK_3",   "Graving Drydock No. 3", "DRYDOCK",  ["GATE_C"], 40),
-            ("DRYDOCK_4",   "Graving Drydock No. 4", "DRYDOCK",  ["GATE_D"], 40),
-            ("WORKSHOP_ENG","Engineering Workshop",   "WORKSHOP", ["GATE_A","GATE_B"], 20),
-            ("ADMIN_BLOCK", "Administration Block",   "ADMIN",    ["GATE_MAIN"], 10),
-        ]:
-            cur.execute(
-                "INSERT INTO cdl_zones (zone_id,zone_name,zone_type,gate_ids,capacity_vehicles) "
-                "VALUES (?,?,?,?,?)",
-                (zid, zname, ztype, json.dumps(gates), cap),
-            )
-        # Active vehicles — varied categories and types for enterprise reports
-        for plate, cat, vtype, dept in [
-            ("CAB-1234",    "STAFF",       "CAR",   "Engineering"),
-            ("KL-5678",     "CONTRACTOR",  "VAN",   "Operations"),
-            ("WP-CAB-9012", "STAFF",       "CAR",   "Engineering"),
-            ("CAR-4521",    "MANAGEMENT",  "CAR",   "Management"),
-            ("VAN-8801",    "FLEET",       "VAN",   "Operations"),
-        ]:
-            cur.execute(
-                "INSERT INTO registered_vehicles "
-                "(plate_number,vehicle_category,vehicle_type,department,registration_status) "
-                "VALUES (?,?,?,?,'ACTIVE')",
-                (plate, cat, vtype, dept),
-            )
-            cur.execute("INSERT INTO vehicle_shifts VALUES (?,?)", (plate, "DAY_SHIFT"))
-        cur.execute(
-            "INSERT INTO registered_vehicles "
-            "(plate_number,vehicle_category,registration_status) VALUES (?,?,'SUSPENDED')",
-            ("SUS-0001", "CONTRACTOR"),
+
+    # Subcontractor companies
+    for cid, cname in [
+        ("SCO-001", "Ceylon Marine Services"),
+        ("SCO-002", "Lanka Welding (Pvt) Ltd"),
+        ("SCO-003", "Onomichi Tech Support"),
+    ]:
+        conn.execute(
+            "INSERT INTO subcontractor_companies (company_id, company_name) VALUES (?,?)",
+            (cid, cname),
         )
-        cur.execute(
-            "INSERT INTO registered_vehicles "
-            "(plate_number,vehicle_category,registration_status) VALUES (?,?,'EXPIRED')",
-            ("EXP-0001", "CONTRACTOR"),
+
+    # Projects
+    conn.execute(
+        """INSERT INTO projects
+           (project_code, vessel_name, zone_id, start_date, status)
+           VALUES (?,?,?,?,?)""",
+        ("PRJ-2026-001", "MV Sayuri",     "DRYDOCK_1", "2026-01-01", "ACTIVE"),
+    )
+    conn.execute(
+        """INSERT INTO projects
+           (project_code, vessel_name, zone_id, start_date, status)
+           VALUES (?,?,?,?,?)""",
+        ("PRJ-2026-002", "MV Lanka Pride","DRYDOCK_2", "2026-02-01", "ACTIVE"),
+    )
+
+    # Registered vehicles
+    vehicles = [
+        ("WP-CAB-1234", "STAFF",       "CAR",        "John Silva",    None,    None),
+        ("WP-KA-5678",  "CONTRACTOR",  "VAN",         "ABC Builders",  None,    "SCO-001"),
+        ("KL-9012",     "CONTRACTOR",  "TRUCK",       "Lanka Welding", None,    "SCO-002"),
+        ("CAB-3456",    "MANAGEMENT",  "CAR",         None,            "MGMT",  None),
+        ("WP-GA-7890",  "STAFF",       "MOTORCYCLE",  "Jane Perera",   None,    None),
+        ("CP-1122",     "FLEET",       "UTILITY",     None,            "OPS",   None),
+        ("WP-AB-3344",  "STAFF",       "CAR",         "Kamal Dias",    None,    None),
+        ("KL-5566",     "CONTRACTOR",  "VAN",         "SubCo X",       None,    "SCO-003"),
+        ("WP-CD-7788",  "MAINTENANCE", "TRUCK",       None,            "MAINT", None),
+        ("NW-9900",     "VISITOR",     "CAR",         "Visitor Corp",  None,    None),
+        ("SG-1111",     "EMERGENCY",   "UTILITY",     "Fire Dept",     None,    None),
+        ("WP-EF-2233",  "STAFF",       "CAR",         "Rita Raj",      None,    None),
+    ]
+    for row in vehicles:
+        plate, cat, vtype, contractor, dept, company = row
+        conn.execute(
+            """INSERT INTO registered_vehicles
+               (plate_number, vehicle_category, vehicle_type,
+                contractor_name, department, company_id)
+               VALUES (?,?,?,?,?,?)""",
+            (plate, cat, vtype, contractor, dept, company),
         )
-        # Users with full names (for payroll)
-        import bcrypt as _bcrypt
-        for uid, uname, fname, role in [
-            (1, "alice", "Alice M. Silva", "OPERATOR"),
-            (2, "bob",   "Bob R. Perera",  "OPERATOR"),
-        ]:
-            cur.execute(
-                "INSERT INTO users (id,username,full_name,password_hash,role) VALUES (?,?,?,?,?)",
-                (uid, uname, fname,
-                 _bcrypt.hashpw(b"test1234", _bcrypt.gensalt()).decode(), role),
-            )
-        # Assign CAB-1234 and WP-CAB-9012 to alice; KL-5678 to bob
-        cur.execute(
-            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,1)",
-            ("CAB-1234",),
+
+    # Assign first 6 vehicles to DAY shift
+    for plate in [v[0] for v in vehicles[:6]]:
+        conn.execute(
+            "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
+            (plate, "DAY"),
         )
-        cur.execute(
-            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,1)",
-            ("WP-CAB-9012",),
-        )
-        cur.execute(
-            "INSERT INTO vehicle_assignments (plate_number,user_id) VALUES (?,2)",
-            ("KL-5678",),
-        )
-    return db
+
+    # Assign some vehicles to projects
+    conn.execute(
+        """INSERT INTO project_vehicle_assignments
+           (project_code, plate_number, role)
+           VALUES (?,?,?)""",
+        ("PRJ-2026-001", "WP-CAB-1234", "EMPLOYEE"),
+    )
+    conn.execute(
+        """INSERT INTO project_vehicle_assignments
+           (project_code, plate_number, role, company_id)
+           VALUES (?,?,?,?)""",
+        ("PRJ-2026-001", "WP-KA-5678", "SUBCONTRACTOR", "SCO-001"),
+    )
+
+    # Assign a vehicle to operator user
+    conn.execute(
+        """INSERT INTO vehicle_assignments (user_id, plate_number) VALUES (?,?)""",
+        (3, "WP-CAB-1234"),
+    )
+
+    conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+    yield conn
 
 
+# ---------------------------------------------------------------------------
+# engine — AttendanceEngine over seeded_db
+# ---------------------------------------------------------------------------
 @pytest.fixture
-def engine(seeded_db: sqlite3.Connection) -> AttendanceEngine:
-    e = AttendanceEngine(seeded_db, barrier=BarrierController(mode="MOCK"),
-                         exception_timeout_seconds=2)
-    yield e
-    e.shutdown()
+def engine(seeded_db):
+    """AttendanceEngine wired to seeded_db with a mock barrier."""
+    from src.attendance import AttendanceEngine
+    from src.barrier import BarrierController
+
+    barrier = BarrierController("MOCK")
+    eng = AttendanceEngine(conn=seeded_db, barrier=barrier)
+    return eng
 
 
+# ---------------------------------------------------------------------------
+# frozen_time — monkeypatches datetime.now in attendance module
+# ---------------------------------------------------------------------------
 @pytest.fixture
-def sample_plate_image() -> np.ndarray:
-    img = np.full((60, 200, 3), 240, dtype=np.uint8)
-    cv2.putText(img, "CAB-1234", (10, 42),
-                cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 0, 0), 2)
-    return img
+def frozen_time(monkeypatch):
+    """Return a setter that fixes src.attendance.datetime.now to a given datetime."""
+    import src.attendance as att_mod
+
+    class _FrozenDatetime:
+        def __init__(self):
+            self._fixed: datetime | None = None
+
+        def set(self, dt: datetime) -> None:
+            self._fixed = dt
+            monkeypatch.setattr(
+                att_mod, "_now",
+                lambda: self._fixed,
+            )
+
+    return _FrozenDatetime()
 
 
+# ---------------------------------------------------------------------------
+# mock_barrier — a BarrierController in MOCK mode
+# ---------------------------------------------------------------------------
 @pytest.fixture
-def jpeg_bytes(sample_plate_image) -> bytes:
-    ok, buf = cv2.imencode(".jpg", sample_plate_image)
-    assert ok
-    return buf.tobytes()
+def mock_barrier():
+    """MOCK-mode BarrierController — records open/close calls."""
+    from src.barrier import BarrierController
+    return BarrierController("MOCK")
 
 
-def models_present() -> bool:
-    from src.config import PLATE_DETECTOR, CHAR_CLASSIFIER
-    return PLATE_DETECTOR.exists() and CHAR_CLASSIFIER.exists()
+# ---------------------------------------------------------------------------
+# make_jpeg_bytes — factory for minimal JPEG bytestrings
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def make_jpeg_bytes():
+    """Return a factory that creates a tiny JPEG bytestring (numpy required)."""
+    import numpy as np
+    import cv2
 
+    def _factory(width: int = 200, height: int = 80, text: str = "TEST") -> bytes:
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        img[:] = (40, 40, 40)
+        cv2.putText(
+            img, text, (10, height // 2 + 5),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
+        )
+        _, buf = cv2.imencode(".jpg", img)
+        return bytes(buf)
 
-def utc(year, month, day, hour, minute=0):
-    return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+    return _factory

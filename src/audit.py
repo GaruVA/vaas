@@ -1,210 +1,230 @@
-"""SHA-256 hash chain for access_log tamper-evidence (FR-05.1, §5.6, §6.6).
-
-Security model
---------------
-Each access_log row contains a ``row_hash`` field computed as:
-
-    SHA-256(JSON({
-        "id":           <integer row id>,
-        "plate_number": <str>,
-        "timestamp":    <ISO-8601 UTC str>,
-        "gate_id":      <str>,
-        "direction":    "ENTRY" | "EXIT",
-        "prev_hash":    <hex digest of preceding row, or GENESIS_SALT for first row>
-    }))
-
-Including the auto-incremented ``id`` in the payload is critical.  Without it,
-an adversary who can write directly to the database could swap two rows, recompute
-all hashes from the swapped position onward (using prev_hash chaining), and produce
-a chain that passes validation despite the reordering.  Binding each hash to its
-row id makes such an attack detectable: the recomputed hash for a moved row will
-incorporate the wrong id and will therefore not match the stored value.
-
-The genesis sentinel ``GENESIS_SALT`` is a hard-coded non-empty string used as the
-``prev_hash`` for the first row.  It provides a fixed, known starting point for
-verification without requiring a separate genesis-block table entry.
-
-Limitations
------------
-The chain is append-only tamper-evidence, not encryption.  A database
-administrator with write access can still truncate the log or replace all hashes
-after bulk data modification.  The chain should be supplemented by OS-level audit
-logging and periodic export of the latest hash to an external, write-once store.
-"""
 from __future__ import annotations
+
+"""SHA-256 hash-chained audit log for VAAS access_log table.
+
+Two-step INSERT / UPDATE pattern
+---------------------------------
+1. Insert the row with ``row_hash = 'PENDING'`` to obtain the auto-assigned PK.
+2. Compute SHA-256 over the JSON payload ``{id, plate_number, timestamp,
+   gate_id, direction, prev_hash}`` (sorted keys, compact separators).
+3. UPDATE the row with the real hash.
+
+Including the PK in the payload defeats row-reordering attacks: if two rows
+are swapped, the hash chain will be broken at the first swapped row because
+the recomputed hash will embed the *original* PK, not the swapped position.
+
+References: section 6.6 of BUILD_SPEC.md
+"""
 
 import hashlib
 import json
+import logging
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
 
-from src.config import GENESIS_SALT
+from src.config import GENESIS_PREV_HASH
+
+logger = logging.getLogger(__name__)
 
 
-def compute_row_hash(row_id: int, plate_number: str, timestamp: str,
-                     gate_id: str, direction: str, prev_hash: str) -> str:
-    """Compute the SHA-256 hash for a single access_log row.
+# ---------------------------------------------------------------------------
+# Two-step hash finalisation
+# ---------------------------------------------------------------------------
 
-    The payload binds six fields: the row's auto-incremented *row_id*, the
-    four auditable event fields (*plate_number*, *timestamp*, *gate_id*,
-    *direction*), and the hash of the immediately preceding row (*prev_hash*).
-    Including *row_id* prevents row-reordering attacks in which an adversary
-    swaps rows and recomputes the subsequent chain.
+def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
+    """Compute and commit the SHA-256 hash for an ``access_log`` row.
+
+    Must be called after the INSERT that created the row.  The row must
+    already have ``row_hash = 'PENDING'``.
 
     Parameters
     ----------
-    row_id : int
-        The ``id`` primary-key value of the row being hashed.
-    plate_number, timestamp, gate_id, direction : str
-        Auditable event fields exactly as stored in the database.
-    prev_hash : str
-        SHA-256 hex digest of the preceding row, or ``GENESIS_SALT`` for the
-        first row in the chain.
+    conn:
+        Open database connection (autocommit or inside a transaction).
+    row_id:
+        The ``access_log.id`` of the newly inserted row.
 
     Returns
     -------
     str
-        64-character lowercase hexadecimal SHA-256 digest.
+        The computed hex digest, also written to ``access_log.row_hash``.
     """
+    cur = conn.cursor()
+
+    # Fetch the fields that go into the payload
+    cur.execute(
+        "SELECT plate_number, timestamp, gate_id, direction "
+        "FROM access_log WHERE id = ?",
+        (row_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise ValueError(f"access_log row {row_id} not found")
+    plate, ts, gate, direction = row[0], row[1], row[2], row[3]
+
+    # Previous row hash (genesis constant for the first row)
+    cur.execute(
+        "SELECT row_hash FROM access_log WHERE id < ? ORDER BY id DESC LIMIT 1",
+        (row_id,),
+    )
+    prev_row = cur.fetchone()
+    prev_hash: str = prev_row[0] if prev_row else GENESIS_PREV_HASH
+
+    # Build deterministic JSON payload
     payload = json.dumps(
         {
-            "id": row_id,
-            "plate_number": plate_number,
-            "timestamp": timestamp,
-            "gate_id": gate_id,
-            "direction": direction,
-            "prev_hash": prev_hash,
+            "id":           row_id,
+            "plate_number": plate,
+            "timestamp":    ts,
+            "gate_id":      gate,
+            "direction":    direction,
+            "prev_hash":    prev_hash,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    h = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    cur.execute(
+        "UPDATE access_log SET row_hash = ? WHERE id = ?",
+        (h, row_id),
+    )
+    logger.debug("Finalised hash for row %d: %s", row_id, h[:16] + "...")
+    return h
 
 
-def get_prev_hash(cur: sqlite3.Cursor) -> str:
-    """Return the hash of the most recently inserted access_log row.
-
-    Returns ``GENESIS_SALT`` if the table is empty, providing a fixed and
-    known starting point for the hash chain.
-
-    Parameters
-    ----------
-    cur : sqlite3.Cursor
-        An open cursor on the VAAS database connection.
-
-    Returns
-    -------
-    str
-        SHA-256 hex digest of the last row, or ``GENESIS_SALT``.
-    """
-    row = cur.execute(
-        "SELECT row_hash FROM access_log ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    if row is None:
-        return GENESIS_SALT
-    return row["row_hash"] if isinstance(row, sqlite3.Row) else row[0]
-
+# ---------------------------------------------------------------------------
+# Chain verification
+# ---------------------------------------------------------------------------
 
 @dataclass
 class ChainVerificationResult:
-    """Result of a full hash-chain verification pass."""
+    """Result returned by :func:`verify_chain`."""
 
-    intact: bool
-    """True if every row's hash matches its recomputed value."""
-
-    first_bad_id: Optional[int]
-    """The ``id`` of the first row that failed verification, or *None*."""
-
-    rows_checked: int
-    """Total number of rows examined."""
-
+    ok: bool
+    first_bad_id: int | None
+    reason: str | None
     verified_at: str
-    """ISO-8601 UTC timestamp at which verification was performed."""
-
-    message: str
-    """Human-readable summary suitable for logging or display."""
+    rows_checked: int
 
 
 def verify_chain(conn: sqlite3.Connection) -> ChainVerificationResult:
-    """Traverse the entire access_log and verify every row's hash.
-
-    Rows are read in ascending ``id`` order.  For each row the function
-    recomputes ``compute_row_hash(row_id, ...)`` using the stored field values
-    and the previous row's hash, then compares the result against the stored
-    ``row_hash``.  Any mismatch — caused by field modification, row deletion,
-    row insertion, or row reordering — will be detected.
-
-    The function additionally checks that row ids are strictly increasing
-    (i.e., no gaps caused by unreported deletions reaching an otherwise-intact
-    suffix of the chain, and no duplicate ids).  A non-sequential id is itself
-    reported as a verification failure.
-
-    Parameters
-    ----------
-    conn : sqlite3.Connection
-        Open connection to the VAAS database.
+    """Walk the entire ``access_log`` and verify SHA-256 chain integrity.
 
     Returns
     -------
     ChainVerificationResult
-        Dataclass containing the verification outcome, the first bad row id if
-        any, the count of rows examined, and a diagnostic message.
+        ``.ok`` is ``True`` only when every row's stored hash matches the
+        recomputed hash.  On failure, ``.first_bad_id`` identifies the
+        first offending row.
     """
+    verified_at = datetime.now(timezone.utc).isoformat()
     cur = conn.cursor()
-    rows = cur.execute(
+    cur.execute(
         "SELECT id, plate_number, timestamp, gate_id, direction, row_hash "
-        "FROM access_log ORDER BY id ASC"
-    ).fetchall()
+        "FROM access_log ORDER BY id"
+    )
+    rows = cur.fetchall()
 
-    prev_hash = GENESIS_SALT
-    prev_id = 0  # sentinel: all real ids are >= 1
-    checked = 0
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not rows:
+        return ChainVerificationResult(
+            ok=True,
+            first_bad_id=None,
+            reason=None,
+            verified_at=verified_at,
+            rows_checked=0,
+        )
 
-    for r in rows:
-        rid = r["id"] if isinstance(r, sqlite3.Row) else r[0]
-        plate = r["plate_number"] if isinstance(r, sqlite3.Row) else r[1]
-        ts = r["timestamp"] if isinstance(r, sqlite3.Row) else r[2]
-        gate = r["gate_id"] if isinstance(r, sqlite3.Row) else r[3]
-        dirn = r["direction"] if isinstance(r, sqlite3.Row) else r[4]
-        stored_hash = r["row_hash"] if isinstance(r, sqlite3.Row) else r[5]
-        checked += 1
+    prev_hash = GENESIS_PREV_HASH
 
-        # Validate strictly increasing ids — gaps or duplicates signal tampering
-        if rid <= prev_id:
+    for i, row in enumerate(rows):
+        row_id, plate, ts, gate, direction, stored_hash = (
+            row[0], row[1], row[2], row[3], row[4], row[5]
+        )
+
+        # Detect gaps (deleted rows) by checking id continuity against prev
+        if i > 0:
+            prev_id = rows[i - 1][0]
+            # gap check is implicit: the prev_hash used in the payload
+            # was computed from the *previous stored hash*, so a deleted row
+            # will cause a mismatch at the next row automatically.
+
+        payload = json.dumps(
+            {
+                "id":           row_id,
+                "plate_number": plate,
+                "timestamp":    ts,
+                "gate_id":      gate,
+                "direction":    direction,
+                "prev_hash":    prev_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        expected = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+        if stored_hash != expected:
             return ChainVerificationResult(
-                intact=False,
-                first_bad_id=rid,
-                rows_checked=checked,
-                verified_at=now_iso,
-                message=(
-                    f"Non-sequential row id={rid} (expected > {prev_id}); "
-                    "possible row deletion or reordering"
+                ok=False,
+                first_bad_id=row_id,
+                reason=(
+                    f"Hash mismatch at id={row_id}: "
+                    f"stored={stored_hash[:16]}... "
+                    f"expected={expected[:16]}..."
                 ),
-            )
-
-        expected = compute_row_hash(rid, plate, ts, gate, dirn, prev_hash)
-        if expected != stored_hash:
-            return ChainVerificationResult(
-                intact=False,
-                first_bad_id=rid,
-                rows_checked=checked,
-                verified_at=now_iso,
-                message=(
-                    f"Hash mismatch at row id={rid} "
-                    f"(all subsequent rows are also broken)"
-                ),
+                verified_at=verified_at,
+                rows_checked=i + 1,
             )
 
         prev_hash = stored_hash
-        prev_id = rid
 
     return ChainVerificationResult(
-        intact=True,
+        ok=True,
         first_bad_id=None,
-        rows_checked=checked,
-        verified_at=now_iso,
-        message=f"Chain intact across {checked} row(s)",
+        reason=None,
+        verified_at=verified_at,
+        rows_checked=len(rows),
     )
+
+
+# ---------------------------------------------------------------------------
+# Convenience: insert + finalise in one call
+# ---------------------------------------------------------------------------
+
+def log_gate_event(
+    conn: sqlite3.Connection,
+    plate_number: str,
+    timestamp: str,
+    gate_id: str,
+    direction: str,
+    *,
+    status: str = "UNKNOWN",
+    shift_id: str | None = None,
+    confidence_score: float | None = None,
+    dwell_time_seconds: float | None = None,
+    zone_id: str | None = None,
+    project_code: str | None = None,
+    plate_crop_b64: str | None = None,
+) -> int:
+    """Insert an ``access_log`` row and finalise its hash chain link.
+
+    Returns the new row id.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO access_log
+           (plate_number, timestamp, gate_id, direction,
+            status, shift_id, confidence_score, dwell_time_seconds,
+            zone_id, project_code, plate_crop_b64,
+            row_hash)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,'PENDING')""",
+        (
+            plate_number, timestamp, gate_id, direction,
+            status, shift_id, confidence_score, dwell_time_seconds,
+            zone_id, project_code, plate_crop_b64,
+        ),
+    )
+    row_id = cur.lastrowid
+    finalise_row_hash(conn, row_id)
+    return row_id

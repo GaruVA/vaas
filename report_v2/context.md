@@ -180,9 +180,6 @@ A **computer-vision-based vehicle attendance and analytics system** built specif
 - Zone management (CDL drydock topology)
 - Live gate operator dashboard
 
-### Questionable FR (needs honest framing):
-- **Fuel accountability report (FR-08):** Estimates fuel consumption of CDL's own fleet vehicles via dwell-time proxy. Not the core requirement and somewhat indirect. Honest framing: useful for CDL's operations department fleet budget, but a secondary deliverable.
-
 ---
 
 ---
