@@ -5,320 +5,115 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1 class="page-title"><i class="bi bi-bar-chart-line"></i> Reports &amp; Analytics</h1>
-    <p class="page-subtitle">Attendance summaries, gate throughput, absence tracking, and audit chain verification</p>
+    <p class="page-subtitle">Authorised reports and audit trails for CDL operational oversight</p>
   </div>
 </div>
 
-<!-- ── KPI chips ──────────────────────────────────────────────────────────── -->
-<div class="d-flex flex-wrap gap-3 mb-4" style="max-width:960px">
-
-  <div class="stat-chip" style="--chip-accent:var(--blue)">
-    <div class="stat-chip-icon" style="background:rgba(68,138,255,.12);color:var(--blue)">
-      <i class="bi bi-car-front-fill"></i>
-    </div>
-    <div>
-      <div class="stat-chip-value">{{ stats.kpis.active_vehicles }}</div>
-      <div class="stat-chip-label">Active Vehicles</div>
-    </div>
-  </div>
-
-  <div class="stat-chip" style="--chip-accent:var(--cyan)">
-    <div class="stat-chip-icon" style="background:rgba(38,198,218,.12);color:var(--cyan)">
-      <i class="bi bi-box-arrow-in-right"></i>
-    </div>
-    <div>
-      <div class="stat-chip-value">{{ stats.kpis.today_entries }}</div>
-      <div class="stat-chip-label">Today's Entries</div>
-    </div>
-  </div>
-
-  <div class="stat-chip" style="--chip-accent:var(--amber)">
-    <div class="stat-chip-icon" style="background:rgba(255,179,0,.12);color:var(--amber)">
-      <i class="bi bi-clock-history"></i>
-    </div>
-    <div>
-      <div class="stat-chip-value">{{ stats.kpis.today_late }}</div>
-      <div class="stat-chip-label">Late Today</div>
-    </div>
-  </div>
-
-  <div class="stat-chip" style="--chip-accent:var(--green)">
-    <div class="stat-chip-icon" style="background:rgba(0,230,118,.12);color:var(--green)">
-      <i class="bi bi-patch-check-fill"></i>
-    </div>
-    <div>
-      <div class="stat-chip-value">{{ (stats.kpis.compliance_rate * 100) | round(1) }}%</div>
-      <div class="stat-chip-label">Compliance (today)</div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ── 7-day trend chart ──────────────────────────────────────────────────── -->
-<div class="panel mb-4" style="max-width:960px">
-  <div class="panel-header">
-    <span class="panel-title">
-      <i class="bi bi-graph-up-arrow"></i> 7-Day Entry Trend
-    </span>
-    <span style="font-size:.75rem;color:var(--text-muted)">Last 7 days · On-time vs Late arrivals</span>
-  </div>
-  <div class="panel-body" style="padding:1.25rem 1.5rem">
-    <div style="position:relative;height:220px">
-      <canvas id="trendChart"></canvas>
-    </div>
-  </div>
-</div>
-
-<!-- ── Report cards ───────────────────────────────────────────────────────── -->
-<div class="row g-3" style="max-width:960px">
+<!-- ── Core Enterprise Reports ── -->
+<div class="row g-3">
 
   <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.daily') }}">
-      <div class="nav-card-icon blue"><i class="bi bi-calendar-day-fill"></i></div>
-      <div class="nav-card-title">Daily Attendance</div>
-      <div class="nav-card-desc">Per-vehicle breakdown for any date range with compliance rates.</div>
-      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.weekly') }}">
-      <div class="nav-card-icon green"><i class="bi bi-calendar-week-fill"></i></div>
-      <div class="nav-card-title">Weekly Attendance</div>
-      <div class="nav-card-desc">Weekly aggregation with on-time counts and late-arrival stats.</div>
-      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.monthly') }}">
-      <div class="nav-card-icon amber"><i class="bi bi-calendar-month-fill"></i></div>
-      <div class="nav-card-title">Monthly Attendance</div>
-      <div class="nav-card-desc">Month-level summaries with average dwell times and trends.</div>
-      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.gate_throughput') }}">
-      <div class="nav-card-icon cyan"><i class="bi bi-bar-chart-steps"></i></div>
-      <div class="nav-card-title">Gate Throughput</div>
-      <div class="nav-card-desc">Hourly and daily vehicle counts per gate with dwell analytics.</div>
-      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.absence') }}">
-      <div class="nav-card-icon" style="background:rgba(255,61,90,.1);color:var(--red)">
-        <i class="bi bi-person-x-fill"></i>
+    <a class="nav-card h-100" href="{{ url_for('manager.personal_allowance') }}">
+      <div class="nav-card-icon" style="background:rgba(27,63,149,.12);color:var(--blue)">
+        <i class="bi bi-cash-coin"></i>
       </div>
-      <div class="nav-card-title">Absence Report</div>
-      <div class="nav-card-desc">Expected vs actual attendance — present, late, absent, and partial days per vehicle.</div>
+      <div class="nav-card-title">Personal Allowance</div>
+      <div class="nav-card-desc">Daily eligibility per driver for personal vehicle fuel allowance — FR-07.</div>
       <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-12"><div class="divider"></div></div>
-
-  <!-- ── Enterprise reports ── -->
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.payroll') }}">
-      <div class="nav-card-icon" style="background:rgba(68,138,255,.1);color:var(--blue)">
-        <i class="bi bi-wallet2"></i>
-      </div>
-      <div class="nav-card-title">Payroll Summary</div>
-      <div class="nav-card-desc">Hours worked per driver × vehicle for any date range with late and compliance rates.</div>
-      <div class="nav-card-arrow"><span>View payroll</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
   <div class="col-md-6 col-lg-3">
     <a class="nav-card h-100" href="{{ url_for('manager.ohs') }}">
-      <div class="nav-card-icon" style="background:rgba(255,179,0,.1);color:var(--amber)">
+      <div class="nav-card-icon" style="background:rgba(255,179,0,.12);color:var(--amber)">
         <i class="bi bi-shield-exclamation"></i>
       </div>
       <div class="nav-card-title">OHS Compliance</div>
-      <div class="nav-card-desc">Driver assignment coverage, overstay flags, and vehicle status — occupational safety snapshot.</div>
-      <div class="nav-card-arrow"><span>View OHS</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.rejections') }}">
-      <div class="nav-card-icon" style="background:rgba(255,61,90,.1);color:var(--red)">
-        <i class="bi bi-slash-circle-fill"></i>
-      </div>
-      <div class="nav-card-title">Gate Rejections</div>
-      <div class="nav-card-desc">Post-incident audit trail of every gate rejection — plate, reason, confidence, and timestamp.</div>
-      <div class="nav-card-arrow"><span>View rejections</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
-  <div class="col-12"><div class="divider"></div></div>
-
-  <!-- ── CDL Operations reports ── -->
-  <div class="col-md-6 col-lg-3">
-    <a class="nav-card h-100" href="{{ url_for('manager.personal_allowance') }}">
-      <div class="nav-card-icon" style="background:rgba(74,130,255,.1);color:var(--blue)">
-        <i class="bi bi-cash-coin"></i>
-      </div>
-      <div class="nav-card-title">Personal Allowance</div>
-      <div class="nav-card-desc">Daily allowance eligibility per driver based on on-time entry records.</div>
-      <div class="nav-card-arrow"><span>View allowances</span><i class="bi bi-arrow-right"></i></div>
+      <div class="nav-card-desc">Driver assignment coverage, vehicle status — ISO 45001 audit support — FR-08.</div>
+      <div class="nav-card-arrow"><span>View report</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
   <div class="col-md-6 col-lg-3">
     <a class="nav-card h-100" href="{{ url_for('manager.gate_rejection_audit_view') }}">
-      <div class="nav-card-icon" style="background:rgba(244,189,15,.1);color:var(--amber)">
-        <i class="bi bi-shield-exclamation"></i>
+      <div class="nav-card-icon" style="background:rgba(244,189,15,.12);color:var(--amber)">
+        <i class="bi bi-shield-slash"></i>
       </div>
       <div class="nav-card-title">Gate Rejection Audit</div>
-      <div class="nav-card-desc">Enriched rejection log with vehicle registration status for security investigations.</div>
+      <div class="nav-card-desc">Complete rejection log with reasons and confidence scores — FR-09.</div>
       <div class="nav-card-arrow"><span>View audit</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
   <div class="col-md-6 col-lg-3">
+    <a class="nav-card h-100" href="{{ url_for('manager.admin_audit_view') }}">
+      <div class="nav-card-icon" style="background:rgba(255,61,90,.12);color:var(--red)">
+        <i class="bi bi-journal-text"></i>
+      </div>
+      <div class="nav-card-title">Admin Audit Log</div>
+      <div class="nav-card-desc">Administrative action trail (CREATE, UPDATE, DELETE, ASSIGN) — FR-10.</div>
+      <div class="nav-card-arrow"><span>View log</span><i class="bi bi-arrow-right"></i></div>
+    </a>
+  </div>
+
+  <div class="col-md-6 col-lg-3">
     <a class="nav-card h-100" href="{{ url_for('manager.zone_occupancy_view') }}">
-      <div class="nav-card-icon" style="background:rgba(118,189,51,.1);color:var(--green)">
+      <div class="nav-card-icon" style="background:rgba(118,189,51,.12);color:var(--green)">
         <i class="bi bi-map-fill"></i>
       </div>
       <div class="nav-card-title">Zone Occupancy</div>
-      <div class="nav-card-desc">Real-time vehicle headcount across all CDL drydocks, berths, and workshops.</div>
+      <div class="nav-card-desc">Real-time vehicle headcount across CDL drydocks and zones — FR-12.</div>
       <div class="nav-card-arrow"><span>View occupancy</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
   <div class="col-md-6 col-lg-3">
     <a class="nav-card h-100" href="{{ url_for('manager.subcontractor_billing_view') }}">
-      <div class="nav-card-icon" style="background:rgba(74,130,255,.08);color:var(--cyan)">
+      <div class="nav-card-icon" style="background:rgba(74,130,255,.12);color:var(--cyan)">
         <i class="bi bi-building-fill-gear"></i>
       </div>
       <div class="nav-card-title">Subcontractor Billing</div>
-      <div class="nav-card-desc">Billed hours per sub-contractor vehicle and project for finance verification.</div>
+      <div class="nav-card-desc">Billed hours per subcontractor for project cost verification — FR-11.</div>
       <div class="nav-card-arrow"><span>View billing</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
   <div class="col-12"><div class="divider"></div></div>
 
-  <!-- ── Security & integrity ── -->
-  <div class="col-md-6 col-lg-4">
-    <a class="nav-card h-100" href="{{ url_for('manager.admin_audit_view') }}">
-      <div class="nav-card-icon" style="background:rgba(255,61,90,.08);color:var(--red)">
-        <i class="bi bi-journal-text"></i>
-      </div>
-      <div class="nav-card-title">Admin Audit Log</div>
-      <div class="nav-card-desc">Full administrative action trail — restricted to ADMIN role users.</div>
-      <div class="nav-card-arrow"><span>View log</span><i class="bi bi-arrow-right"></i></div>
-    </a>
-  </div>
-
+  <!-- ── Audit Chain ── -->
   <div class="col-md-6 col-lg-4">
     <a class="nav-card h-100" href="{{ url_for('manager.audit') }}">
-      <div class="nav-card-icon" style="background:rgba(118,189,51,.08);color:var(--green)">
+      <div class="nav-card-icon" style="background:rgba(118,189,51,.12);color:var(--green)">
         <i class="bi bi-shield-check"></i>
       </div>
       <div class="nav-card-title">Audit Chain Verification</div>
       <div class="nav-card-desc">
-        Verify the SHA-256 hash chain integrity of the access log.
-        Any tampered row is detected immediately.
+        Verify SHA-256 hash chain integrity of access_log.
+        Detects any tampering or row reordering — FR-06.
       </div>
       <div class="nav-card-arrow"><span>Verify integrity</span><i class="bi bi-arrow-right"></i></div>
     </a>
   </div>
 
 </div>
-{% endblock %}
 
-{% block extra_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script>
-(function () {
-  const labels  = {{ stats.chart.labels  | tojson }};
-  const onTime  = {{ stats.chart.on_time | tojson }};
-  const late    = {{ stats.chart.late    | tojson }};
-
-  const ctx = document.getElementById('trendChart');
-  if (!ctx) return;
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'On Time',
-          data: onTime,
-          backgroundColor: 'rgba(0,230,118,0.70)',
-          borderColor:     'rgba(0,230,118,0.90)',
-          borderWidth: 1,
-          borderRadius: 4,
-          stack: 'arrivals',
-        },
-        {
-          label: 'Late Arrivals',
-          data: late,
-          backgroundColor: 'rgba(255,179,0,0.70)',
-          borderColor:     'rgba(255,179,0,0.90)',
-          borderWidth: 1,
-          borderRadius: 4,
-          stack: 'arrivals',
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: {
-          labels: {
-            color: '#9ba3af',
-            font: { family: 'Inter', size: 12 },
-            usePointStyle: true,
-            pointStyle: 'rectRounded',
-          },
-        },
-        tooltip: {
-          backgroundColor: '#131720',
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
-          titleColor: '#e2e8f0',
-          bodyColor:  '#9ba3af',
-          padding: 10,
-          callbacks: {
-            footer: function (items) {
-              const total = items.reduce((s, i) => s + i.raw, 0);
-              return 'Total: ' + total;
-            }
-          }
-        },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: '#9ba3af', font: { family: 'Inter', size: 11 } },
-          grid:  { color: 'rgba(255,255,255,0.04)' },
-          border: { color: 'rgba(255,255,255,0.08)' },
-        },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          ticks: {
-            color: '#9ba3af',
-            font: { family: 'Inter', size: 11 },
-            precision: 0,
-          },
-          grid:  { color: 'rgba(255,255,255,0.04)' },
-          border: { color: 'rgba(255,255,255,0.08)' },
-        },
-      },
-    },
-  });
-})();
-</script>
+<div class="panel mt-4" style="max-width:680px">
+  <div class="panel-header">
+    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Report Reference</span>
+  </div>
+  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
+    <p style="margin:0 0 .8rem">
+      All reports below correspond to functional requirements from the CDL BUILD_SPEC. Exports are available in CSV and PDF formats.
+    </p>
+    <ul style="margin:0;padding-left:1.2rem;list-style:disc">
+      <li><strong>FR-07 Personal Allowance:</strong> Daily per-driver eligibility based on on-time entries</li>
+      <li><strong>FR-08 OHS Compliance:</strong> Vehicle assignment and overstay risk classification</li>
+      <li><strong>FR-09 Gate Rejection Audit:</strong> Security-relevant rejection trail with confidence scores</li>
+      <li><strong>FR-10 Admin Audit Log:</strong> Immutable administrative action trail</li>
+      <li><strong>FR-11 Subcontractor Billing:</strong> Per-company, per-project dwell hours</li>
+      <li><strong>FR-12 Zone Occupancy:</strong> Real-time live headcount across all CDL zones</li>
+      <li><strong>FR-06 Audit Chain:</strong> SHA-256 hash chain integrity verification</li>
+    </ul>
+  </div>
+</div>
 {% endblock %}

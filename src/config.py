@@ -49,6 +49,8 @@ HARDWARE_MODE = os.environ.get("VAAS_HW_MODE", "MOCK")
 ARDUINO_PORT  = os.environ.get("VAAS_ARDUINO_PORT", "/dev/ttyUSB0")
 ARDUINO_BAUD  = 9600
 CAMERA_INDEX  = int(os.environ.get("VAAS_CAMERA_INDEX", "0"))
+CAMERA_INDEX_GATE_A = int(os.environ.get("VAAS_CAM_A", "0"))
+CAMERA_INDEX_GATE_B = int(os.environ.get("VAAS_CAM_B", "1"))
 SAMPLE_IMAGE_DIR = PROJECT_ROOT / "data" / "sample_plates"
 
 # Privacy (PDPA 2022)

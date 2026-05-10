@@ -8,12 +8,8 @@ Report functions (10)
 2.  ohs_compliance_report           -- LEFT JOIN, non-compliant first
 3.  gate_rejection_audit
 4.  admin_audit_report
-5.  daily_attendance_report
-6.  weekly_attendance_report
-7.  monthly_attendance_report
-8.  gate_throughput_report
-9.  zone_occupancy_snapshot
-10. subcontractor_billing_audit
+5.  zone_occupancy_snapshot
+6.  subcontractor_billing_audit
 
 Helpers (3)
 -----------
@@ -189,120 +185,7 @@ def admin_audit_report(
 
 
 # ---------------------------------------------------------------------------
-# 5. Daily attendance report
-# ---------------------------------------------------------------------------
-
-def daily_attendance_report(conn, date: str) -> list[dict]:
-    """Per-vehicle breakdown for a single calendar date."""
-    rows = conn.execute(
-        """
-        SELECT
-            rv.plate_number,
-            rv.vehicle_category,
-            rv.registration_status,
-            rv.contractor_name,
-            COUNT(al.id)                                        AS total_events,
-            SUM(CASE WHEN al.status = 'ON_TIME_ENTRY'  THEN 1 ELSE 0 END) AS on_time,
-            SUM(CASE WHEN al.status = 'LATE_ARRIVAL'   THEN 1 ELSE 0 END) AS late,
-            SUM(CASE WHEN al.status = 'EARLY_ARRIVAL'  THEN 1 ELSE 0 END) AS early,
-            COALESCE(MAX(al.dwell_time_seconds), 0)             AS max_dwell_seconds,
-            CASE WHEN COUNT(al.id) > 0 THEN 1 ELSE 0 END       AS present
-        FROM registered_vehicles rv
-        LEFT JOIN access_log al
-            ON al.plate_number = rv.plate_number
-            AND DATE(al.timestamp) = ?
-        GROUP BY rv.plate_number
-        ORDER BY rv.plate_number
-        """,
-        (date,),
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 6. Weekly attendance report
-# ---------------------------------------------------------------------------
-
-def weekly_attendance_report(conn, week_start_date: str) -> list[dict]:
-    """Weekly aggregation starting from week_start_date (7 days)."""
-    start = datetime.strptime(week_start_date, "%Y-%m-%d").date()
-    end   = start + timedelta(days=6)
-    rows = conn.execute(
-        """
-        SELECT
-            rv.plate_number,
-            rv.vehicle_category,
-            COUNT(DISTINCT DATE(al.timestamp))  AS days_present,
-            SUM(CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL') THEN 1 ELSE 0 END) AS on_time_count,
-            SUM(CASE WHEN al.status = 'LATE_ARRIVAL' THEN 1 ELSE 0 END) AS late_count,
-            COALESCE(SUM(al.dwell_time_seconds)/3600.0, 0)               AS total_hours
-        FROM registered_vehicles rv
-        LEFT JOIN access_log al
-            ON al.plate_number = rv.plate_number
-            AND DATE(al.timestamp) BETWEEN ? AND ?
-        GROUP BY rv.plate_number
-        ORDER BY rv.plate_number
-        """,
-        (str(start), str(end)),
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 7. Monthly attendance report
-# ---------------------------------------------------------------------------
-
-def monthly_attendance_report(conn, year: int, month: int) -> list[dict]:
-    """Month-level summaries with average dwell times."""
-    month_str = f"{year:04d}-{month:02d}"
-    rows = conn.execute(
-        """
-        SELECT
-            rv.plate_number,
-            rv.vehicle_category,
-            COUNT(DISTINCT DATE(al.timestamp))               AS days_present,
-            COUNT(al.id)                                     AS total_events,
-            COALESCE(AVG(al.dwell_time_seconds)/3600.0, 0)  AS avg_dwell_hours,
-            COALESCE(SUM(al.dwell_time_seconds)/3600.0, 0)  AS total_hours
-        FROM registered_vehicles rv
-        LEFT JOIN access_log al
-            ON al.plate_number = rv.plate_number
-            AND strftime('%Y-%m', al.timestamp) = ?
-        GROUP BY rv.plate_number
-        ORDER BY rv.plate_number
-        """,
-        (month_str,),
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 8. Gate throughput report
-# ---------------------------------------------------------------------------
-
-def gate_throughput_report(conn, date_from: str, date_to: str) -> list[dict]:
-    """Hourly and daily vehicle counts per gate."""
-    rows = conn.execute(
-        """
-        SELECT
-            gate_id,
-            DATE(timestamp)                         AS event_date,
-            strftime('%H', timestamp)               AS hour,
-            direction,
-            COUNT(id)                               AS vehicle_count,
-            COALESCE(AVG(dwell_time_seconds), 0)    AS avg_dwell_seconds
-        FROM access_log
-        WHERE DATE(timestamp) BETWEEN ? AND ?
-        GROUP BY gate_id, DATE(timestamp), strftime('%H', timestamp), direction
-        ORDER BY gate_id, event_date, hour
-        """,
-        (date_from, date_to),
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 9. Zone occupancy snapshot
+# 5. Zone occupancy snapshot
 # ---------------------------------------------------------------------------
 
 def zone_occupancy_snapshot(conn) -> list[dict]:
@@ -349,7 +232,7 @@ def zone_occupancy_snapshot(conn) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 10. Subcontractor billing audit
+# 6. Subcontractor billing audit
 # ---------------------------------------------------------------------------
 
 def subcontractor_billing_audit(

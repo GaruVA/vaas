@@ -176,6 +176,21 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_entity   ON admin_audit_log(entity_ty
 """
 
 # ---------------------------------------------------------------------------
+# Constants extracted from schema CHECK constraints
+# ---------------------------------------------------------------------------
+
+VEHICLE_CATEGORIES = ("STAFF", "CONTRACTOR", "MANAGEMENT", "FLEET", "VISITOR", "EMERGENCY", "MAINTENANCE")
+VEHICLE_TYPES = ("CAR", "VAN", "TRUCK", "MOTORCYCLE", "UTILITY")
+VEHICLE_STATUSES = ("ACTIVE", "SUSPENDED", "EXPIRED")
+DIRECTIONS = ("ENTRY", "EXIT")
+USER_ROLES = ("ADMIN", "MANAGER", "OPERATOR")
+ZONE_TYPES = ("DRYDOCK", "BERTH", "WORKSHOP", "ADMIN", "SECURITY")
+PROJECT_STATUSES = ("ACTIVE", "CLOSED")
+COMPANY_STATUSES = ("APPROVED", "SUSPENDED", "EXPIRED")
+ASSIGNMENT_ROLES = ("EMPLOYEE", "SUBCONTRACTOR", "SUPERVISOR", "VISITOR")
+ADMIN_ACTIONS = ("CREATE", "UPDATE", "DELETE", "ASSIGN")
+
+# ---------------------------------------------------------------------------
 # Migrations -- keyed by int, applied idempotently.
 # Keys are sequential; append at the end for future additions.
 # ---------------------------------------------------------------------------
