@@ -117,17 +117,19 @@ function dismissToast(el) {
   }
 
   /* ── Status badge HTML ──────────────────────────────────────────────────── */
-  const OK_STATUSES   = ["ON_TIME_ENTRY", "ON_TIME_EXIT", "VISITOR_ADMITTED"];
-  const BAD_STATUSES  = ["SUSPENDED", "EXPIRED", "VISITOR_REJECTED", "VISITOR_TIMEOUT_REJECT"];
-  const LATE_STATUSES = ["LATE_ARRIVAL", "EARLY_DEPARTURE", "EARLY_ARRIVAL"];
-  const VIS_STATUSES  = ["VISITOR"];
+  const OK_STATUSES      = ["ON_TIME_ENTRY", "ON_TIME_EXIT", "VISITOR_ADMITTED"];
+  const BAD_STATUSES     = ["SUSPENDED", "EXPIRED", "VISITOR_REJECTED", "VISITOR_TIMEOUT_REJECT"];
+  const LATE_STATUSES    = ["LATE_ARRIVAL", "EARLY_DEPARTURE", "EARLY_ARRIVAL"];
+  const VIS_STATUSES     = ["VISITOR"];
+  const ANOMALY_STATUSES = ["DOUBLE_ENTRY", "UNMATCHED_EXIT"];
 
   function statusBadge(s) {
     let cls = "bs-default";
-    if (OK_STATUSES.includes(s))              cls = "bs-ok";
-    else if (BAD_STATUSES.includes(s))         cls = "bs-rejected";
-    else if (LATE_STATUSES.includes(s))        cls = "bs-late";
+    if (OK_STATUSES.includes(s))                      cls = "bs-ok";
+    else if (BAD_STATUSES.includes(s))                cls = "bs-rejected";
+    else if (LATE_STATUSES.includes(s))               cls = "bs-late";
     else if (VIS_STATUSES.some(v => s.startsWith(v))) cls = "bs-visitor";
+    else if (ANOMALY_STATUSES.includes(s))            cls = "bs-anomaly";
     return `<span class="badge-status ${cls}">${s.replace(/_/g, " ")}</span>`;
   }
 

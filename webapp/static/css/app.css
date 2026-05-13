@@ -565,6 +565,7 @@ code, .mono {
 .bs-late     { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(244,189,15,.28); }
 .bs-rejected { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(255,61,90,.28); }
 .bs-visitor  { background: var(--blue-bg);  color: var(--blue);  border: 1px solid rgba(74,130,255,.28); }
+.bs-anomaly  { background: rgba(180,80,255,.12); color: #b450ff;  border: 1px solid rgba(180,80,255,.28); }
 .bs-default  { background: rgba(96,125,139,.12); color: var(--slate); border: 1px solid rgba(96,125,139,.25); }
 
 /* ── 12. Exception action buttons ──────────────────────────────────────────── */

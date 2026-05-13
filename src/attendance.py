@@ -76,6 +76,8 @@ class GateStatus(str, Enum):
     VISITOR_TIMEOUT_REJECT         = "VISITOR_TIMEOUT_REJECT"
     SUSPENDED                      = "SUSPENDED"
     EXPIRED                        = "EXPIRED"
+    DOUBLE_ENTRY                   = "DOUBLE_ENTRY"
+    UNMATCHED_EXIT                 = "UNMATCHED_EXIT"
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +206,56 @@ class AttendanceEngine:
                 message="Vehicle registration expired",
             )
 
-        # 3. ACTIVE vehicle: compute attendance status
+        # 3. Direction-consistency check (ACTIVE vehicles only)
+        # Detects double-entry and exits with no recorded entry.
+        # In both cases the barrier still opens — we never deny a legitimate
+        # employee — but we write a distinct status so the audit log flags it.
+        last_dir_row = self._conn.execute(
+            "SELECT direction FROM access_log "
+            "WHERE plate_number = ? ORDER BY id DESC LIMIT 1",
+            (matched_plate,),
+        ).fetchone()
+        last_dir = last_dir_row[0] if last_dir_row else None
+
+        anomaly_status: GateStatus | None = None
+        if direction == "ENTRY" and last_dir == "ENTRY":
+            anomaly_status = GateStatus.DOUBLE_ENTRY
+            logger.warning("[%s] Double-entry anomaly: %s — last recorded event was also ENTRY",
+                           gate_id, matched_plate)
+        elif direction == "EXIT" and last_dir != "ENTRY":
+            anomaly_status = GateStatus.UNMATCHED_EXIT
+            logger.warning("[%s] Unmatched-exit anomaly: %s — no prior ENTRY found (last=%s)",
+                           gate_id, matched_plate, last_dir)
+
+        if anomaly_status is not None:
+            # Resolve shift_id for the log row (best-effort; None is fine)
+            try:
+                _sr = self._conn.execute(
+                    """SELECT s.shift_id FROM shifts s
+                       JOIN vehicle_shifts vs ON vs.shift_id = s.shift_id
+                       WHERE vs.plate_number = ? LIMIT 1""",
+                    (matched_plate,),
+                ).fetchone()
+                _shift_id = _sr[0] if _sr else None
+            except Exception:
+                _shift_id = None
+
+            zone_id, project_code = self._resolve_attribution(matched_plate, gate_id, now)
+            row_id = self._insert_access_log(
+                matched_plate, ts_str, gate_id, direction,
+                anomaly_status.value, _shift_id, confidence,
+                None, zone_id, project_code, crop_b64,
+            )
+            self._barrier.open(gate_id)
+            return GateEventResult(
+                outcome=GateOutcome.BARRIER_OPENED,
+                status=anomaly_status,
+                plate_number=matched_plate,
+                access_log_id=row_id,
+                message=anomaly_status.value,
+            )
+
+        # 4. ACTIVE vehicle: compute attendance status
         shift_row = self._conn.execute(
             """SELECT s.shift_id, s.start_time, s.end_time, s.grace_period_minutes
                FROM shifts s
@@ -216,7 +267,7 @@ class AttendanceEngine:
 
         attendance_status = self._classify_status(direction, now, shift_row)
 
-        # 4. Compute dwell time for EXIT
+        # 5. Compute dwell time for EXIT
         dwell = None
         if direction == "EXIT":
             entry_row = self._conn.execute(
@@ -232,10 +283,10 @@ class AttendanceEngine:
                 except (ValueError, TypeError):
                     pass
 
-        # 5. Resolve zone + project
+        # 6. Resolve zone + project
         zone_id, project_code = self._resolve_attribution(matched_plate, gate_id, now)
 
-        # 6. Insert access_log row + finalise hash
+        # 7. Insert access_log row + finalise hash
         shift_id = shift_row[0] if shift_row else None
         row_id = self._insert_access_log(
             matched_plate, ts_str, gate_id, direction,
@@ -243,7 +294,7 @@ class AttendanceEngine:
             dwell, zone_id, project_code, crop_b64,
         )
 
-        # 7. Open barrier
+        # 8. Open barrier
         self._barrier.open(gate_id)
 
         return GateEventResult(

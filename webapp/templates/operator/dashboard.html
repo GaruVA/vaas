@@ -125,7 +125,8 @@
               <span class="badge-status
                 {% if r.status in ('ON_TIME_ENTRY','ON_TIME_EXIT') %}bs-ok
                 {% elif r.status in ('LATE_ARRIVAL','EARLY_DEPARTURE','EARLY_ARRIVAL') %}bs-late
-                {% elif r.status in ('SUSPENDED','EXPIRED') %}bs-rejected
+                {% elif r.status in ('SUSPENDED','EXPIRED','VISITOR_REJECTED','VISITOR_TIMEOUT_REJECT') %}bs-rejected
+                {% elif r.status in ('DOUBLE_ENTRY','UNMATCHED_EXIT') %}bs-anomaly
                 {% elif 'VISITOR' in r.status %}bs-visitor
                 {% else %}bs-default{% endif %}">
                 {{ r.status|replace('_',' ') }}
