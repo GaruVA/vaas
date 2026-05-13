@@ -32,7 +32,7 @@ from flask import (
 )
 
 from src.clahe import apply_clahe
-from src.config import CAMERA_INDEX_GATE_A, CAMERA_INDEX_GATE_B
+from src.config import CAMERA_INDEX_GATE_A, CAMERA_INDEX_GATE_B, EXCEPTION_TIMEOUT_SECONDS
 from src.pipeline import DEFAULT_COOLDOWN_SECONDS, PlateDebouncer, draw_overlays, process_frame
 
 logger = logging.getLogger(__name__)
@@ -142,6 +142,19 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
             except Exception as exc:
                 logger.error("[%s] process_frame error: %s", gate_id, exc)
                 results = []
+
+            # ── Snooze debouncer for EXCEPTION plates ────────────────────
+            # An unregistered vehicle sitting in front of the camera would
+            # re-trigger an exception every 3 s without this.  Snooze for
+            # the full EXCEPTION_TIMEOUT_SECONDS so the plate is suppressed
+            # until the auto-reject window expires (or the operator acts).
+            from src.attendance import GateOutcome
+            for r in results:
+                if (not r.debounced and r.gate_event is not None
+                        and r.gate_event.outcome == GateOutcome.EXCEPTION_PENDING_DISPOSITION):
+                    debouncer.snooze(r.raw_plate, EXCEPTION_TIMEOUT_SECONDS)
+                    logger.debug("[%s] Debouncer snoozed %s for %ds (EXCEPTION)",
+                                 gate_id, r.raw_plate, EXCEPTION_TIMEOUT_SECONDS)
 
             # ── Build overlay labels (grey for debounced, green for new) ────
             detections = [r.plate_detection for r in results]

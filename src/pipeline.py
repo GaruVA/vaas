@@ -158,6 +158,21 @@ class PlateDebouncer:
 
             return is_fresh
 
+    def snooze(self, plate: str, seconds: float) -> None:
+        """Block *plate* for *seconds* from now, regardless of cooldown_seconds.
+
+        Used after an EXCEPTION outcome so an unregistered vehicle sitting in
+        front of the camera cannot re-trigger the exception queue every 3 s
+        while the operator decides what to do.
+
+        Mechanics: sets _last_seen such that ``now - last_seen < cooldown`` for
+        the next *seconds* seconds.  Formula: last_seen = now - cooldown + seconds.
+        At time (now + delta): delta + cooldown - seconds >= cooldown ↔ delta >= seconds.
+        """
+        with self._lock:
+            now = time.time()
+            self._last_seen[plate] = now - self.cooldown_seconds + seconds
+
 
 # ---------------------------------------------------------------------------
 # Frame processing pipeline helper structures
