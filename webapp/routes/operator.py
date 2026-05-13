@@ -27,7 +27,7 @@ from typing import Optional
 import cv2
 import numpy as np
 from flask import (
-    Blueprint, Response, g, jsonify, render_template, request,
+    Blueprint, Response, current_app, g, jsonify, render_template, request,
     session, stream_with_context, url_for,
 )
 
@@ -136,13 +136,24 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                                       debounced_indices=debounced_idx)
             publish_overlay_frame(gate_id, annotated)
 
-            # ── Log non-debounced events ─────────────────────────────────
+            # ── Log and broadcast non-debounced events ───────────────────
+            broker = app.config.get("VAAS_BROKER")
             for r in results:
                 if not r.debounced and r.gate_event is not None:
                     logger.info("[%s] %s → %s (%.0f ms total)",
                                 gate_id, r.raw_plate,
                                 r.gate_event.outcome,
                                 r.timings_ms.get("total", 0))
+                    if broker is not None:
+                        broker.publish({
+                            "gate_id":    gate_id,
+                            "plate":      r.raw_plate,
+                            "outcome":    r.gate_event.outcome.value
+                                          if hasattr(r.gate_event.outcome, "value")
+                                          else str(r.gate_event.outcome),
+                            "confidence": round(r.confidence, 3),
+                            "ts":         time.time(),
+                        })
 
             # ── Throttle to ~10 fps ──────────────────────────────────────
             elapsed = time.perf_counter() - t0
@@ -213,7 +224,7 @@ def dashboard():
 @_requires_login
 def sse():
     """Server-Sent Events stream (pushes new gate events to the dashboard)."""
-    broker = g.get("VAAS_BROKER") or app.config.get("VAAS_BROKER")
+    broker = g.get("VAAS_BROKER") or current_app.config.get("VAAS_BROKER")
     if broker is None:
         logger.error("VAAS_BROKER not initialized")
         return jsonify({"error": "Event broker not available"}), 503

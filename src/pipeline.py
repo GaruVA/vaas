@@ -315,11 +315,12 @@ def draw_overlays(
 
     for i, det in enumerate(detections):
         # Extract bounding box (try multiple attribute names)
-        bbox = getattr(det, "bbox", None)
-        if bbox is None and hasattr(det, "x1"):
-            x1, y1, x2, y2 = det.x1, det.y1, det.x2, det.y2
-        elif bbox is not None:
-            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+        if hasattr(det, "xyxy") and det.xyxy is not None:
+            x1, y1, x2, y2 = (int(v) for v in det.xyxy)
+        elif hasattr(det, "x1"):
+            x1, y1, x2, y2 = int(det.x1), int(det.y1), int(det.x2), int(det.y2)
+        elif hasattr(det, "bbox") and det.bbox is not None:
+            x1, y1, x2, y2 = (int(v) for v in det.bbox)
         else:
             logger.warning("Detection %d has no bounding box", i)
             continue

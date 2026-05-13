@@ -24,8 +24,9 @@ from src.config import CHAR_CLASSIFIER, CHAR_CONF_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
-# 37-class label list: 0-9, A-Z, hyphen
-_LABELS: list[str] = [str(i) for i in range(10)] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["-"]
+# 37-class label list ordered to match model training: hyphen first, then 0-9, then A-Z.
+# Model class 0 = '-', 1 = '0', ..., 10 = '9', 11 = 'A', ..., 36 = 'Z'
+_LABELS: list[str] = ["-"] + [str(i) for i in range(10)] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 
 class CharClassifier:

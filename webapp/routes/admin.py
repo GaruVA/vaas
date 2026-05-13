@@ -23,7 +23,7 @@ def _audit(conn, action: str, entity_type: str, entity_id: str,
     try:
         conn.execute(
             "INSERT INTO admin_audit_log "
-            "(user_id, username, action, entity_type, entity_id, details) "
+            "(user_id, username, action, entity_type, entity_id, delta_json) "
             "VALUES (?,?,?,?,?,?)",
             (
                 session.get("user_id"),
@@ -330,7 +330,7 @@ def reset_password(uid: int):
 @requires_role("ADMIN")
 def audit_log():
     rows = g.db.execute(
-        "SELECT * FROM admin_audit_log ORDER BY occurred_at DESC LIMIT 500"
+        "SELECT * FROM admin_audit_log ORDER BY timestamp DESC LIMIT 500"
     ).fetchall()
     return render_template("admin/audit_log.html", rows=rows)
 

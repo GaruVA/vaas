@@ -88,8 +88,8 @@
             </span>
           </td>
           <td style="font-family:var(--font-mono);font-size:.78rem;
-             color:{% if r.confidence_score >= 0.8 %}var(--green){% elif r.confidence_score >= 0.6 %}var(--amber){% else %}var(--red){% endif %}">
-            {% if r.confidence_score > 0 %}{{ (r.confidence_score * 100) | round(1) }}%{% else %}—{% endif %}
+             color:{% if r.confidence_score is not none and r.confidence_score >= 0.8 %}var(--green){% elif r.confidence_score is not none and r.confidence_score >= 0.6 %}var(--amber){% else %}var(--red){% endif %}">
+            {% if r.confidence_score is not none and r.confidence_score > 0 %}{{ (r.confidence_score * 100) | round(1) }}%{% else %}—{% endif %}
           </td>
         </tr>
       {% else %}

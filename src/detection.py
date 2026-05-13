@@ -15,7 +15,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import torch
 from ultralytics import YOLO
+
+# PyTorch 2.6+ changed weights_only default to True.  Ultralytics checkpoint
+# files embed many torch internal classes that aren't in the default allowlist.
+# Rather than enumerate every class, we patch torch.load so that calls without
+# an explicit weights_only argument (i.e. the YOLO loader) fall back to False.
+# This is safe here because plate_detector.pt is a trusted local asset.
+_orig_torch_load = torch.load
+
+def _torch_load_compat(f, *args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _orig_torch_load(f, *args, **kwargs)
+
+torch.load = _torch_load_compat
 
 from src.config import PLATE_DETECTOR, PLATE_CONF_THRESHOLD
 
