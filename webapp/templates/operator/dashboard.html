@@ -104,7 +104,7 @@
         </thead>
         <tbody>
         {% for r in recent %}
-          <tr>
+          <tr data-id="{{ r.id }}">
             <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem">
               {{ r.timestamp[11:19] }}
             </td>

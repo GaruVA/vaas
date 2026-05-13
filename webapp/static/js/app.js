@@ -150,11 +150,83 @@ function dismissToast(el) {
   tickClock();
   setInterval(tickClock, 1000);
 
-  /* ── Fetch initial today count ──────────────────────────────────────────── */
-  fetch("/api/recent")
-    .then(r => r.json())
-    .then(data => { if (statToday) statToday.textContent = data.length; })
-    .catch(() => {});
+  /* ── Live Events table: poll /api/recent every 4 s ─────────────────────── */
+  // This is the primary refresh path for the gate events table.
+  // SSE also pushes gate_event messages (which call prependEventRow directly)
+  // but polling guarantees the table is current even when SSE reconnects.
+  let _lastSeenId = 0;
+
+  function refreshEventsTable() {
+    fetch("/api/recent")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(rows => {
+        if (!rows || !rows.length) return;
+
+        // Update today-counter with full dataset length
+        if (statToday) statToday.textContent = rows.length;
+
+        // Find the newest row id we haven't rendered yet
+        const newRows = rows.filter(r => r.id > _lastSeenId);
+        if (!newRows.length) return;
+
+        // Prepend new rows newest-first (they arrive newest-first from the API)
+        newRows.forEach(evt => {
+          const ts  = (evt.timestamp || "").slice(11, 19);
+          const dir = evt.direction === "ENTRY"
+            ? `<span class="text-green"><i class="bi bi-arrow-up-right"></i> ENTRY</span>`
+            : `<span class="text-accent"><i class="bi bi-arrow-down-left"></i> EXIT</span>`;
+          const tr = document.createElement("tr");
+          tr.className = "flash-new";
+          tr.dataset.id = evt.id;
+          tr.innerHTML =
+            `<td style="color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem">${ts}</td>` +
+            `<td class="plate-cell">${evt.plate_number ?? "—"}</td>` +
+            `<td style="color:var(--text-secondary)">${evt.gate_id ?? ""}</td>` +
+            `<td>${dir}</td>` +
+            `<td>${statusBadge(evt.status ?? "")}</td>` +
+            `<td>${confBar(evt.confidence_score)}</td>`;
+          eventsBody.prepend(tr);
+          sessionEvts++;
+        });
+
+        // Update watermark and trim table
+        _lastSeenId = rows[0].id;
+        while (eventsBody.rows.length > MAX_ROWS) eventsBody.deleteRow(eventsBody.rows.length - 1);
+        if (statSession) statSession.textContent = sessionEvts;
+
+        // Flash gate border for the most recent event
+        const latest = newRows[0];
+        if (latest) {
+          const gId = latest.gate_id;
+          const s   = latest.status ?? "";
+          if (OK_STATUSES.includes(s))
+            setGateStatus(gId, "gate-open",     "bi-unlock-fill",         "OPEN",        4000);
+          else if (LATE_STATUSES.includes(s))
+            setGateStatus(gId, "gate-open",     "bi-exclamation",         "OPEN / LATE", 4000);
+          else if (BAD_STATUSES.includes(s))
+            setGateStatus(gId, "gate-rejected", "bi-x-circle-fill",       "DENIED",      5000);
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Seed _lastSeenId from the initial server-rendered rows (if any)
+  (function seedLastSeenId() {
+    const firstRow = eventsBody.querySelector("tr");
+    if (!firstRow) return;
+    // The server renders rows newest-first; first <tr> has the highest id.
+    // We use a data attribute written by the template if available, otherwise
+    // fall back to counting existing rows as the baseline.
+    // Since the template doesn't stamp row ids, just mark that we've already
+    // seen whatever was on page load so we only flash TRULY new events.
+    fetch("/api/recent")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(rows => { if (rows && rows.length) _lastSeenId = rows[0].id; })
+      .catch(() => {});
+  })();
+
+  // Poll every 4 seconds
+  setInterval(refreshEventsTable, 4000);
 
   /* ── Exception counter ──────────────────────────────────────────────────── */
   function updateExcCount(delta) {
@@ -175,6 +247,7 @@ function dismissToast(el) {
       : `<span class="text-accent"><i class="bi bi-arrow-down-left"></i> EXIT</span>`;
     const tr = document.createElement("tr");
     tr.className = "flash-new";
+    tr.dataset.id = evt.id ?? evt.access_log_id ?? "";
     tr.innerHTML =
       `<td style="color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem">${ts}</td>` +
       `<td class="plate-cell">${evt.plate ?? evt.plate_number ?? "—"}</td>` +
@@ -263,6 +336,19 @@ function dismissToast(el) {
 
       if (evt.type === "exception_disposed" || evt.type === "exception_timeout") {
         removeExceptionRow(evt.id);
+
+        // Update the status badge in the Live Gate Events table for the same row
+        const evtRow = eventsBody.querySelector(`tr[data-id="${evt.id}"]`);
+        if (evtRow) {
+          const statusCell = evtRow.cells[4];   // 0:time 1:plate 2:gate 3:dir 4:status 5:conf
+          if (statusCell) {
+            const newStatus = evt.type === "exception_timeout"
+              ? "VISITOR_TIMEOUT_REJECT"
+              : (evt.new_status || "");
+            if (newStatus) statusCell.innerHTML = statusBadge(newStatus);
+          }
+        }
+
         if (pendingCount === 0) setGateStatus(gateId, "gate-idle", "bi-circle", "IDLE", 0);
       }
     };

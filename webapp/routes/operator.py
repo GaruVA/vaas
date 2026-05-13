@@ -45,6 +45,29 @@ _LATEST_FRAMES: dict[str, np.ndarray] = {}
 # ── Per-gate camera-worker stop events ─────────────────────────────────────
 _WORKER_STOP: dict[str, threading.Event] = {}
 
+# ── Shared model singletons (loaded once, reused by all camera workers) ─────
+# Both GATE_A and GATE_B workers use the same detector and classifier instances.
+# YOLO models are thread-safe for concurrent inference after loading.
+_MODEL_LOCK = threading.Lock()
+_SHARED_DETECTOR = None
+_SHARED_CLASSIFIER = None
+
+
+def _get_models():
+    """Return (detector, classifier), loading from disk only on the first call."""
+    global _SHARED_DETECTOR, _SHARED_CLASSIFIER
+    if _SHARED_DETECTOR is not None:
+        return _SHARED_DETECTOR, _SHARED_CLASSIFIER          # fast path — already loaded
+    with _MODEL_LOCK:
+        if _SHARED_DETECTOR is None:                         # re-check after acquiring lock
+            from src.detection import PlateDetector
+            from src.classifier import CharClassifier
+            logger.info("Loading shared ALPR models (first worker to start)…")
+            _SHARED_DETECTOR  = PlateDetector()
+            _SHARED_CLASSIFIER = CharClassifier()
+            logger.info("Shared ALPR models ready.")
+    return _SHARED_DETECTOR, _SHARED_CLASSIFIER
+
 
 def publish_overlay_frame(gate_id: str, frame: np.ndarray) -> None:
     with _FRAME_LOCK:
@@ -63,16 +86,14 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                    stop_event: threading.Event, app) -> None:
     """Background thread: read live frames, detect plates, draw overlays, run pipeline."""
     from src.camera import USBCamera
-    from src.classifier import CharClassifier
-    from src.detection import PlateDetection, PlateDetector
+    from src.detection import PlateDetection
 
     logger.info("[%s] Camera worker starting (index=%d, direction=%s, cooldown=%ds)",
                 gate_id, camera_index, direction, DEFAULT_COOLDOWN_SECONDS)
 
-    # Load models once inside this thread (YOLO models are thread-safe post-load)
+    # Use the shared model singleton — avoids loading the same weights twice.
     try:
-        detector = PlateDetector()
-        classifier = CharClassifier()
+        detector, classifier = _get_models()
     except Exception as exc:
         logger.error("[%s] Model load failed: %s", gate_id, exc)
         return
@@ -140,20 +161,38 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
             broker = app.config.get("VAAS_BROKER")
             for r in results:
                 if not r.debounced and r.gate_event is not None:
+                    outcome_val = (
+                        r.gate_event.outcome.value
+                        if hasattr(r.gate_event.outcome, "value")
+                        else str(r.gate_event.outcome)
+                    )
                     logger.info("[%s] %s → %s (%.0f ms total)",
-                                gate_id, r.raw_plate,
-                                r.gate_event.outcome,
+                                gate_id, r.raw_plate, outcome_val,
                                 r.timings_ms.get("total", 0))
+
+                    # Visitor exceptions are broadcast by AttendanceEngine via
+                    # sse_callback; skip them here to avoid duplicate events.
+                    if "EXCEPTION" in outcome_val:
+                        continue
+
                     if broker is not None:
-                        broker.publish({
+                        status_val = (
+                            r.gate_event.status.value
+                            if hasattr(r.gate_event, "status") and hasattr(r.gate_event.status, "value")
+                            else outcome_val
+                        )
+                        evt = {
+                            "type":       "gate_event",
                             "gate_id":    gate_id,
                             "plate":      r.raw_plate,
-                            "outcome":    r.gate_event.outcome.value
-                                          if hasattr(r.gate_event.outcome, "value")
-                                          else str(r.gate_event.outcome),
+                            "status":     status_val,
                             "confidence": round(r.confidence, 3),
-                            "ts":         time.time(),
-                        })
+                            "direction":  direction,
+                            "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        }
+                        broker.publish(evt)
+                        logger.debug("[%s] SSE gate_event published: %s %s",
+                                     gate_id, status_val, r.raw_plate)
 
             # ── Throttle to ~10 fps ──────────────────────────────────────
             elapsed = time.perf_counter() - t0
@@ -269,10 +308,30 @@ def dispose(access_log_id: int):
     engine = current_app.config.get("VAAS_ENGINE")
     if engine is None:
         return jsonify({"error": "Attendance engine not initialized"}), 503
-    new_status = engine.dispose_exception(
+    engine.dispose_exception(
         access_log_id, disposition,
         operator_user_id=session.get("user_id"),
     )
+
+    # Broadcast the disposition to all connected SSE clients so every open
+    # dashboard tab removes the exception row and updates the status badge.
+    _DISPOSITION_STATUS = {
+        "ADMIT":    "VISITOR_ADMITTED",
+        "REJECT":   "VISITOR_REJECTED",
+        "REGISTER": "VISITOR_PENDING_REGISTRATION",
+    }
+    broker = current_app.config.get("VAAS_BROKER")
+    if broker:
+        row_meta = current_app.config["VAAS_DB"].execute(
+            "SELECT gate_id, plate_number FROM access_log WHERE id=?",
+            (access_log_id,),
+        ).fetchone()
+        broker.publish({
+            "type":       "exception_disposed",
+            "id":         access_log_id,
+            "gate_id":    row_meta["gate_id"] if row_meta else None,
+            "new_status": _DISPOSITION_STATUS.get(disposition, ""),
+        })
 
     if disposition == "REGISTER":
         row = current_app.config["VAAS_DB"].execute(
@@ -280,11 +339,10 @@ def dispose(access_log_id: int):
         ).fetchone()
         plate = row["plate_number"] if row else ""
         return jsonify({
-            "status": new_status,
             "redirect": url_for("admin.new_vehicle", plate=plate),
         })
 
-    return jsonify({"status": new_status})
+    return jsonify({"status": "ok"})
 
 
 @operator_bp.route("/stream/<gate_id>.mjpg")

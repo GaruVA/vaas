@@ -322,11 +322,12 @@ class AttendanceEngine:
             None, None, None, crop_b64,
         )
         if self._sse:
-            self._sse("VISITOR_EXCEPTION", {
-                "access_log_id": row_id,
-                "plate": raw_plate,
-                "gate_id": gate_id,
-                "timestamp": ts_str,
+            self._sse("exception", {
+                "id":         row_id,
+                "raw_plate":  raw_plate,
+                "gate_id":    gate_id,
+                "confidence": confidence,
+                "timestamp":  ts_str,
             })
         # Schedule auto-reject
         timer = threading.Timer(
@@ -348,11 +349,19 @@ class AttendanceEngine:
     def _auto_reject(self, access_log_id: int) -> None:
         """Called by threading.Timer after timeout -- auto-reject visitor."""
         self._pending_timers.pop(access_log_id, None)
+        row = self._conn.execute(
+            "SELECT gate_id FROM access_log WHERE id = ?", (access_log_id,)
+        ).fetchone()
         self._conn.execute(
             "UPDATE access_log SET status = ? WHERE id = ?",
             (GateStatus.VISITOR_TIMEOUT_REJECT.value, access_log_id),
         )
         logger.info("Visitor exception %d auto-rejected (timeout)", access_log_id)
+        if self._sse and row:
+            self._sse("exception_timeout", {
+                "id":      access_log_id,
+                "gate_id": row[0],
+            })
 
     def _classify_status(
         self,
