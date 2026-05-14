@@ -80,15 +80,15 @@
     <div class="flex items-center gap-6">
       <div class="text-right">
         <div class="text-[10px] text-red-300 uppercase tracking-widest">Downstream Tainted</div>
-        <div class="text-white font-bold text-lg mono">8 records</div>
+        <div id="banner-tainted-count" class="text-white font-bold text-lg mono">8 records</div>
       </div>
       <div class="text-right">
         <div class="text-[10px] text-red-300 uppercase tracking-widest">Attributed To</div>
-        <div class="text-white font-bold text-sm mono">rashid_admin</div>
+        <div id="banner-attributed-user" class="text-white font-bold text-sm mono">rashid_admin</div>
       </div>
       <div class="text-right">
         <div class="text-[10px] text-red-300 uppercase tracking-widest">Tamper Class</div>
-        <div class="text-yellow-300 font-bold text-sm">APP-LEVEL</div>
+        <div id="banner-tamper-class" class="text-yellow-300 font-bold text-sm">APP-LEVEL</div>
       </div>
     </div>
   </div>
@@ -104,9 +104,9 @@
         <div class="text-xs text-gray-400 mt-0.5">SHA-256 linked chain · each node hashes: plate_number + timestamp + gate_id + prev_hash</div>
       </div>
       <div class="flex items-center gap-4 text-xs">
-        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(118,189,51,.5)"></span><span class="text-gray-500">Clean (6)</span></div>
-        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block bg-red-400"></span><span class="text-gray-500">Tampered (1)</span></div>
-        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(244,189,15,.5)"></span><span class="text-gray-500">Tainted (8)</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(118,189,51,.5)"></span><span id="legend-clean" class="text-gray-500">Clean (6)</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block bg-red-400"></span><span id="legend-tampered" class="text-gray-500">Tampered (1)</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(244,189,15,.5)"></span><span id="legend-tainted" class="text-gray-500">Tainted (8)</span></div>
       </div>
     </div>
     <div style="overflow-x:auto;padding-bottom:4px">
@@ -164,21 +164,21 @@
   </div>
 
   <!-- ═══ HASH DIFF + ATTRIBUTION (2 cols) ═══ -->
-  <div class="grid grid-cols-2 gap-5">
+  <div id="forensic-detail-panel" class="grid grid-cols-2 gap-5">
 
     <!-- Hash byte-diff panel -->
     <div class="card p-5">
       <div class="text-sm font-bold text-gray-900 mb-1">Hash Byte-Diff Inspector</div>
-      <div class="text-xs text-gray-400 mb-4">Record VE-20250314-007 · 8 groups × 8 hex chars</div>
+      <div id="diff-record-label" class="text-xs text-gray-400 mb-4">Record VE-20250314-007 · 8 groups × 8 hex chars</div>
 
       <!-- Input fields used to compute -->
       <div class="rounded-lg p-3 mb-4 text-xs" style="background:#f8f9fb;border:1px solid #e5e7eb">
         <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Hash Inputs (recomputed)</div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1">
-          <div class="flex items-center gap-2"><span class="text-gray-400">plate_number</span><span class="mono font-semibold text-gray-700">WP·KJ-3847</span></div>
-          <div class="flex items-center gap-2"><span class="text-gray-400">gate_id</span><span class="mono font-semibold text-gray-700">GATE_B</span></div>
-          <div class="flex items-center gap-2"><span class="text-gray-400">timestamp</span><span class="mono font-semibold text-gray-700">2025-03-14 23:41:07</span></div>
-          <div class="flex items-center gap-2"><span class="text-gray-400">prev_hash</span><span class="mono font-semibold text-gray-700 truncate">2f8e9d3c…</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">plate_number</span><span id="diff-plate" class="mono font-semibold text-gray-700">WP·KJ-3847</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">gate_id</span><span id="diff-gate" class="mono font-semibold text-gray-700">GATE_B</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">timestamp</span><span id="diff-timestamp" class="mono font-semibold text-gray-700">2025-03-14 23:41:07</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">prev_hash</span><span id="diff-prev-hash" class="mono font-semibold text-gray-700 truncate">2f8e9d3c…</span></div>
         </div>
       </div>
 
@@ -186,7 +186,7 @@
       <div class="space-y-3">
         <div>
           <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Expected (recomputed from inputs)</div>
-          <div class="flex items-center gap-1.5 flex-wrap">
+          <div id="diff-expected-groups" class="flex items-center gap-1.5 flex-wrap">
             <span class="hg-match">a3f4e2b1</span>
             <span class="hg-match">c8d5f9e0</span>
             <span class="hg-match">b2c4d6e8</span>
@@ -199,7 +199,7 @@
         </div>
         <div>
           <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Stored (database value)</div>
-          <div class="flex items-center gap-1.5 flex-wrap">
+          <div id="diff-stored-groups" class="flex items-center gap-1.5 flex-wrap">
             <span class="hg-match">a3f4e2b1</span>
             <span class="hg-match">c8d5f9e0</span>
             <span class="hg-match">b2c4d6e8</span>
@@ -212,7 +212,7 @@
         </div>
       </div>
 
-      <div class="mt-4 rounded-lg px-3 py-2 text-xs" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2)">
+      <div id="diff-summary" class="mt-4 rounded-lg px-3 py-2 text-xs" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2)">
         <span class="font-semibold text-red-600">2 of 8 byte-groups diverge</span><span class="text-red-400 ml-2">groups 3 &amp; 4 (bytes 24–39 of 64)</span><br>
         <span class="text-gray-500 mono text-[10px]">Δ expected f0a2b4c6·d8e0f2a4 → stored 7f3c1a9b·c4e2f0d8</span>
       </div>
@@ -221,25 +221,25 @@
     <!-- Attribution cross-reference -->
     <div class="card p-5">
       <div class="text-sm font-bold text-gray-900 mb-1">Cross-Reference Attribution</div>
-      <div class="text-xs text-gray-400 mb-4">Matching admin_audit_log entry for record VE-20250314-007</div>
+      <div id="attr-subtitle" class="text-xs text-gray-400 mb-4">Matching admin_audit_log entry for record VE-20250314-007</div>
 
       <!-- Attribution match -->
-      <div class="rounded-lg p-4 mb-4" style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2)">
+      <div id="attr-match" class="rounded-lg p-4 mb-4" style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2)">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#1B3F95">RA</div>
+            <div id="attr-initials" class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#1B3F95">RA</div>
             <div>
-              <div class="text-sm font-bold text-gray-900 mono">rashid_admin</div>
+              <div id="attr-username" class="text-sm font-bold text-gray-900 mono">rashid_admin</div>
               <div class="text-xs text-gray-400">System Administrator</div>
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs px-2 py-0.5 rounded font-semibold action-update">UPDATE</span>
-            <div class="text-xs mono text-gray-400 mt-1">2025-03-14 23:58:14</div>
+            <span id="attr-action-badge" class="text-xs px-2 py-0.5 rounded font-semibold action-update">UPDATE</span>
+            <div id="attr-timestamp" class="text-xs mono text-gray-400 mt-1">2025-03-14 23:58:14</div>
           </div>
         </div>
-        <div class="text-xs text-gray-500 mb-2">Entity: <span class="mono font-semibold text-gray-700">gate_event_log · VE-20250314-007</span></div>
-        <div class="rounded-md overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d">
+        <div class="text-xs text-gray-500 mb-2">Entity: <span id="attr-entity" class="mono font-semibold text-gray-700">gate_event_log · VE-20250314-007</span></div>
+        <div id="attr-delta-viewer" class="rounded-md overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d">
           <div class="px-3 py-1.5 text-[10px] uppercase tracking-widest" style="background:#0a1220;color:#4a5c7a;border-bottom:1px solid #1e2d3d">JSON Δ DELTA · BEFORE → AFTER</div>
           <span class="delta-line dl-neutral"> {</span>
           <span class="delta-line dl-neutral">   "record_id": "VE-20250314-007",</span>
@@ -252,10 +252,10 @@
       </div>
 
       <!-- Interpretation -->
-      <div class="rounded-lg p-3 text-xs space-y-1.5" style="background:#fffbeb;border:1px solid #fde68a">
+      <div id="attr-interpretation" class="rounded-lg p-3 text-xs space-y-1.5" style="background:#fffbeb;border:1px solid #fde68a">
         <div class="font-semibold text-amber-800">Forensic Interpretation</div>
-        <div class="text-amber-700">Exit time rolled back 7h 19min (23:41 → 16:22), reducing billable hours from <span class="font-bold">8.27h</span> to <span class="font-bold">1.09h</span>. This eliminates a significant overstay record and prevents the daily rate penalty of <span class="font-bold">LKR 2,678</span>.</div>
-        <div class="text-amber-600 font-medium">Tamper class: APPLICATION-LEVEL (audit log entry exists → came via app, not direct DB write)</div>
+        <div id="attr-interp-text" class="text-amber-700">Exit time rolled back 7h 19min (23:41 → 16:22), reducing billable hours from <span class="font-bold">8.27h</span> to <span class="font-bold">1.09h</span>. This eliminates a significant overstay record and prevents the daily rate penalty of <span class="font-bold">LKR 2,678</span>.</div>
+        <div id="attr-interp-class" class="text-amber-600 font-medium">Tamper class: APPLICATION-LEVEL (audit log entry exists → came via app, not direct DB write)</div>
       </div>
     </div>
   </div>
@@ -393,17 +393,18 @@
 
 <script>
   let currentFilter = 'all';
-  let allLogRows = [];
 
+  // ── Delta toggle ────────────────────────────────────────────────────
   function toggleDelta(btn) {
     const row = btn.closest('tr');
     const deltaRow = row.nextElementSibling;
     if (!deltaRow) return;
-    const hidden = deltaRow.classList.contains('hidden');
-    deltaRow.classList.toggle('hidden', !hidden);
-    btn.textContent = hidden ? 'Hide' : 'View';
+    const isHidden = deltaRow.classList.contains('hidden');
+    deltaRow.classList.toggle('hidden', !isHidden);
+    btn.textContent = isHidden ? 'Hide' : 'View';
   }
 
+  // ── Filter pills ────────────────────────────────────────────────────
   function setFilter(f, el) {
     currentFilter = f;
     document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
@@ -414,54 +415,78 @@
   function filterLog() { applyFilters(); }
 
   function applyFilters() {
-    const q = document.getElementById('log-search').value.toLowerCase();
-    document.querySelectorAll('#log-tbody tr').forEach(row => {
-      if (row.classList.contains('hidden') && !row.dataset.action) return; // delta rows
-      if (!row.dataset.action) return; // skip delta rows
+    const q = (document.getElementById('log-search').value || '').toLowerCase();
+    const rows = document.querySelectorAll('#log-tbody tr[data-action]');
+    rows.forEach(row => {
       const matchAction = currentFilter === 'all' || row.dataset.action === currentFilter;
-      const matchText = !q || (row.dataset.text || '').includes(q);
-      const show = matchAction && matchText;
+      const matchText   = !q || (row.dataset.text || '').includes(q);
+      const show        = matchAction && matchText;
       row.style.display = show ? '' : 'none';
-      // also hide associated delta row
       const next = row.nextElementSibling;
-      if (next && !next.dataset.action) next.style.display = 'none';
+      if (next && !next.dataset.action) {
+        // If hiding main row, force-hide delta row.
+        // If showing, let the hidden class decide (don't auto-expand).
+        next.style.display = show ? (next.classList.contains('hidden') ? 'none' : '') : 'none';
+      }
     });
   }
 
-  // ── Load audit log from API ─────────────────────────────────────────
+  // ── Render delta lines based on action type ─────────────────────────
+  function renderDeltaLines(action, deltaData) {
+    if (!deltaData || !Object.keys(deltaData).length) return '';
+    const lineClass = action === 'DELETE' ? 'dl-minus' : 'dl-plus';
+    const prefix    = action === 'DELETE' ? '-' : '+';
+    return Object.entries(deltaData).map(([k, v]) =>
+      `<span class="delta-line ${lineClass}">${prefix}  "${k}": ${JSON.stringify(v)}</span>`
+    ).join('');
+  }
+
+  // ── Load audit log ──────────────────────────────────────────────────
   async function loadAuditLog() {
     try {
       const r = await fetch('/api/audit/log');
-      if (r.status === 401) { location.href = '/auth/login?next=/vaas-forensic.html'; return; }
+      if (r.status === 401) { location.href = '/auth/login?next=/ui/vaas-forensic.html'; return; }
       if (!r.ok) return;
       const rows = await r.json();
       const tbody = document.getElementById('log-tbody');
       if (!tbody) return;
 
       const html = rows.map(row => {
-        const actionClass = row.action.includes('CREATE') ? 'action-create'
-          : row.action.includes('DELETE') ? 'action-delete'
-          : row.action.includes('ASSIGN') ? 'action-assign'
-          : 'action-update';
-        const initials = (row.username || 'U').split('_')[0].substring(0, 2).toUpperCase();
-        const deltaJson = row.delta_json ? JSON.parse(row.delta_json) : {};
-        const deltaLines = Object.entries(deltaJson).map(([k, v]) =>
-          `<span class="delta-line dl-plus">+  "${k}": ${JSON.stringify(v)}</span>`
-        ).join('');
+        const action      = row.action || 'UPDATE';
+        const actionClass = action === 'CREATE' ? 'action-create'
+                          : action === 'DELETE'  ? 'action-delete'
+                          : action === 'ASSIGN'  ? 'action-assign'
+                          : 'action-update';
+        const username  = row.username || 'system';
+        const initials  = username.split('_').map(p => p[0]).join('').substring(0, 2).toUpperCase();
+        const bgColors  = {'a':'#1B3F95','b':'#7c3aed','c':'#0891b2','d':'#059669'};
+        const bgColor   = bgColors[initials[0]?.toLowerCase()] || '#6b7280';
+        let deltaData   = {};
+        try { if (row.delta_json) deltaData = JSON.parse(row.delta_json); } catch(e) {}
+        const deltaLines = renderDeltaLines(action, deltaData);
+        const ts = row.timestamp ? new Date(row.timestamp).toLocaleString('en-GB', {year:'2-digit',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+        const recordId = `AUD-${String(row.id).padStart(7, '0')}`;
+        const searchText = `${username} ${row.entity_id || ''} ${row.entity_type || ''}`.toLowerCase();
 
         return `
-          <tr class="log-row border-b border-gray-100" data-action="${row.action}" data-text="${(row.username + ' ' + row.entity_id + ' ' + row.entity_type).toLowerCase()}">
-            <td class="px-5 py-3 mono font-semibold text-gray-800">${row.username || 'system'}-${row.id}</td>
-            <td class="px-4 py-3 mono text-gray-600 flex items-center gap-1.5 mt-0.5">
-              <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style="background:#1B3F95">${initials}</div>
-              ${row.username || 'system'}
+          <tr class="log-row border-b border-gray-100" data-action="${action}" data-text="${searchText}">
+            <td class="px-5 py-3 mono font-semibold text-gray-800">${recordId}</td>
+            <td class="px-4 py-3 mono text-gray-600">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style="background:${bgColor}">${initials}</div>
+                ${username}
+              </div>
             </td>
-            <td class="px-4 py-3"><span class="text-[10px] px-2 py-0.5 rounded font-semibold ${actionClass}">${row.action}</span></td>
-            <td class="px-4 py-3 mono text-gray-600">${row.entity_type} · ${row.entity_id}</td>
-            <td class="px-4 py-3 mono text-gray-500">${new Date(row.timestamp).toLocaleString()}</td>
-            <td class="px-4 py-3">${deltaLines ? '<button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="toggleDelta(this)">View</button>' : '—'}</td>
+            <td class="px-4 py-3"><span class="text-[10px] px-2 py-0.5 rounded font-semibold ${actionClass}">${action}</span></td>
+            <td class="px-4 py-3 mono text-gray-600">${row.entity_type || '—'} · ${row.entity_id || '—'}</td>
+            <td class="px-4 py-3 mono text-gray-500">${ts}</td>
+            <td class="px-4 py-3">${deltaLines
+              ? `<button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="toggleDelta(this)">View</button>`
+              : '<span class="text-[10px] text-gray-300">—</span>'}</td>
           </tr>
-          ${deltaLines ? `<tr class="hidden border-b border-gray-100"><td colspan="6" class="px-5 py-2"><div class="rounded overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d;max-width:500px">${deltaLines}</div></td></tr>` : ''}
+          ${deltaLines
+            ? `<tr class="hidden border-b border-gray-100"><td colspan="6" class="px-5 py-2"><div class="rounded overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d;max-width:500px">${deltaLines}</div></td></tr>`
+            : ''}
         `;
       }).join('');
 
@@ -470,57 +495,203 @@
     } catch(e) { console.warn('Audit log load failed', e); }
   }
 
-  // ── Load chain verification ────────────────────────────────────────
+  // ── Render byte-group spans ─────────────────────────────────────────
+  function renderByteGroups(groups, side) {
+    return groups.map(g => {
+      const cls = g.differs ? 'hg-diff' : 'hg-match';
+      const val = side === 'expected' ? g.expected : g.stored;
+      return `<span class="${cls}"${g.differs ? ' title="DIFFERS"' : ''}>${val || '????????'}</span>`;
+    }).join('');
+  }
+
+  // ── Ordinal suffix ──────────────────────────────────────────────────
+  function ordinal(n) {
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  }
+
+  // ── Load chain verification ─────────────────────────────────────────
   async function loadChainVerification() {
     try {
       const r = await fetch('/api/audit/chain');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
       if (!r.ok) return;
       const data = await r.json();
       const integrity = data.integrity;
+      const firstBad  = integrity.first_bad_id;
 
-      // Update tamper banner via its ID
+      // ── Banner ─────────────────────────────────────────────────────
       const banner = document.getElementById('tamper-banner');
       if (integrity.ok) {
         if (banner) banner.style.display = 'none';
+        const panel = document.getElementById('forensic-detail-panel');
+        if (panel) panel.style.display = 'none';
       } else {
         if (banner) {
           banner.style.display = 'block';
           const titleEl  = document.getElementById('banner-title');
           const detailEl = document.getElementById('banner-detail');
-          if (titleEl)  titleEl.textContent  = 'CHAIN INTEGRITY FAILURE AT ROW #' + (integrity.first_bad_id || '?');
+          if (titleEl)  titleEl.textContent = `CHAIN INTEGRITY FAILURE · ROW #${firstBad || '?'}`;
           if (detailEl) detailEl.textContent = integrity.reason || 'Hash mismatch detected';
+
+          const taintedEl = document.getElementById('banner-tainted-count');
+          if (taintedEl) taintedEl.textContent = `${data.tainted_count ?? 0} records`;
+
+          const attrEl = document.getElementById('banner-attributed-user');
+          if (attrEl) attrEl.textContent = data.attribution?.username || 'unknown';
+
+          const classEl = document.getElementById('banner-tamper-class');
+          if (classEl) {
+            classEl.textContent = data.tamper_class || 'UNKNOWN';
+            classEl.className = (data.tamper_class === 'APP-LEVEL')
+              ? 'text-yellow-300 font-bold text-sm'
+              : 'text-orange-300 font-bold text-sm';
+          }
         }
       }
 
-      // Render chain timeline from real access_log entries
+      // ── Chain timeline ─────────────────────────────────────────────
       const timeline = document.getElementById('chain-timeline');
       if (timeline && data.entries && data.entries.length > 0) {
-        const firstBad = integrity.first_bad_id;
-        const nodes = data.entries.slice().reverse(); // oldest first
+        const nodes = data.entries.slice().reverse();
+        let cleanCount = 0, tamperedCount = 0, taintedCount = 0;
         let html = '';
+        let prevConnClass = 'conn-clean';
+
         nodes.forEach((entry, idx) => {
-          const num = String(idx + 1).padStart(2, '0');
-          const ts = entry.timestamp ? entry.timestamp.slice(11, 16) : '—';
-          const plate = (entry.plate_number || '—').substring(0, 10);
-          const isBad = firstBad && entry.id === firstBad;
-          const isTaint = firstBad && entry.id > firstBad;
-          const nodeClass = isBad ? 'node-tamper' : isTaint ? 'node-taint' : 'node-clean';
-          const connClass = isTaint ? 'conn-taint' : 'conn-clean';
-          if (idx > 0) html += `<div class="${connClass}"></div>`;
+          const num      = String(idx + 1).padStart(2, '0');
+          const ts       = entry.timestamp ? entry.timestamp.slice(11, 16) : '—';
+          const plate    = (entry.plate_number || '—').substring(0, 10);
+          const isBad    = firstBad && entry.id === firstBad;
+          const isTaint  = firstBad && entry.id > firstBad;
+
+          if (idx > 0) {
+            if (isBad) {
+              // gradient connector just before the tampered node
+              html += `<div style="flex-shrink:0;width:28px;height:2px;background:linear-gradient(90deg,rgba(118,189,51,.4),rgba(239,68,68,.6))"></div>`;
+            } else {
+              html += `<div class="${prevConnClass}"></div>`;
+            }
+          }
+
           if (isBad) {
-            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono text-red-400">${num} ✕</div><div class="w-2.5 h-2.5 mx-auto my-1 rotate-45" style="background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.7)"></div><div class="text-[9px] mono font-bold text-red-400">${plate}</div><div class="text-[8px] text-red-300 mt-0.5">${ts}</div></div>`;
+            tamperedCount++;
+            prevConnClass = 'conn-taint';
+            html += `<div class="node-tamper"><div class="text-[9px] font-bold mono text-red-400">${num} ✕</div><div class="w-2.5 h-2.5 mx-auto my-1 rotate-45" style="background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.7)"></div><div class="text-[9px] mono font-bold text-red-400">${plate}</div><div class="text-[8px] text-red-500 mt-0.5 font-semibold">TAMPERED</div><div class="text-[8px] text-red-600">${ts}</div></div>`;
           } else if (isTaint) {
-            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono" style="color:#f4bd0f">${num}</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#f4bd0f;opacity:.7"></div><div class="text-[9px] mono text-gray-400">${plate}</div><div class="text-[8px] text-gray-400 mt-0.5">${ts}</div></div>`;
+            taintedCount++;
+            prevConnClass = 'conn-taint';
+            html += `<div class="node-taint"><div class="text-[9px] font-bold mono" style="color:#f4bd0f">${num} ⚠</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#f4bd0f;opacity:.7"></div><div class="text-[9px] mono text-gray-500">${plate}</div><div class="text-[8px] text-gray-500 mt-0.5">${ts}</div></div>`;
           } else {
-            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono" style="color:#76bd33">${num}</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#76bd33;box-shadow:0 0 5px rgba(118,189,51,.6)"></div><div class="text-[9px] mono text-gray-400">${plate}</div><div class="text-[8px] text-gray-400 mt-0.5">${ts}</div></div>`;
+            cleanCount++;
+            prevConnClass = 'conn-clean';
+            html += `<div class="node-clean"><div class="text-[9px] font-bold mono" style="color:#76bd33">${num}</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#76bd33;box-shadow:0 0 5px rgba(118,189,51,.6)"></div><div class="text-[9px] mono text-gray-400">${plate}</div><div class="text-[8px] text-gray-400 mt-0.5">${ts}</div></div>`;
           }
         });
         timeline.innerHTML = html;
+
+        // Update legend counts
+        const lc = document.getElementById('legend-clean');
+        const lt = document.getElementById('legend-tampered');
+        const lta = document.getElementById('legend-tainted');
+        if (lc)  lc.textContent  = `Clean (${cleanCount})`;
+        if (lt)  lt.textContent  = `Tampered (${tamperedCount})`;
+        if (lta) lta.textContent = `Tainted (${taintedCount})`;
       }
+
+      // ── Hash Byte-Diff Inspector ───────────────────────────────────
+      const td = data.tamper_detail;
+      if (td) {
+        const lbl = document.getElementById('diff-record-label');
+        if (lbl) lbl.textContent = `Record ${td.record_id} · 8 groups × 8 hex chars`;
+
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setEl('diff-plate',     td.plate_number);
+        setEl('diff-gate',      td.gate_id);
+        setEl('diff-timestamp', td.timestamp);
+        setEl('diff-prev-hash', td.prev_hash_prefix);
+
+        const exGrp = document.getElementById('diff-expected-groups');
+        const stGrp = document.getElementById('diff-stored-groups');
+        if (exGrp) exGrp.innerHTML = renderByteGroups(td.groups, 'expected');
+        if (stGrp) stGrp.innerHTML = renderByteGroups(td.groups, 'stored');
+
+        const diffSummary = document.getElementById('diff-summary');
+        if (diffSummary && td.diff_count > 0) {
+          const positions = td.diff_positions.map(i => ordinal(i + 1)).join(' & ');
+          const byteStart = td.diff_positions[0] * 8;
+          const byteEnd   = (td.diff_positions[td.diff_positions.length - 1] + 1) * 8 - 1;
+          const expChunks = td.diff_positions.map(i => td.groups[i].expected).join('·');
+          const stChunks  = td.diff_positions.map(i => td.groups[i].stored).join('·');
+          diffSummary.innerHTML = `
+            <span class="font-semibold text-red-600">${td.diff_count} of 8 byte-groups diverge</span>
+            <span class="text-red-400 ml-2">groups ${positions} (bytes ${byteStart}–${byteEnd} of 64)</span><br>
+            <span class="text-gray-500 mono text-[10px]">Δ expected ${expChunks} → stored ${stChunks}</span>`;
+        }
+      }
+
+      // ── Cross-Reference Attribution ────────────────────────────────
+      const attr = data.attribution;
+      if (attr) {
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        const setHtml = (id, val) => { const el = document.getElementById(id); if (el) el.innerHTML = val; };
+
+        const recordRef = td ? td.record_id : `row-${firstBad}`;
+        setEl('attr-subtitle', `Matching admin_audit_log entry for record ${recordRef}`);
+
+        const initials = (attr.username || 'U').split('_').map(p => p[0]).join('').substring(0, 2).toUpperCase();
+        const initEl = document.getElementById('attr-initials');
+        if (initEl) { initEl.textContent = initials; initEl.style.background = '#ef4444'; }
+        setEl('attr-username', attr.username);
+
+        const actionBadge = document.getElementById('attr-action-badge');
+        if (actionBadge) {
+          actionBadge.textContent = attr.action;
+          actionBadge.className = `text-xs px-2 py-0.5 rounded font-semibold action-${attr.action.toLowerCase()}`;
+        }
+
+        const ts = attr.timestamp ? new Date(attr.timestamp).toLocaleString('en-GB', {year:'2-digit',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+        setEl('attr-timestamp', ts);
+        setEl('attr-entity', `${attr.entity_type} · ${attr.entity_id}`);
+
+        // Delta viewer: show new values as dl-plus lines (delta_json stores after-state)
+        const deltaViewer = document.getElementById('attr-delta-viewer');
+        if (deltaViewer && attr.delta_data && Object.keys(attr.delta_data).length) {
+          const lines = Object.entries(attr.delta_data).map(([k, v]) =>
+            `<span class="delta-line dl-plus">+  "${k}": ${JSON.stringify(v)}</span>`
+          ).join('');
+          setHtml('attr-delta-viewer', `
+            <div class="rounded-md overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d">
+              <div class="px-3 py-1.5 text-[10px] uppercase tracking-widest" style="background:#0a1220;color:#4a5c7a;border-bottom:1px solid #1e2d3d">JSON Δ DELTA · NEW VALUES</div>
+              ${lines}
+            </div>`);
+        }
+
+        // Interpretation
+        const classLabel = data.tamper_class === 'APP-LEVEL'
+          ? 'APPLICATION-LEVEL (audit log entry found → change came via app)'
+          : 'DB-DIRECT (no matching audit log entry → direct database write)';
+        setEl('attr-interp-text', `Record modified by ${attr.username} via ${attr.action} on ${attr.entity_type}. Changes recorded in admin_audit_log at ${ts}.`);
+        setEl('attr-interp-class', `Tamper class: ${classLabel}`);
+      } else if (!integrity.ok) {
+        // DB-DIRECT: no attribution found
+        const attrMatch = document.getElementById('attr-match');
+        if (attrMatch) attrMatch.innerHTML = `
+          <div class="text-center py-4">
+            <div class="text-sm font-semibold text-gray-500">No admin_audit_log entry found within ±30 min</div>
+            <div class="text-xs text-gray-400 mt-1">Tamper class: DB-DIRECT — modification was made directly to the database</div>
+          </div>`;
+        const interp = document.getElementById('attr-interpretation');
+        if (interp) {
+          document.getElementById('attr-interp-text').textContent = 'No application-level audit trail found for this tamper event.';
+          document.getElementById('attr-interp-class').textContent = 'Tamper class: DB-DIRECT (no audit log entry → direct database write bypassed app layer)';
+        }
+      }
+
     } catch(e) { console.warn('Chain load failed', e); }
   }
 
-  // ── Load current user for navbar ───────────────────────────────────
+  // ── Load current user for navbar ────────────────────────────────────
   async function loadUser() {
     try {
       const r = await fetch('/api/user');
@@ -534,7 +705,7 @@
     } catch(e) {}
   }
 
-  // ── Bootstrap ──────────────────────────────────────────────────────
+  // ── Bootstrap ───────────────────────────────────────────────────────
   loadUser();
   loadChainVerification();
   loadAuditLog();
