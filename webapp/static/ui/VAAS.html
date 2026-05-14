@@ -22,27 +22,31 @@
 
   <!-- ═══ NAV ═══ -->
   <nav class="bg-white sticky top-0 z-50" style="border-bottom:1px solid #e5e7eb;box-shadow:0 1px 0 rgba(0,0,0,.05)">
-    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#1B3F95">
           <span class="text-white text-[10px] font-bold tracking-wider mono">CDL</span>
         </div>
         <div class="leading-tight">
           <div class="text-sm font-bold text-gray-900">VAAS</div>
-          <div class="text-[11px] text-gray-400 -mt-0.5">Vehicle Access &amp; Authorization System</div>
+          <div class="text-[11px] text-gray-400 -mt-0.5 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full inline-block breathe" style="background:#76bd33"></span>
+            <span class="mono tracking-wide">OPERATIONAL</span>
+            <span class="text-gray-300 mx-0.5">·</span>
+            <span class="mono">v1.0.0-rc4</span>
+          </div>
         </div>
       </div>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full inline-block breathe" style="color:#76bd33;background:#76bd33"></span>
-          <span class="text-xs mono text-gray-500 font-medium tracking-wide">OPERATIONAL</span>
-        </div>
-        <div class="h-4 w-px bg-gray-200"></div>
-        <span class="text-xs mono text-gray-400">v1.0.0-rc4</span>
-        <div class="h-4 w-px bg-gray-200"></div>
-        <span id="nav-role" class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">—</span>
+      <div class="flex items-center gap-2 text-xs">
+        <a href="VAAS.html" class="px-3 py-1.5 rounded-lg font-semibold no-underline" style="background:rgba(27,63,149,.08);color:#1B3F95">Hub</a>
+        <a href="vaas-fleet.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Fleet</a>
+        <a href="vaas-forensic.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Forensic</a>
+        <a href="vaas-manager.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Manager</a>
+        <a href="vaas-gateops.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Gate Ops</a>
+        <div class="h-4 w-px bg-gray-200 mx-1"></div>
+        <span id="nav-role" class="text-xs px-2 py-0.5 rounded-full font-semibold" style="background:rgba(239,68,68,.12);color:#cc2222">—</span>
         <span id="nav-user" class="text-sm text-gray-700 font-medium">—</span>
-        <div class="h-4 w-px bg-gray-200"></div>
+        <div class="h-4 w-px bg-gray-200 mx-1"></div>
         <a href="/auth/logout" class="text-xs px-2 py-0.5 rounded text-gray-600 hover:bg-gray-200 no-underline">Logout</a>
       </div>
     </div>
