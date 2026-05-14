@@ -14,10 +14,12 @@ venv/
 .venv/
 env/
 
-# Database (runtime artefact — not source code)
-data/vaas.db
-data/vaas.db-shm
-data/vaas.db-wal
+# Database (runtime artefacts — not source code)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
+data/.fuse_hidden*
 
 # Plate crop images (contain vehicle data — regenerated at runtime)
 data/sample_plates/
@@ -36,3 +38,6 @@ htmlcov/
 # Windows
 Thumbs.db
 desktop.ini
+
+# Claude Code worktrees (development isolation — not project code)
+.claude/worktrees/
