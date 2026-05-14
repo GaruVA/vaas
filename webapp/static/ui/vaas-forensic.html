@@ -598,16 +598,23 @@
         if (lt)  lt.textContent  = `Tampered (${tamperedCount})`;
         if (lta) lta.textContent = `Tainted (${taintedCount})`;
 
-        // Taint propagation note
-        if (firstBad && taintedCount > 0) {
-          const tamperIdx  = nodes.findIndex(e => e.id === firstBad) + 1; // 1-based display index
-          const taintStart = String(tamperIdx + 1).padStart(2, '0');
-          const taintEnd   = String(tamperIdx + taintedCount).padStart(2, '0');
-          const noteEl = document.getElementById('taint-propagation-note');
-          const textEl = document.getElementById('taint-propagation-text');
-          if (noteEl && textEl) {
-            textEl.innerHTML = `Nodes ${taintStart}–${taintEnd} have incorrect <span class="mono font-semibold">prev_hash</span> values because they inherited the corrupted hash from node ${String(tamperIdx).padStart(2, '0')}. Their own hashes are internally consistent but cryptographically anchored to a falsified record.`;
-            noteEl.style.display = '';
+        // Sync banner title with timeline node number (display position, not raw DB row id)
+        if (firstBad) {
+          const tamperIdx = nodes.findIndex(e => e.id === firstBad) + 1; // 1-based display position
+          const titleElB  = document.getElementById('banner-title');
+          if (titleElB) titleElB.textContent =
+            `CHAIN INTEGRITY FAILURE · NODE ${String(tamperIdx).padStart(2, '0')} (DB ROW #${firstBad})`;
+
+          // Taint propagation note
+          if (taintedCount > 0) {
+            const taintStart = String(tamperIdx + 1).padStart(2, '0');
+            const taintEnd   = String(tamperIdx + taintedCount).padStart(2, '0');
+            const noteEl = document.getElementById('taint-propagation-note');
+            const textEl = document.getElementById('taint-propagation-text');
+            if (noteEl && textEl) {
+              textEl.innerHTML = `Nodes ${taintStart}–${taintEnd} have incorrect <span class="mono font-semibold">prev_hash</span> values because they inherited the corrupted hash from node ${String(tamperIdx).padStart(2, '0')}. Their own hashes are internally consistent but cryptographically anchored to a falsified record.`;
+              noteEl.style.display = '';
+            }
           }
         }
       }
