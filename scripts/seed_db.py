@@ -561,28 +561,48 @@ def _populate(conn) -> None:
 # Entry points
 # ─────────────────────────────────────────────────────────────────────────────
 
-def seed(db_path: Path | None = None) -> None:
+def seed(db_path: Path | None = None, in_place: bool = False) -> None:
+    """Seed the database.
+
+    If *in_place* is True (or the target file is locked by another process),
+    write directly into the target rather than building a temp file and
+    copying.  This is safe when the Flask app is running because _populate()
+    issues DELETE FROM on every table first.
+    """
     target = Path(db_path) if db_path else DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     logger.info("Target database: %s", target)
 
-    tmp_fd, tmp_str = tempfile.mkstemp(suffix=".db", prefix="vaas_seed_")
-    tmp_path = Path(tmp_str)
-    os.close(tmp_fd)
+    if not in_place:
+        tmp_fd, tmp_str = tempfile.mkstemp(suffix=".db", prefix="vaas_seed_")
+        tmp_path = Path(tmp_str)
+        os.close(tmp_fd)
+        try:
+            conn = connect(tmp_path)
+            migrate_db(conn)
+            _populate(conn)
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn.close()
+            try:
+                shutil.copy2(str(tmp_path), str(target))
+                logger.info("Database written to %s  (%d bytes)", target, target.stat().st_size)
+            except (PermissionError, OSError) as exc:
+                logger.warning("Could not replace DB file (%s) — falling back to in-place seed", exc)
+                tmp_path.unlink(missing_ok=True)
+                in_place = True
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
 
-    try:
-        conn = connect(tmp_path)
+    if in_place:
+        conn = connect(target)
         migrate_db(conn)
         _populate(conn)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
-        shutil.copy2(str(tmp_path), str(target))
-        logger.info("Database written to %s  (%d bytes)", target, target.stat().st_size)
-    finally:
-        try:
-            tmp_path.unlink()
-        except OSError:
-            pass
+        logger.info("In-place seed complete. Database: %s", target)
 
     logger.info("Seed complete.")
 
@@ -590,8 +610,10 @@ def seed(db_path: Path | None = None) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the VAAS demo database")
     parser.add_argument("--db-path", type=Path, default=None)
+    parser.add_argument("--in-place", action="store_true",
+                        help="Write directly into the target DB (safe while app is running)")
     args = parser.parse_args()
-    seed(args.db_path)
+    seed(args.db_path, in_place=args.in_place)
 
 
 if __name__ == "__main__":
