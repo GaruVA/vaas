@@ -161,8 +161,8 @@
         <div class="node-taint"><div class="text-[9px] font-bold mono" style="color:#f4bd0f">15 ⚠</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#f4bd0f;opacity:.7"></div><div class="text-[9px] mono text-gray-500">WP·KJ-4421</div><div class="text-[8px] text-gray-500 mt-0.5">03/16</div></div>
       </div>
     </div>
-    <div class="mt-3 text-xs text-gray-400 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-      <span class="font-semibold text-amber-700">Taint propagation:</span> Nodes 08–15 have incorrect <span class="mono font-semibold">prev_hash</span> values because they inherited the corrupted hash from node 07. Their own hashes are internally consistent but cryptographically anchored to a falsified record.
+    <div id="taint-note" class="mt-3 text-xs text-gray-400 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2" style="display:none">
+      <span class="font-semibold text-amber-700">Taint propagation:</span> <span id="taint-note-text"></span>
     </div>
   </div>
 
@@ -558,6 +558,7 @@
       if (timeline && data.entries && data.entries.length > 0) {
         const nodes = data.entries.slice().reverse();
         let cleanCount = 0, tamperedCount = 0, taintedCount = 0;
+        let tamperedNodeNum = null;
         let html = '';
         let prevConnClass = 'conn-clean';
 
@@ -579,6 +580,7 @@
 
           if (isBad) {
             tamperedCount++;
+            tamperedNodeNum = idx + 1;
             prevConnClass = 'conn-taint';
             html += `<div class="node-tamper"><div class="text-[9px] font-bold mono text-red-400">${num} ✕</div><div class="w-2.5 h-2.5 mx-auto my-1 rotate-45" style="background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.7)"></div><div class="text-[9px] mono font-bold text-red-400">${plate}</div><div class="text-[8px] text-red-500 mt-0.5 font-semibold">TAMPERED</div><div class="text-[8px] text-red-600">${ts}</div></div>`;
           } else if (isTaint) {
@@ -600,6 +602,20 @@
         if (lc)  lc.textContent  = `Clean (${cleanCount})`;
         if (lt)  lt.textContent  = `Tampered (${tamperedCount})`;
         if (lta) lta.textContent = `Tainted (${taintedCount})`;
+
+        const taintNote = document.getElementById('taint-note');
+        const taintText = document.getElementById('taint-note-text');
+        if (taintNote) {
+          if (tamperedNodeNum && taintedCount > 0) {
+            const t0 = String(tamperedNodeNum + 1).padStart(2, '0');
+            const t1 = String(tamperedNodeNum + taintedCount).padStart(2, '0');
+            const tn = String(tamperedNodeNum).padStart(2, '0');
+            if (taintText) taintText.textContent = `Nodes ${t0}–${t1} have incorrect prev_hash values because they inherited the corrupted hash from node ${tn}. Their own hashes are internally consistent but cryptographically anchored to a falsified record.`;
+            taintNote.style.display = '';
+          } else {
+            taintNote.style.display = 'none';
+          }
+        }
       }
 
       // ── Hash Byte-Diff Inspector ───────────────────────────────────
