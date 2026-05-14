@@ -428,18 +428,99 @@ def fleet_counts():
 @api_bp.route("/vehicles", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def list_vehicles():
+    seven_days_ago = _days_ago(7)
     rows = g.db.execute(
         """SELECT rv.*,
                   va.user_id   AS assigned_user_id,
                   u.username   AS assigned_username,
-                  COALESCE(u.full_name, u.username) AS assigned_driver_name
+                  COALESCE(u.full_name, u.username) AS assigned_driver_name,
+                  (SELECT COUNT(*) FROM access_log x
+                   WHERE x.plate_number = rv.plate_number
+                     AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')
+                     AND DATE(x.timestamp) >= :d7) AS anomaly_count,
+                  (SELECT timestamp FROM access_log x
+                   WHERE x.plate_number = rv.plate_number
+                   ORDER BY x.id DESC LIMIT 1) AS last_event_ts,
+                  (SELECT gate_id FROM access_log x
+                   WHERE x.plate_number = rv.plate_number
+                   ORDER BY x.id DESC LIMIT 1) AS last_event_gate,
+                  (SELECT direction FROM access_log x
+                   WHERE x.plate_number = rv.plate_number
+                   ORDER BY x.id DESC LIMIT 1) AS last_event_dir
            FROM registered_vehicles rv
            LEFT JOIN vehicle_assignments va
                 ON rv.plate_number = va.plate_number AND va.is_active = 1
            LEFT JOIN users u ON va.user_id = u.id
-           ORDER BY rv.plate_number"""
+           ORDER BY rv.plate_number""",
+        {"d7": seven_days_ago},
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+
+    result = []
+    for r in rows:
+        row = dict(r)
+        anom = row.get("anomaly_count", 0) or 0
+        status = row.get("registration_status", "")
+        if status == "SUSPENDED":
+            row["ohs_status"] = "SUSPENDED"
+        elif not row.get("assigned_user_id"):
+            row["ohs_status"] = "UNASSIGNED"
+        elif anom >= 5:
+            row["ohs_status"] = "HIGH_OVERSTAY"
+        elif anom >= 2:
+            row["ohs_status"] = "MEDIUM_RISK"
+        else:
+            row["ohs_status"] = "OK"
+        result.append(row)
+    return jsonify(result)
+
+
+@api_bp.route("/vehicles/<plate>/impact", methods=["GET"])
+@requires_role("ADMIN", "MANAGER")
+def vehicle_impact(plate: str):
+    """Return downstream impact data for the Cascade Suspend modal."""
+    plate = plate.upper()
+    veh = g.db.execute(
+        "SELECT 1 FROM registered_vehicles WHERE plate_number=?", (plate,)
+    ).fetchone()
+    if not veh:
+        return _err("Vehicle not found", 404)
+
+    # Active driver assignment
+    driver = g.db.execute(
+        "SELECT va.user_id, COALESCE(u.full_name, u.username) AS driver_name "
+        "FROM vehicle_assignments va JOIN users u ON va.user_id = u.id "
+        "WHERE va.plate_number=? AND va.is_active=1",
+        (plate,),
+    ).fetchone()
+
+    # Active project assignments
+    try:
+        proj_rows = g.db.execute(
+            "SELECT pv.project_code FROM project_vehicles pv "
+            "JOIN projects p ON pv.project_code = p.project_code "
+            "WHERE pv.plate_number=? AND p.status='ACTIVE'",
+            (plate,),
+        ).fetchall()
+        proj_codes = [r["project_code"] for r in proj_rows]
+    except Exception:
+        proj_codes = []
+
+    # 7-day anomaly count
+    anomaly_count = g.db.execute(
+        "SELECT COUNT(*) FROM access_log "
+        "WHERE plate_number=? AND status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT') "
+        "AND DATE(timestamp) >= ?",
+        (plate, _days_ago(7)),
+    ).fetchone()[0]
+
+    return jsonify({
+        "plate_number":   plate,
+        "driver_user_id": driver["user_id"] if driver else None,
+        "driver_name":    driver["driver_name"] if driver else None,
+        "project_count":  len(proj_codes),
+        "project_codes":  proj_codes,
+        "anomaly_count":  anomaly_count,
+    })
 
 
 @api_bp.route("/vehicles", methods=["POST"])

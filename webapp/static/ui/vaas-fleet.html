@@ -14,20 +14,38 @@
     .tab-btn{padding:10px 18px;font-size:.8125rem;font-weight:500;color:#6b7280;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'Inter',sans-serif}
     .tab-btn.active{color:#1B3F95;border-bottom-color:#1B3F95;font-weight:600}
     .tab-btn:hover:not(.active){color:#374151}
+    /* Status / OHS badges */
     .badge-active{background:rgba(118,189,51,.12);color:#2d7b00;border:1px solid rgba(118,189,51,.25)}
     .badge-suspended{background:rgba(244,189,15,.12);color:#8a6500;border:1px solid rgba(244,189,15,.25)}
     .badge-expired{background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)}
     .badge-ok{background:rgba(118,189,51,.12);color:#2d7b00;border:1px solid rgba(118,189,51,.25)}
     .badge-unassigned{background:rgba(244,189,15,.12);color:#8a6500;border:1px solid rgba(244,189,15,.25)}
-    .badge-high-overstay{background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)}
+    .badge-high-overstay,.badge-high_overstay{background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)}
+    .badge-medium-risk,.badge-medium_risk{background:rgba(244,189,15,.12);color:#8a6500;border:1px solid rgba(244,189,15,.25)}
     .badge-pill{font-size:.625rem;font-weight:600;padding:2px 8px;border-radius:10px}
+    /* Table rows */
     .vrow:hover td{background:#f8f9fb}
     .vrow td{transition:background .1s}
     .expand-row{display:none}
+    /* Zone bars */
     .mini-bar{height:4px;border-radius:2px;overflow:hidden;background:#f0f2f6}
     .mini-bar-fill{height:100%;border-radius:2px}
+    .cap-bar{height:8px;border-radius:4px;overflow:hidden;background:#f0f2f6;margin-top:6px}
+    .cap-fill{height:100%;border-radius:4px;transition:width .6s ease}
+    /* Shift timeline */
+    .shift-block{position:absolute;top:0;height:100%;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden}
+    .grace{position:absolute;top:0;height:100%;opacity:.35}
+    /* Modals — CRUD */
     .modal-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
-    .modal-panel{background:rgba(255,255,255,.95);border-radius:16px;padding:28px;width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2),0 0 0 1px rgba(0,0,0,.06)}
+    .modal-panel{background:rgba(255,255,255,.98);border-radius:16px;padding:28px;width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2),0 0 0 1px rgba(0,0,0,.06)}
+    /* Modals — Cascade / RBAC */
+    .cascade-overlay{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
+    .cascade-panel{background:rgba(255,255,255,.97);border-radius:16px;padding:28px;width:490px;box-shadow:0 24px 64px rgba(0,0,0,.2),0 0 0 1px rgba(0,0,0,.06)}
+    .rbac-overlay{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
+    .rbac-panel{background:#fff;border-radius:16px;padding:24px;width:600px;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+    .rbac-yes{color:#2d7b00;font-size:.875rem}
+    .rbac-no{color:#d1d5db;font-size:.875rem}
+    /* Form elements */
     .form-group{margin-bottom:16px}
     .form-label{display:block;font-size:.875rem;font-weight:600;margin-bottom:6px;color:#111}
     .form-input{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.875rem;font-family:inherit}
@@ -39,9 +57,6 @@
     .btn-secondary{padding:10px 16px;background:transparent;color:#666;border:1px solid #d1d5db;font-weight:600;border-radius:8px;cursor:pointer;font-size:.875rem}
     .btn-secondary:hover{background:#f8f9fa}
     .error-msg{color:#dc2626;font-size:.875rem;margin-top:4px}
-    .success-msg{color:#16a34a;font-size:.875rem;margin-top:4px}
-    .cap-bar{height:8px;border-radius:4px;overflow:hidden;background:#f0f2f6;margin-top:6px}
-    .cap-fill{height:100%;border-radius:4px;transition:width .6s ease}
     @keyframes breathe{0%,100%{opacity:.45;box-shadow:0 0 5px currentColor}50%{opacity:1;box-shadow:0 0 14px currentColor}}
     .breathe{animation:breathe 2.5s ease-in-out infinite}
     ::-webkit-scrollbar{height:4px;width:4px}::-webkit-scrollbar-track{background:#f0f2f6}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}
@@ -58,7 +73,7 @@
       </div>
       <div class="leading-tight">
         <div class="text-sm font-bold text-gray-900">VAAS <span class="font-normal text-gray-300 mx-1">/</span> <span class="font-semibold" style="color:#1B3F95">Fleet &amp; Access Config</span></div>
-        <div class="text-[11px] text-gray-400 -mt-0.5">Vehicles · Shifts · Zones · Users</div>
+        <div class="text-[11px] text-gray-400 -mt-0.5">Vehicles · Shifts · Zones · Users · FR-02 · FR-04 · FR-05 · FR-12</div>
       </div>
     </div>
     <div class="flex items-center gap-2 text-xs">
@@ -69,10 +84,78 @@
       <div class="h-4 w-px bg-gray-200 mx-1"></div>
       <span id="nav-role" class="text-xs px-2 py-0.5 rounded-full font-semibold" style="background:rgba(239,68,68,.12);color:#cc2222">—</span>
       <span id="nav-user" class="text-sm text-gray-700 font-medium">—</span>
-      <a href="/auth/logout" class="text-xs px-2 py-0.5 rounded text-gray-600 hover:bg-gray-200 no-underline">Logout</a>
+      <a href="/auth/logout" class="text-xs px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100 no-underline">Logout</a>
     </div>
   </div>
 </nav>
+
+<!-- ═══ CASCADE IMPACT MODAL ═══ -->
+<div class="cascade-overlay" id="cascade-modal" style="display:none">
+  <div class="cascade-panel">
+    <div class="flex items-start gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:#fff3cd;border:1px solid #fde68a">
+        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <div>
+        <div id="cascade-plate-name" class="text-base font-bold text-gray-900">Confirm: Suspend?</div>
+        <div class="text-sm text-gray-500 mt-0.5">Review downstream impact before confirming</div>
+      </div>
+    </div>
+    <div id="cascade-impacts" class="space-y-2 mb-5">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Cascading Effects</div>
+      <div id="cascade-driver-row" class="flex items-start gap-3 p-3 rounded-lg" style="background:#fff7ed;border:1px solid #fed7aa;display:none!important">
+        <svg class="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+        <div class="text-xs"><span class="font-semibold text-orange-700">1 driver assignment orphaned</span><br><span id="cascade-driver-text" class="text-orange-600">Driver will lose active vehicle — requires reassignment</span></div>
+      </div>
+      <div id="cascade-projects-row" class="flex items-start gap-3 p-3 rounded-lg" style="background:#fff7ed;border:1px solid #fed7aa;display:none!important">
+        <svg class="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <div class="text-xs"><span id="cascade-projects-count" class="font-semibold text-orange-700">Active project assignments affected</span><br><span id="cascade-projects-text" class="text-orange-600"></span></div>
+      </div>
+      <div class="flex items-start gap-3 p-3 rounded-lg" style="background:#fef2f2;border:1px solid #fecaca">
+        <svg class="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        <div class="text-xs"><span class="font-semibold text-red-700">OHS report impact</span><br><span class="text-red-600">Vehicle will appear as SUSPENDED in the next ISO 45001 compliance report</span></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="closeModal('cascade-modal')" class="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button onclick="confirmSuspend()" class="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style="background:#ef4444">Confirm Suspend</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RBAC MATRIX MODAL ═══ -->
+<div class="rbac-overlay" id="rbac-modal" style="display:none">
+  <div class="rbac-panel">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <div class="text-base font-bold text-gray-900">Role Permission Matrix</div>
+        <div class="text-xs text-gray-400 mt-0.5">Three-role RBAC — read / write / delete per resource</div>
+      </div>
+      <button onclick="closeModal('rbac-modal')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-3 py-2 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Resource</th>
+            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin R</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin W</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin D</th>
+            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr R</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr W</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr D</th>
+            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op R</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op W</th><th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op D</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Vehicles</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Gate Events</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Exceptions</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Reports / BI</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Users</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Audit Log</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+          <tr class="hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">System Config</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ ADD/EDIT VEHICLE MODAL ═══ -->
 <div class="modal-overlay" id="vehicleModal" style="display:none">
@@ -83,44 +166,30 @@
     </div>
     <form id="vehicleForm" onsubmit="handleVehicleSubmit(event)">
       <input type="hidden" id="vehicleId">
-      <div class="form-group">
-        <label class="form-label">Plate Number</label>
-        <input type="text" id="vehiclePlate" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Category</label>
+      <div class="form-group"><label class="form-label">Plate Number</label><input type="text" id="vehiclePlate" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Make / Model (optional)</label><input type="text" id="vehicleMakeModel" class="form-input" placeholder="e.g. Toyota Land Cruiser"></div>
+      <div class="form-group"><label class="form-label">Category</label>
         <select id="vehicleCategory" class="form-select" required>
           <option value="">Select category...</option>
-          <option value="STAFF">Staff</option>
-          <option value="CONTRACTOR">Contractor</option>
-          <option value="MANAGEMENT">Management</option>
+          <option value="STAFF">Staff</option><option value="CONTRACTOR">Contractor</option><option value="MANAGEMENT">Management</option>
+          <option value="FLEET">Fleet</option><option value="VISITOR">Visitor</option><option value="EMERGENCY">Emergency</option>
+          <option value="MAINTENANCE">Maintenance</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Vehicle Type</label>
+      <div class="form-group"><label class="form-label">Vehicle Type</label>
         <select id="vehicleType" class="form-select" required>
           <option value="">Select type...</option>
-          <option value="CAR">Car</option>
-          <option value="TRUCK">Truck</option>
-          <option value="BUS">Bus</option>
+          <option value="CAR">Car</option><option value="TRUCK">Truck</option><option value="VAN">Van</option>
+          <option value="BUS">Bus</option><option value="UTILITY">Utility</option><option value="MOTORCYCLE">Motorcycle</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Status</label>
+      <div class="form-group"><label class="form-label">Status</label>
         <select id="vehicleStatus" class="form-select" required>
-          <option value="ACTIVE">Active</option>
-          <option value="SUSPENDED">Suspended</option>
-          <option value="EXPIRED">Expired</option>
+          <option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="EXPIRED">Expired</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Contractor Name (optional)</label>
-        <input type="text" id="vehicleContractor" class="form-input">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Department</label>
-        <input type="text" id="vehicleDepartment" class="form-input">
-      </div>
+      <div class="form-group"><label class="form-label">Contractor Name (optional)</label><input type="text" id="vehicleContractor" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Department</label><input type="text" id="vehicleDepartment" class="form-input"></div>
       <div id="vehicleError" class="error-msg"></div>
       <div class="flex gap-2 mt-6">
         <button type="button" class="flex-1 btn-secondary" onclick="closeModal('vehicleModal')">Cancel</button>
@@ -139,26 +208,11 @@
     </div>
     <form id="shiftForm" onsubmit="handleShiftSubmit(event)">
       <input type="hidden" id="shiftId">
-      <div class="form-group">
-        <label class="form-label">Shift Name</label>
-        <input type="text" id="shiftName" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Start Time</label>
-        <input type="time" id="shiftStart" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">End Time</label>
-        <input type="time" id="shiftEnd" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Grace Period (minutes)</label>
-        <input type="number" id="shiftGrace" class="form-input" value="30" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Days of Week</label>
-        <input type="text" id="shiftDays" class="form-input" placeholder="e.g., Mon-Fri" required>
-      </div>
+      <div class="form-group"><label class="form-label">Shift Name</label><input type="text" id="shiftName" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Start Time</label><input type="time" id="shiftStart" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">End Time</label><input type="time" id="shiftEnd" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Grace Period (minutes)</label><input type="number" id="shiftGrace" class="form-input" value="30" required></div>
+      <div class="form-group"><label class="form-label">Days of Week</label><input type="text" id="shiftDays" class="form-input" placeholder="e.g., Mon-Fri"></div>
       <div id="shiftError" class="error-msg"></div>
       <div class="flex gap-2 mt-6">
         <button type="button" class="flex-1 btn-secondary" onclick="closeModal('shiftModal')">Cancel</button>
@@ -177,29 +231,17 @@
     </div>
     <form id="zoneForm" onsubmit="handleZoneSubmit(event)">
       <input type="hidden" id="zoneId">
-      <div class="form-group">
-        <label class="form-label">Zone Name</label>
-        <input type="text" id="zoneName" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Zone Type</label>
+      <div class="form-group"><label class="form-label">Zone ID</label><input type="text" id="zoneIdField" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Zone Name</label><input type="text" id="zoneName" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Zone Type</label>
         <select id="zoneType" class="form-select" required>
           <option value="">Select type...</option>
-          <option value="DRYDOCK">Drydock</option>
-          <option value="BERTH">Berth</option>
-          <option value="WORKSHOP">Workshop</option>
-          <option value="ADMIN">Admin</option>
-          <option value="SECURITY">Security</option>
+          <option value="DRYDOCK">Drydock</option><option value="BERTH">Berth</option><option value="WORKSHOP">Workshop</option>
+          <option value="ADMIN">Admin</option><option value="SECURITY">Security</option><option value="PRODUCTION">Production</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Associated Gates</label>
-        <input type="text" id="zoneGates" class="form-input" placeholder="e.g., GATE_A,GATE_B" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Vehicle Capacity</label>
-        <input type="number" id="zoneCapacity" class="form-input" required>
-      </div>
+      <div class="form-group"><label class="form-label">Associated Gates (comma separated)</label><input type="text" id="zoneGates" class="form-input" placeholder="e.g. GATE_A,GATE_B"></div>
+      <div class="form-group"><label class="form-label">Vehicle Capacity</label><input type="number" id="zoneCapacity" class="form-input" required></div>
       <div id="zoneError" class="error-msg"></div>
       <div class="flex gap-2 mt-6">
         <button type="button" class="flex-1 btn-secondary" onclick="closeModal('zoneModal')">Cancel</button>
@@ -218,26 +260,13 @@
     </div>
     <form id="userForm" onsubmit="handleUserSubmit(event)">
       <input type="hidden" id="userId">
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" id="userName" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Username</label>
-        <input type="text" id="userUsername" class="form-input" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Password</label>
-        <input type="password" id="userPassword" class="form-input">
-        <small class="text-gray-500">Leave blank to keep existing password</small>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Role</label>
+      <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="userName" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Username</label><input type="text" id="userUsername" class="form-input" required></div>
+      <div class="form-group"><label class="form-label">Password</label><input type="password" id="userPassword" class="form-input"><small class="text-gray-500">Leave blank to keep existing password</small></div>
+      <div class="form-group"><label class="form-label">Role</label>
         <select id="userRole" class="form-select" required>
           <option value="">Select role...</option>
-          <option value="ADMIN">Admin</option>
-          <option value="MANAGER">Manager</option>
-          <option value="OPERATOR">Operator</option>
+          <option value="ADMIN">Admin</option><option value="MANAGER">Manager</option><option value="OPERATOR">Operator</option>
         </select>
       </div>
       <div id="userError" class="error-msg"></div>
@@ -249,6 +278,7 @@
   </div>
 </div>
 
+<!-- ═══ MAIN ═══ -->
 <div class="max-w-7xl mx-auto px-6 py-6">
 
   <!-- TABS -->
@@ -265,10 +295,19 @@
       <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-4">
         <div>
           <div class="text-sm font-bold text-gray-900">Vehicle Registry</div>
-          <div class="text-xs text-gray-400 mt-0.5" id="vehicleCount">Loading...</div>
+          <div class="text-xs text-gray-400 mt-0.5" id="vehicleCount">Loading…</div>
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" id="vehicleSearch" placeholder="Search plate..." class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 w-48" style="font-family:'Inter',sans-serif">
+          <input type="text" id="vehicleSearch" placeholder="Search plate, driver…" class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 w-44" style="font-family:'Inter',sans-serif" oninput="renderVehicleRows()">
+          <select id="vehicleCatFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none text-gray-600" style="font-family:'Inter',sans-serif" onchange="renderVehicleRows()">
+            <option value="">All Categories</option>
+            <option value="STAFF">Staff</option><option value="CONTRACTOR">Contractor</option><option value="MANAGEMENT">Management</option>
+            <option value="FLEET">Fleet</option><option value="VISITOR">Visitor</option><option value="EMERGENCY">Emergency</option><option value="MAINTENANCE">Maintenance</option>
+          </select>
+          <select id="vehicleStatusFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none text-gray-600" style="font-family:'Inter',sans-serif" onchange="renderVehicleRows()">
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="EXPIRED">Expired</option>
+          </select>
           <button onclick="openModal('vehicleModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Add Vehicle</button>
         </div>
       </div>
@@ -276,46 +315,66 @@
         <table class="w-full text-xs">
           <thead>
             <tr class="border-b border-gray-100" style="background:#eef1fb">
-              <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:36px"></th>
+              <th class="px-5 py-2.5 text-left" style="width:36px"></th>
               <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Plate</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Category</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Type</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Status</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Department</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Type / Category</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Reg. Status</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">OHS Risk</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Assigned Driver</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Event</th>
               <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
             </tr>
           </thead>
           <tbody id="tbody-vehicles">
-            <tr><td colspan="7" class="px-5 py-3 text-center text-gray-400">Loading vehicles...</td></tr>
+            <tr><td colspan="8" class="px-5 py-8 text-center text-gray-400">Loading vehicles…</td></tr>
           </tbody>
         </table>
       </div>
+      <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100" id="vehicleFooter"></div>
     </div>
   </div>
 
   <!-- ══════════ TAB: SHIFTS ══════════ -->
-  <div id="tab-shifts" class="tab-content hidden">
+  <div id="tab-shifts" class="tab-content hidden space-y-5">
+    <div class="card p-5">
+      <div class="text-sm font-bold text-gray-900 mb-1">CDL Shift Schedule — 24-Hour Timeline</div>
+      <div class="text-xs text-gray-400 mb-5">FR-02 · Three rotating shifts · Grace periods shown as translucent extensions</div>
+      <!-- Hour labels -->
+      <div class="relative mb-1" style="height:18px">
+        <div style="position:absolute;left:0%;font-size:.55rem;color:#94a3b8">00:00</div>
+        <div style="position:absolute;left:12.5%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">03:00</div>
+        <div style="position:absolute;left:25%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">06:00</div>
+        <div style="position:absolute;left:29.17%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">07:00</div>
+        <div style="position:absolute;left:50%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">12:00</div>
+        <div style="position:absolute;left:62.5%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">15:00</div>
+        <div style="position:absolute;left:75%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">18:00</div>
+        <div style="position:absolute;left:87.5%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">21:00</div>
+        <div style="position:absolute;left:95.83%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">23:00</div>
+        <div style="position:absolute;right:0;font-size:.55rem;color:#94a3b8">24:00</div>
+      </div>
+      <!-- Timeline bar (dynamically populated) -->
+      <div class="relative rounded-lg overflow-hidden" id="shift-timeline-bar" style="height:72px;background:#f0f2f6;border:1px solid #e5e7eb">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.7rem">Loading shifts…</div>
+      </div>
+      <div id="shift-timeline-legend" class="flex items-center gap-6 mt-3 text-xs text-gray-400"></div>
+    </div>
+    <!-- Shift CRUD table -->
     <div class="card">
       <div class="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <div class="text-sm font-bold text-gray-900">Shift Configuration</div>
-          <div class="text-xs text-gray-400 mt-0.5" id="shiftCount">Loading...</div>
-        </div>
+        <div class="text-sm font-bold text-gray-900">Shift Configuration</div>
         <button onclick="openModal('shiftModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ New Shift</button>
       </div>
       <table class="w-full text-xs">
-        <thead>
-          <tr class="border-b border-gray-100" style="background:#eef1fb">
-            <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Start</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">End</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Grace (min)</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Days</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
-          </tr>
-        </thead>
+        <thead><tr class="border-b border-gray-100" style="background:#eef1fb">
+          <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Shift Name</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Start</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">End</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Grace (min)</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Days</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
+        </tr></thead>
         <tbody id="tbody-shifts">
-          <tr><td colspan="6" class="px-5 py-3 text-center text-gray-400">Loading shifts...</td></tr>
+          <tr><td colspan="6" class="px-5 py-8 text-center text-gray-400">Loading shifts…</td></tr>
         </tbody>
       </table>
     </div>
@@ -326,8 +385,8 @@
     <div class="flex justify-end mb-4">
       <button onclick="openModal('zoneModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Add Zone</button>
     </div>
-    <div id="zones-grid" class="grid grid-cols-3 gap-4">
-      <div class="card p-4 text-center text-gray-400">Loading zones...</div>
+    <div id="zones-grid" class="grid grid-cols-4 gap-4">
+      <div class="card p-4 text-center text-gray-400 col-span-4">Loading zones…</div>
     </div>
   </div>
 
@@ -337,59 +396,144 @@
       <div class="p-5 border-b border-gray-100 flex items-center justify-between">
         <div>
           <div class="text-sm font-bold text-gray-900">User Management</div>
-          <div class="text-xs text-gray-400 mt-0.5" id="userCount">Loading...</div>
+          <div class="text-xs text-gray-400 mt-0.5" id="userCount">Loading…</div>
         </div>
-        <button onclick="openModal('userModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Invite User</button>
+        <div class="flex items-center gap-2">
+          <button onclick="document.getElementById('rbac-modal').style.display='flex'" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">View Permission Matrix</button>
+          <button onclick="openModal('userModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Invite User</button>
+        </div>
       </div>
       <table class="w-full text-xs">
-        <thead>
-          <tr class="border-b border-gray-100" style="background:#eef1fb">
-            <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Username</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Role</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Login</th>
-            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
-          </tr>
-        </thead>
+        <thead><tr class="border-b border-gray-100" style="background:#eef1fb">
+          <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Username</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Role</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Login</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Status</th>
+          <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
+        </tr></thead>
         <tbody id="tbody-users">
-          <tr><td colspan="5" class="px-5 py-3 text-center text-gray-400">Loading users...</td></tr>
+          <tr><td colspan="6" class="px-5 py-8 text-center text-gray-400">Loading users…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-</div>
+</div><!-- /max-w-7xl -->
 
 <script>
-  // ── Modal Management ────────────────────────────────────────────────────
+  // ── State ────────────────────────────────────────────────────────────────────
+  let _vehicles = [], _vCache = {};
+  let _shifts = [],   _shiftCache = {};
+  let _zones = [],    _zoneCache = {};
+  let _users = [],    _userCache = {};
+  let _currentUser = null;
+  let _cascadePlate = null;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function relTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z');
+    if (isNaN(d)) return ts.slice(11,16) || '—';
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const diffMs = now - d;
+    const diffD = Math.floor(diffMs / 86400000);
+    if (d >= todayStart) return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+' today';
+    if (diffD === 1) return 'Yesterday';
+    if (diffD < 30)  return `${diffD}d ago`;
+    return d.toISOString().slice(0,10);
+  }
+
+  function loginRelTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z');
+    if (isNaN(d)) return ts;
+    const now = new Date();
+    const diffD = Math.floor((now - d) / 86400000);
+    if (diffD === 0) return 'Today, '+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
+    if (diffD === 1) return 'Yesterday';
+    if (diffD < 30)  return `${diffD} days ago`;
+    return d.toISOString().slice(0,10);
+  }
+
+  function loginDiffDays(ts) {
+    if (!ts) return 999;
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z');
+    return isNaN(d) ? 999 : Math.floor((new Date() - d) / 86400000);
+  }
+
+  function ohsBadgeClass(ohs) {
+    const m = {OK:'badge-ok',UNASSIGNED:'badge-unassigned',MEDIUM_RISK:'badge-medium_risk',HIGH_OVERSTAY:'badge-high_overstay',SUSPENDED:'badge-suspended'};
+    return m[ohs] || 'badge-unassigned';
+  }
+
+  function statusBadgeClass(s) {
+    if (s==='ACTIVE') return 'badge-active';
+    if (s==='SUSPENDED') return 'badge-suspended';
+    return 'badge-expired';
+  }
+
+  function ohsLabel(ohs) {
+    return {OK:'OK',UNASSIGNED:'UNASSIGNED',MEDIUM_RISK:'MEDIUM RISK',HIGH_OVERSTAY:'HIGH_OVERSTAY',SUSPENDED:'SUSPENDED'}[ohs] || ohs;
+  }
+
+  function timeToPercent(t) {
+    if (!t) return 0;
+    const [h,m=(0)] = t.split(':').map(Number);
+    return ((h*60+m) / 1440) * 100;
+  }
+
+  // ── Tab Switching ─────────────────────────────────────────────────────────────
+  function setTab(id, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+id).classList.remove('hidden');
+    btn.classList.add('active');
+  }
+
+  // ── Expand rows ───────────────────────────────────────────────────────────────
+  function toggleExpand(id, row) {
+    const ex  = document.getElementById(id);
+    const arr = document.getElementById(id+'-arrow');
+    const open = ex.style.display === 'table-row';
+    ex.style.display = open ? 'none' : 'table-row';
+    if (arr) arr.textContent = open ? '›' : '‹';
+  }
+
+  // ── Modal Management ──────────────────────────────────────────────────────────
+  function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+  document.querySelectorAll('.modal-overlay,.cascade-overlay,.rbac-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); });
+  });
+
   function openModal(modalId, mode, data = null) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
 
     if (modalId === 'vehicleModal') {
-      if (mode === 'add') {
-        document.getElementById('vehicleModalTitle').textContent = 'Add Vehicle';
-        document.getElementById('vehicleId').value = '';
-        document.getElementById('vehiclePlate').disabled = false;
-        document.getElementById('vehicleForm').reset();
-      } else {
-        document.getElementById('vehicleModalTitle').textContent = 'Edit Vehicle';
+      document.getElementById('vehicleModalTitle').textContent = mode==='add' ? 'Add Vehicle' : 'Edit Vehicle';
+      document.getElementById('vehicleId').value = '';
+      document.getElementById('vehicleForm').reset();
+      if (mode === 'edit' && data) {
         document.getElementById('vehicleId').value = data.plate_number || '';
         document.getElementById('vehiclePlate').value = data.plate_number || '';
         document.getElementById('vehiclePlate').disabled = true;
+        document.getElementById('vehicleMakeModel').value = data.make_model || '';
         document.getElementById('vehicleCategory').value = data.vehicle_category || '';
         document.getElementById('vehicleType').value = data.vehicle_type || '';
         document.getElementById('vehicleStatus').value = data.registration_status || '';
         document.getElementById('vehicleContractor').value = data.contractor_name || '';
         document.getElementById('vehicleDepartment').value = data.department || '';
+      } else {
+        document.getElementById('vehiclePlate').disabled = false;
       }
     } else if (modalId === 'shiftModal') {
-      if (mode === 'add') {
-        document.getElementById('shiftModalTitle').textContent = 'Add Shift';
-        document.getElementById('shiftId').value = '';
-        document.getElementById('shiftForm').reset();
-      } else {
-        document.getElementById('shiftModalTitle').textContent = 'Edit Shift';
+      document.getElementById('shiftModalTitle').textContent = mode==='add' ? 'Add Shift' : 'Edit Shift';
+      document.getElementById('shiftId').value = '';
+      document.getElementById('shiftForm').reset();
+      if (mode === 'edit' && data) {
         document.getElementById('shiftId').value = data.shift_id || '';
         document.getElementById('shiftName').value = data.shift_name || '';
         document.getElementById('shiftStart').value = data.start_time || '';
@@ -398,25 +542,26 @@
         document.getElementById('shiftDays').value = data.days_of_week || '';
       }
     } else if (modalId === 'zoneModal') {
-      if (mode === 'add') {
-        document.getElementById('zoneModalTitle').textContent = 'Add Zone';
-        document.getElementById('zoneId').value = '';
-        document.getElementById('zoneForm').reset();
-      } else {
-        document.getElementById('zoneModalTitle').textContent = 'Edit Zone';
-        document.getElementById('zoneId').value = data.zone_id || data.id || '';
+      document.getElementById('zoneModalTitle').textContent = mode==='add' ? 'Add Zone' : 'Edit Zone';
+      document.getElementById('zoneId').value = '';
+      document.getElementById('zoneForm').reset();
+      if (mode === 'edit' && data) {
+        document.getElementById('zoneId').value = data.zone_id || '';
+        document.getElementById('zoneIdField').value = data.zone_id || '';
+        document.getElementById('zoneIdField').disabled = true;
         document.getElementById('zoneName').value = data.zone_name || '';
         document.getElementById('zoneType').value = data.zone_type || '';
-        document.getElementById('zoneGates').value = (Array.isArray(data.associated_gates) ? data.associated_gates.join(',') : data.associated_gates) || '';
+        const gates = Array.isArray(data.associated_gates) ? data.associated_gates.join(',') : (data.associated_gates || '');
+        document.getElementById('zoneGates').value = gates;
         document.getElementById('zoneCapacity').value = data.vehicle_capacity || data.capacity_vehicles || '';
+      } else {
+        document.getElementById('zoneIdField').disabled = false;
       }
     } else if (modalId === 'userModal') {
-      if (mode === 'add') {
-        document.getElementById('userModalTitle').textContent = 'Add User';
-        document.getElementById('userId').value = '';
-        document.getElementById('userForm').reset();
-      } else {
-        document.getElementById('userModalTitle').textContent = 'Edit User';
+      document.getElementById('userModalTitle').textContent = mode==='add' ? 'Add User' : 'Edit User';
+      document.getElementById('userId').value = '';
+      document.getElementById('userForm').reset();
+      if (mode === 'edit' && data) {
         document.getElementById('userId').value = data.id || '';
         document.getElementById('userName').value = data.full_name || '';
         document.getElementById('userUsername').value = data.username || '';
@@ -428,290 +573,433 @@
     modal.style.display = 'flex';
   }
 
-  function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-  }
-
-  // Close modals when clicking overlay
-  document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeModal(overlay.id);
-    });
-  });
-
-  // ── Form Handlers ──────────────────────────────────────────────────────
+  // ── Form Handlers ─────────────────────────────────────────────────────────────
   async function handleVehicleSubmit(e) {
     e.preventDefault();
-    const errorDiv = document.getElementById('vehicleError');
-    errorDiv.textContent = '';
-
+    const errDiv = document.getElementById('vehicleError');
+    errDiv.textContent = '';
     const id = document.getElementById('vehicleId').value;
-    const data = {
+    const body = {
       plate_number: document.getElementById('vehiclePlate').value,
+      make_model: document.getElementById('vehicleMakeModel').value || null,
       vehicle_category: document.getElementById('vehicleCategory').value,
       vehicle_type: document.getElementById('vehicleType').value,
       registration_status: document.getElementById('vehicleStatus').value,
       contractor_name: document.getElementById('vehicleContractor').value || null,
-      department: document.getElementById('vehicleDepartment').value,
+      department: document.getElementById('vehicleDepartment').value || null,
     };
-
     try {
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/vehicles/${id}` : '/api/vehicles';
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-
+      const r = await fetch(id ? `/api/vehicles/${id}` : '/api/vehicles', {
+        method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
       if (r.status === 401) { location.href = '/auth/login'; return; }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-      closeModal('vehicleModal');
-      loadVehicles();
-    } catch (err) {
-      errorDiv.textContent = `Error: ${err.message}`;
-    }
+      if (!r.ok) { errDiv.textContent = 'Error: '+(await r.text()); return; }
+      closeModal('vehicleModal'); loadVehicles();
+    } catch(err) { errDiv.textContent = 'Network error: '+err.message; }
   }
 
   async function handleShiftSubmit(e) {
     e.preventDefault();
-    const errorDiv = document.getElementById('shiftError');
-    errorDiv.textContent = '';
-
+    const errDiv = document.getElementById('shiftError');
+    errDiv.textContent = '';
     const id = document.getElementById('shiftId').value;
-    const data = {
+    const body = {
       shift_name: document.getElementById('shiftName').value,
       start_time: document.getElementById('shiftStart').value,
       end_time: document.getElementById('shiftEnd').value,
       grace_minutes: parseInt(document.getElementById('shiftGrace').value),
       days_of_week: document.getElementById('shiftDays').value,
     };
-
     try {
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/shifts/${id}` : '/api/shifts';
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-
-      if (r.status === 401) { location.href = '/auth/login'; return; }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-      closeModal('shiftModal');
-      loadShifts();
-    } catch (err) {
-      errorDiv.textContent = `Error: ${err.message}`;
-    }
+      const r = await fetch(id ? `/api/shifts/${id}` : '/api/shifts', {
+        method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
+      if (!r.ok) { errDiv.textContent = 'Error: '+(await r.text()); return; }
+      closeModal('shiftModal'); loadShifts();
+    } catch(err) { errDiv.textContent = 'Network error: '+err.message; }
   }
 
   async function handleZoneSubmit(e) {
     e.preventDefault();
-    const errorDiv = document.getElementById('zoneError');
-    errorDiv.textContent = '';
-
-    const id = document.getElementById('zoneId').value;
-    const data = {
+    const errDiv = document.getElementById('zoneError');
+    errDiv.textContent = '';
+    const editId = document.getElementById('zoneId').value;
+    const newId  = document.getElementById('zoneIdField').value.toUpperCase();
+    const body = {
+      zone_id: newId,
       zone_name: document.getElementById('zoneName').value,
       zone_type: document.getElementById('zoneType').value,
-      associated_gates: document.getElementById('zoneGates').value.split(',').map(g => g.trim()),
+      associated_gates: document.getElementById('zoneGates').value.split(',').map(g => g.trim()).filter(Boolean),
       vehicle_capacity: parseInt(document.getElementById('zoneCapacity').value),
     };
-
     try {
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/zones/${id}` : '/api/zones';
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-
-      if (r.status === 401) { location.href = '/auth/login'; return; }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-      closeModal('zoneModal');
-      loadZones();
-    } catch (err) {
-      errorDiv.textContent = `Error: ${err.message}`;
-    }
+      const r = await fetch(editId ? `/api/zones/${editId}` : '/api/zones', {
+        method: editId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
+      if (!r.ok) { errDiv.textContent = 'Error: '+(await r.text()); return; }
+      closeModal('zoneModal'); loadZones();
+    } catch(err) { errDiv.textContent = 'Network error: '+err.message; }
   }
 
   async function handleUserSubmit(e) {
     e.preventDefault();
-    const errorDiv = document.getElementById('userError');
-    errorDiv.textContent = '';
-
+    const errDiv = document.getElementById('userError');
+    errDiv.textContent = '';
     const id = document.getElementById('userId').value;
-    const data = {
-      username: document.getElementById('userUsername').value,
-      full_name: document.getElementById('userName').value,
-      role: document.getElementById('userRole').value,
-    };
-
+    const body = { username: document.getElementById('userUsername').value, full_name: document.getElementById('userName').value, role: document.getElementById('userRole').value };
     const pw = document.getElementById('userPassword').value;
-    if (pw) data.password = pw;
-
+    if (pw) body.password = pw;
     try {
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/users/${id}` : '/api/users';
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-
+      const r = await fetch(id ? `/api/users/${id}` : '/api/users', {
+        method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
       if (r.status === 401) { location.href = '/auth/login'; return; }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-      closeModal('userModal');
-      loadUsers();
-    } catch (err) {
-      errorDiv.textContent = `Error: ${err.message}`;
-    }
+      if (!r.ok) { errDiv.textContent = 'Error: '+(await r.text()); return; }
+      closeModal('userModal'); loadUsers();
+    } catch(err) { errDiv.textContent = 'Network error: '+err.message; }
   }
 
-  // ── Data Loading ───────────────────────────────────────────────────────
+  // ── Vehicles ──────────────────────────────────────────────────────────────────
+  function editVehicle(plate, evt) {
+    if (evt) evt.stopPropagation();
+    openModal('vehicleModal', 'edit', _vCache[plate]);
+  }
+
+  function buildVehicleActions(v) {
+    const editBtn = `<button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="editVehicle('${v.plate_number}',event)">Edit</button>`;
+    if (v.registration_status === 'ACTIVE')
+      return editBtn + `<button onclick="event.stopPropagation();showCascadeModal('${v.plate_number}')" class="text-[10px] px-2 py-0.5 rounded border text-amber-600 hover:bg-amber-50" style="border-color:rgba(244,189,15,.4)">Suspend</button>`;
+    if (v.registration_status === 'SUSPENDED')
+      return editBtn + `<button onclick="event.stopPropagation();doReinstate('${v.plate_number}')" class="text-[10px] px-2 py-0.5 rounded border text-green-600 hover:bg-green-50" style="border-color:rgba(118,189,51,.4)">Reinstate</button>`;
+    return editBtn + `<button onclick="event.stopPropagation();doRenew('${v.plate_number}')" class="text-[10px] px-2 py-0.5 rounded border text-blue-600 hover:bg-blue-50" style="border-color:rgba(27,63,149,.3)">Renew</button>`;
+  }
+
   async function loadVehicles() {
     try {
       const r = await fetch('/api/vehicles');
       if (r.status === 401) { location.href = '/auth/login'; return; }
       if (!r.ok) return;
-      const vehicles = await r.json();
-      const tbody = document.getElementById('tbody-vehicles');
-
-      document.getElementById('vehicleCount').textContent = `${vehicles.length} vehicles`;
-
-      const rows = vehicles.map((v, i) => {
-        const statusClass = v.registration_status === 'ACTIVE' ? 'badge-active'
-          : v.registration_status === 'SUSPENDED' ? 'badge-suspended'
-          : 'badge-expired';
-        return `
-          <tr class="vrow border-b border-gray-50">
-            <td class="px-5 py-3"></td>
-            <td class="px-3 py-3 font-bold mono text-gray-900">${v.plate_number||'—'}</td>
-            <td class="px-3 py-3 text-gray-600">${v.vehicle_category||'—'}</td>
-            <td class="px-3 py-3 text-gray-600">${v.vehicle_type||'—'}</td>
-            <td class="px-3 py-3"><span class="badge-pill ${statusClass}">${v.registration_status||'UNKNOWN'}</span></td>
-            <td class="px-3 py-3 text-gray-600">${v.department||'—'}</td>
-            <td class="px-3 py-3 flex items-center gap-1">
-              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('vehicleModal','edit',${JSON.stringify(v)})">Edit</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      tbody.innerHTML = rows;
+      _vehicles = await r.json();
+      _vCache = {};
+      _vehicles.forEach(v => { _vCache[v.plate_number] = v; });
+      document.getElementById('vehicleCount').textContent =
+        `FR-04 · FR-05 · ${_vehicles.length} registered · OHS risk monitoring active`;
+      renderVehicleRows();
     } catch(e) { console.warn('Vehicles load failed', e); }
   }
 
+  function renderVehicleRows() {
+    const search = (document.getElementById('vehicleSearch')?.value || '').toLowerCase();
+    const cat    = document.getElementById('vehicleCatFilter')?.value || '';
+    const status = document.getElementById('vehicleStatusFilter')?.value || '';
+
+    let filtered = _vehicles.filter(v => {
+      if (search && !(v.plate_number||'').toLowerCase().includes(search) && !(v.assigned_driver_name||'').toLowerCase().includes(search)) return false;
+      if (cat    && v.vehicle_category   !== cat)    return false;
+      if (status && v.registration_status !== status) return false;
+      return true;
+    });
+
+    const rowBg = v => v.registration_status === 'SUSPENDED' ? 'style="background:#fffbf0"'
+                     : (v.registration_status === 'EXPIRED' || v.registration_status === 'INACTIVE') ? 'style="background:#fff5f5"'
+                     : '';
+
+    const rows = filtered.map((v, i) => `
+      <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-${i}',this)" ${rowBg(v)}>
+        <td class="px-5 py-3 text-gray-400 text-base" id="vex-${i}-arrow">›</td>
+        <td class="px-3 py-3 font-bold mono text-gray-900">${v.plate_number}</td>
+        <td class="px-3 py-3 text-gray-600">${v.make_model||v.vehicle_type||'—'} · <span class="text-gray-400">${v.vehicle_category||'—'}</span></td>
+        <td class="px-3 py-3"><span class="badge-pill ${statusBadgeClass(v.registration_status)}">${v.registration_status}</span></td>
+        <td class="px-3 py-3"><span class="badge-pill ${ohsBadgeClass(v.ohs_status)}">${ohsLabel(v.ohs_status)}</span></td>
+        <td class="px-3 py-3 ${v.assigned_driver_name?'font-medium text-gray-700':'text-gray-400 italic'}">${v.assigned_driver_name||'Not assigned'}</td>
+        <td class="px-3 py-3 mono text-gray-500">${relTime(v.last_event_ts)}</td>
+        <td class="px-3 py-3 flex items-center gap-1">${buildVehicleActions(v)}</td>
+      </tr>
+      <tr id="vex-${i}" class="expand-row border-b border-gray-100">
+        <td colspan="8" class="px-8 py-3" style="background:#f8f9fb">
+          <div class="flex flex-wrap items-center gap-8 text-xs">
+            <div><span class="text-gray-400">Driver</span> <span class="font-semibold ${v.assigned_driver_name?'text-gray-700':'text-red-500'} ml-1">${v.assigned_driver_name||'None — OHS liability'}</span></div>
+            <div><span class="text-gray-400">Last Gate Event</span> <span class="font-semibold mono text-gray-700 ml-1">${v.last_event_ts?(v.last_event_ts.slice(0,16)+' · '+(v.last_event_gate||'?')+' · '+(v.last_event_dir||'?')):'No events recorded'}</span></div>
+            <div><span class="text-gray-400">7d Anomalies</span> <span class="font-semibold ml-1 ${(v.anomaly_count||0)>0?'text-amber-600':'text-gray-700'}">${v.anomaly_count||0}</span></div>
+            <div><span class="text-gray-400">OHS Status</span> <span class="font-semibold ml-1">${ohsLabel(v.ohs_status)}</span></div>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    document.getElementById('tbody-vehicles').innerHTML =
+      rows || '<tr><td colspan="8" class="px-5 py-8 text-center text-gray-400">No vehicles match your filters</td></tr>';
+    document.getElementById('vehicleFooter').textContent =
+      filtered.length < _vehicles.length
+      ? `Showing ${filtered.length} of ${_vehicles.length} vehicles`
+      : `Showing ${_vehicles.length} vehicles`;
+  }
+
+  // ── Cascade Modal ─────────────────────────────────────────────────────────────
+  async function showCascadeModal(plate) {
+    _cascadePlate = plate;
+    document.getElementById('cascade-plate-name').textContent = `Confirm: Suspend ${plate}?`;
+    document.getElementById('cascade-driver-row').style.display  = 'none';
+    document.getElementById('cascade-projects-row').style.display = 'none';
+    document.getElementById('cascade-modal').style.display = 'flex';
+    try {
+      const r = await fetch(`/api/vehicles/${plate}/impact`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.driver_name) {
+          document.getElementById('cascade-driver-text').textContent = `${d.driver_name} will lose active vehicle — requires reassignment`;
+          document.getElementById('cascade-driver-row').style.display = 'flex';
+        }
+        if (d.project_count > 0) {
+          const names = d.project_codes.length ? d.project_codes.join(', ') : `${d.project_count} project(s)`;
+          document.getElementById('cascade-projects-count').textContent = `${d.project_count} active project assignment${d.project_count>1?'s':''} affected`;
+          document.getElementById('cascade-projects-text').textContent = names;
+          document.getElementById('cascade-projects-row').style.display = 'flex';
+        }
+      }
+    } catch(e) {}
+  }
+
+  async function confirmSuspend() {
+    if (!_cascadePlate) return;
+    try {
+      const r = await fetch(`/api/vehicles/${_cascadePlate}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({registration_status: 'SUSPENDED'})
+      });
+      closeModal('cascade-modal');
+      if (r.ok) loadVehicles();
+    } catch(e) {}
+  }
+
+  async function doReinstate(plate) {
+    if (!confirm(`Reinstate ${plate}?`)) return;
+    try {
+      const r = await fetch(`/api/vehicles/${plate}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({registration_status: 'ACTIVE'})
+      });
+      if (r.ok) loadVehicles();
+    } catch(e) {}
+  }
+
+  async function doRenew(plate) {
+    if (!confirm(`Mark ${plate} as ACTIVE?`)) return;
+    try {
+      const r = await fetch(`/api/vehicles/${plate}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({registration_status: 'ACTIVE'})
+      });
+      if (r.ok) loadVehicles();
+    } catch(e) {}
+  }
+
+  // ── Shifts ────────────────────────────────────────────────────────────────────
   async function loadShifts() {
     try {
       const r = await fetch('/api/shifts');
       if (!r.ok) return;
-      const shifts = await r.json();
-      const tbody = document.getElementById('tbody-shifts');
-
-      document.getElementById('shiftCount').textContent = `${shifts.length} shifts`;
-
-      const rows = shifts.map(s => `
+      _shifts = await r.json();
+      _shiftCache = {};
+      _shifts.forEach(s => { _shiftCache[s.shift_id] = s; });
+      renderShiftTimeline(_shifts);
+      const SHIFT_COLORS = {MORNING:'rgba(27,63,149,.85)',EVENING:'rgba(79,70,229,.8)',NIGHT:'rgba(30,58,138,.75)'};
+      const rows = _shifts.map(s => `
         <tr class="border-b border-gray-50 hover:bg-gray-50">
-          <td class="px-5 py-3 font-semibold text-gray-800">${s.shift_name||'—'}</td>
+          <td class="px-5 py-3 font-semibold text-gray-800">${s.shift_name}</td>
           <td class="px-4 py-3 mono">${s.start_time||'—'}</td>
           <td class="px-4 py-3 mono">${s.end_time||'—'}</td>
-          <td class="px-4 py-3 mono text-gray-600">${s.grace_period_minutes||s.grace_minutes||0}</td>
-          <td class="px-4 py-3 mono text-gray-600">${s.days_of_week||'—'}</td>
+          <td class="px-4 py-3 mono text-gray-600">${s.grace_period_minutes||s.grace_minutes||'—'}</td>
+          <td class="px-4 py-3 text-gray-600">${s.days_of_week||'Mon-Sun'}</td>
           <td class="px-4 py-3 flex items-center gap-1">
-            <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('shiftModal','edit',${JSON.stringify(s)})">Edit</button>
+            <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('shiftModal','edit',_shiftCache[${s.shift_id}])">Edit</button>
           </td>
-        </tr>
-      `).join('');
-
-      tbody.innerHTML = rows;
+        </tr>`).join('');
+      document.getElementById('tbody-shifts').innerHTML = rows;
     } catch(e) { console.warn('Shifts load failed', e); }
+  }
+
+  function renderShiftTimeline(shifts) {
+    const bar = document.getElementById('shift-timeline-bar');
+    const legend = document.getElementById('shift-timeline-legend');
+    if (!bar) return;
+
+    const COLORS = {MORNING:'rgba(27,63,149,.85)',EVENING:'rgba(79,70,229,.8)',NIGHT:'rgba(30,58,138,.75)'};
+    const TEXT_C = {MORNING:'#e0e7ff',EVENING:'#e0e7ff',NIGHT:'#bfdbfe'};
+    let html = '', legendHtml = '';
+
+    shifts.forEach(s => {
+      const name  = (s.shift_name||'').toUpperCase();
+      const col   = COLORS[name] || 'rgba(100,116,139,.7)';
+      const textC = TEXT_C[name] || '#fff';
+      const startP = timeToPercent(s.start_time);
+      const endP   = timeToPercent(s.end_time);
+      const grace  = ((s.grace_period_minutes||s.grace_minutes||30) / 1440) * 100;
+
+      if (endP <= startP) {
+        // overnight: render split segments
+        html += `<div class="shift-block" style="left:0%;width:${endP}%;background:${col}"></div>`;
+        html += `<div class="shift-block" style="left:${startP}%;width:${100-startP}%;background:${col}">
+          <div style="font-size:.625rem;font-weight:700;color:${textC};text-transform:uppercase;letter-spacing:.08em">${s.shift_name}</div>
+          <div style="font-size:.5rem;color:${textC};opacity:.8">${s.start_time}–${s.end_time}</div>
+        </div>`;
+        html += `<div class="grace" style="left:${endP}%;width:${grace}%;background:#76bd33;border-radius:0"></div>`;
+      } else {
+        html += `<div class="shift-block" style="left:${startP}%;width:${endP-startP}%;background:${col}">
+          <div style="font-size:.625rem;font-weight:700;color:${textC};text-transform:uppercase;letter-spacing:.08em">${s.shift_name}</div>
+          <div style="font-size:.5rem;color:${textC};opacity:.8">${s.start_time}–${s.end_time}</div>
+        </div>`;
+        html += `<div class="grace" style="left:${endP}%;width:${grace}%;background:#76bd33;border-radius:0"></div>`;
+      }
+      legendHtml += `<div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm" style="background:${col}"></div><span>${s.shift_name} ${s.start_time}–${s.end_time}</span></div>`;
+    });
+
+    html += `<div style="position:absolute;bottom:4px;right:8px;font-size:.5rem;color:#94a3b8;display:flex;align-items:center;gap:4px">
+      <div style="width:10px;height:8px;background:rgba(118,189,51,.35);border-radius:1px"></div><span>Grace period</span></div>`;
+    bar.innerHTML = html;
+    if (legend) legend.innerHTML = legendHtml;
+  }
+
+  // ── Zones ─────────────────────────────────────────────────────────────────────
+  function zoneTypeLabel(t) {
+    return {DRYDOCK:'PRODUCTION',BERTH:'BERTHING',WORKSHOP:'WORKSHOP',ADMIN:'ADMIN',SECURITY:'SECURITY',PRODUCTION:'PRODUCTION',BERTHING:'BERTHING'}[t] || t || '—';
   }
 
   async function loadZones() {
     try {
       const r = await fetch('/api/zones');
       if (!r.ok) return;
-      const zones = await r.json();
+      _zones = await r.json();
+      _zoneCache = {};
+      _zones.forEach(z => { _zoneCache[z.zone_id] = z; });
       const grid = document.getElementById('zones-grid');
 
-      const cards = zones.map(z => {
-        const pct = Math.round(z.utilisation_pct || (z.occupancy || 0) * 100);
-        const color = pct >= 85 ? '#ef4444' : pct >= 65 ? '#f4bd0f' : '#76bd33';
-        const msg = pct >= 85 ? 'Near capacity' : pct >= 65 ? 'Approaching' : 'Normal';
-        const cap = z.vehicle_capacity || z.capacity_vehicles || 50;
+      const cards = _zones.map(z => {
+        const pct  = Math.round(z.utilisation_pct || 0);
+        const cap  = z.vehicle_capacity || z.capacity_vehicles || 50;
+        const occ  = z.current_occupancy || 0;
+        const col  = pct >= 90 ? '#ef4444' : pct >= 75 ? '#f97316' : pct >= 60 ? '#f4bd0f' : '#76bd33';
+        const gates = Array.isArray(z.associated_gates) ? z.associated_gates.join(' · ') : (z.associated_gates || '—');
+        const border = pct >= 90 ? 'border:1px solid rgba(239,68,68,.3)' : '';
+        const statusMsg = pct >= 90
+          ? `<div class="flex items-center gap-1 mt-1.5"><span class="w-1.5 h-1.5 rounded-full breathe inline-block" style="color:#ef4444;background:#ef4444"></span><span class="text-[10px] text-red-500 font-semibold">Near capacity — restrict entry</span></div>`
+          : pct >= 75
+          ? `<div class="text-[10px] text-orange-500 font-semibold mt-1.5">↑ Approaching capacity</div>`
+          : pct >= 60
+          ? `<div class="text-[10px] text-amber-600 mt-1.5">Moderate load</div>`
+          : pct < 35
+          ? `<div class="text-[10px] text-gray-400 mt-1.5">Low utilisation</div>`
+          : `<div class="text-[10px] text-gray-400 mt-1.5">Normal utilisation</div>`;
 
-        return `
-          <div class="card p-4">
-            <div class="flex items-start justify-between mb-2">
-              <div>
-                <div class="text-xs font-bold text-gray-900">${z.zone_name||'—'}</div>
-                <div class="text-[10px] text-gray-400 mt-0.5">${z.zone_type||'—'}</div>
-              </div>
-              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500" onclick="openModal('zoneModal','edit',${JSON.stringify(z)})">Edit</button>
+        return `<div class="card p-4" style="${border}">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <div class="text-xs font-bold text-gray-900">${z.zone_name||z.zone_id}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">${gates}</div>
             </div>
-            <div class="flex items-end justify-between mt-3">
-              <div><div class="text-2xl font-bold mono">${z.current_occupancy||0}</div><div class="text-[10px] text-gray-400">of ${cap}</div></div>
-              <div class="text-lg font-bold mono" style="color:${color}">${pct}%</div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">${zoneTypeLabel(z.zone_type)}</span>
+              <button class="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 text-gray-400 hover:text-blue-500" onclick="openModal('zoneModal','edit',_zoneCache['${z.zone_id}'])">✎</button>
             </div>
-            <div class="cap-bar"><div class="cap-fill" style="width:${pct}%;background:${color}"></div></div>
-            <div class="text-[10px] mt-1.5" style="color:${color}">${msg}</div>
           </div>
-        `;
+          <div class="flex items-end justify-between mt-3">
+            <div><div class="text-2xl font-bold mono text-gray-900">${occ}</div><div class="text-[10px] text-gray-400">of ${cap} capacity</div></div>
+            <div class="text-lg font-bold mono" style="color:${col}">${pct}%</div>
+          </div>
+          <div class="cap-bar"><div class="cap-fill" style="width:${pct}%;background:${col}"></div></div>
+          ${statusMsg}
+        </div>`;
       }).join('');
 
-      grid.innerHTML = cards;
+      grid.innerHTML = cards || '<div class="card p-4 text-center text-gray-400 col-span-4">No zones configured</div>';
     } catch(e) { console.warn('Zones load failed', e); }
   }
 
+  // ── Users ─────────────────────────────────────────────────────────────────────
   async function loadUsers() {
     try {
       const r = await fetch('/api/users');
       if (!r.ok) return;
-      const users = await r.json();
-      const tbody = document.getElementById('tbody-users');
+      _users = await r.json();
+      _userCache = {};
+      _users.forEach(u => { _userCache[u.id] = u; });
+      document.getElementById('userCount').textContent =
+        `FR-10 · NFR-07 · Three-role RBAC · ${_users.length} users`;
 
-      document.getElementById('userCount').textContent = `${users.length} users`;
+      const rows = _users.map(u => {
+        const isYou  = _currentUser && u.id === _currentUser.id;
+        const diffD  = loginDiffDays(u.last_login);
+        const isStale = diffD > 30;
+        const ll = loginRelTime(u.last_login);
 
-      const rows = users.map(u => {
-        const roleClass = u.role === 'ADMIN' ? 'badge-expired' : u.role === 'MANAGER' ? 'badge-active' : 'badge-ok';
-        return `
-          <tr class="border-b border-gray-50 hover:bg-gray-50">
-            <td class="px-5 py-3 font-semibold text-gray-900">${u.full_name || u.username}</td>
-            <td class="px-4 py-3 mono text-gray-600">${u.username}</td>
-            <td class="px-4 py-3"><span class="badge-pill ${roleClass}">${u.role}</span></td>
-            <td class="px-4 py-3 text-gray-600">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
-            <td class="px-4 py-3 flex items-center gap-1">
-              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('userModal','edit',${JSON.stringify(u)})">Edit</button>
-            </td>
-          </tr>
-        `;
+        const roleStyle = u.role === 'ADMIN'
+          ? 'background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)'
+          : u.role === 'MANAGER'
+          ? 'background:rgba(27,63,149,.1);color:#1B3F95;border:1px solid rgba(27,63,149,.25)'
+          : 'background:rgba(118,189,51,.12);color:#2d7b00;border:1px solid rgba(118,189,51,.25)';
+
+        const youTag   = isYou  ? `<span class="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full ml-1">YOU</span>` : '';
+        const staleTag = isStale ? `<span class="text-[9px] px-1.5 py-0.5 rounded-full font-semibold ml-1" style="background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)">STALE</span>` : '';
+
+        const statusCell = isStale
+          ? `<span class="text-[10px] font-semibold text-red-500">⚠ Inactive >30d</span>`
+          : u.last_login
+          ? `<span class="text-[10px] font-semibold" style="color:#76bd33">● Active</span>`
+          : `<span class="text-[10px] text-gray-400">Never logged in</span>`;
+
+        let actions = '';
+        if (isYou) {
+          actions = '<span class="text-gray-300 text-xs">Protected</span>';
+        } else {
+          actions = `<button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('userModal','edit',_userCache[${u.id}])">Edit</button>`;
+          if (isStale) {
+            actions += `<button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500 font-semibold" onclick="doDeleteUser(${u.id},'${u.username}')">Disable</button>`;
+          } else {
+            actions += `<button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-400" onclick="doDeleteUser(${u.id},'${u.username}')">Delete</button>`;
+          }
+        }
+
+        return `<tr class="border-b border-gray-50 hover:bg-gray-50" ${isStale?'style="background:rgba(239,68,68,.03)"':''}>
+          <td class="px-5 py-3 font-semibold text-gray-900">${u.full_name||u.username}${youTag}${staleTag}</td>
+          <td class="px-4 py-3 mono text-gray-600">${u.username}</td>
+          <td class="px-4 py-3"><span class="badge-pill" style="${roleStyle}">${u.role}</span></td>
+          <td class="px-4 py-3 ${isStale?'text-red-500 font-medium':'text-gray-600'}">${ll}</td>
+          <td class="px-4 py-3">${statusCell}</td>
+          <td class="px-4 py-3 flex items-center gap-1">${actions}</td>
+        </tr>`;
       }).join('');
 
-      tbody.innerHTML = rows;
+      document.getElementById('tbody-users').innerHTML = rows;
     } catch(e) { console.warn('Users load failed', e); }
   }
 
-  // ── Tab Switching ────────────────────────────────────────────────────────
-  function setTab(id, btn) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-'+id).classList.remove('hidden');
-    btn.classList.add('active');
+  async function doDeleteUser(id, username) {
+    if (!confirm(`Deactivate user "${username}"?`)) return;
+    try {
+      const r = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      if (r.ok) loadUsers();
+    } catch(e) {}
   }
 
+  // ── Navbar user ───────────────────────────────────────────────────────────────
   async function loadUserInfo() {
     try {
       const r = await fetch('/api/user');
       if (r.status === 401) { location.href = '/auth/login'; return; }
       if (!r.ok) return;
-      const u = await r.json();
-      document.getElementById('nav-role').textContent = u.role;
-      document.getElementById('nav-user').textContent = u.full_name || u.username;
-    } catch (e) { console.warn('User fetch failed', e); }
+      _currentUser = await r.json();
+      document.getElementById('nav-role').textContent = _currentUser.role;
+      document.getElementById('nav-user').textContent = _currentUser.full_name || _currentUser.username;
+    } catch(e) { console.warn('User info failed', e); }
   }
 
-  // ── Bootstrap & Auto-refresh ────────────────────────────────────────────
+  // ── Bootstrap ─────────────────────────────────────────────────────────────────
   loadUserInfo();
   loadVehicles();
   loadShifts();
   loadZones();
   loadUsers();
-
   setInterval(loadVehicles, 30000);
-  setInterval(loadShifts, 30000);
-  setInterval(loadZones, 30000);
-  setInterval(loadUsers, 30000);
+  setInterval(loadZones,    30000);
 </script>
-
 </body>
 </html>
