@@ -417,9 +417,7 @@ def fleet_counts():
     ).fetchone()[0]
     shifts = g.db.execute("SELECT COUNT(*) FROM shifts").fetchone()[0]
     zones  = g.db.execute("SELECT COUNT(*) FROM cdl_zones").fetchone()[0]
-    users  = g.db.execute(
-        "SELECT COUNT(*) FROM users WHERE is_active IS NULL OR is_active=1"
-    ).fetchone()[0]
+    users  = g.db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     return jsonify({"vehicles": vehicles, "shifts": shifts,
                     "zones": zones, "users": users})
 

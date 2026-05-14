@@ -169,6 +169,18 @@ class AttendanceEngine:
         ts_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         crop_b64 = base64.b64encode(plate_crop_jpeg_bytes).decode() if plate_crop_jpeg_bytes else None
 
+        # 0. Discard obviously invalid reads before any DB work
+        raw_plate = raw_plate.strip().upper()
+        if len(raw_plate) < 4:
+            logger.debug("[%s] Discarding sub-4-char read '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
+            return GateEventResult(
+                outcome=GateOutcome.BARRIER_CLOSED_REJECTED,
+                status=GateStatus.VISITOR,
+                plate_number=None,
+                access_log_id=None,
+                message="Read too short — discarded",
+            )
+
         # 1. LPM-MLED lookup
         candidates = [
             r[0] for r in self._conn.execute(
