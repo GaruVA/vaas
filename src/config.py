@@ -21,6 +21,8 @@ DB_PATH = Path(os.environ.get("VAAS_DB_PATH", str(PROJECT_ROOT / "data" / "vaas.
 # Detection / classification (FR-01)
 PLATE_CONF_THRESHOLD = 0.70
 CHAR_CONF_THRESHOLD  = 0.65
+# Backwards-compatible alias used by the attendance engine
+LOW_CONF_GATE_THRESHOLD = float(os.environ.get("VAAS_LOW_CONF_GATE_THRESHOLD", PLATE_CONF_THRESHOLD))
 
 # CLAHE (FR-02)
 CLAHE_CLIP_LIMIT = 3.0
