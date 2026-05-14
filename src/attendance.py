@@ -32,6 +32,7 @@ References: section 6.5 of BUILD_SPEC.md
 
 import json
 import logging
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta, timezone
@@ -49,6 +50,15 @@ from src.database import transaction
 from src.lpm_mled import lpm_mled_correct
 
 logger = logging.getLogger(__name__)
+
+# Accepted plate formats (Sri Lanka vehicle registration):
+#   XXX-0000   e.g. ABC-1234
+#   XX-0000    e.g. AB-1234
+#   XX-XXX-0000 e.g. AB-CDE-1234
+#   XX-XX-0000  e.g. AB-CD-1234
+_VALID_PLATE_RE = re.compile(
+    r"^(?:[A-Z]{3}-\d{4}|[A-Z]{2}-\d{4}|[A-Z]{2}-[A-Z]{3}-\d{4}|[A-Z]{2}-[A-Z]{2}-\d{4})$"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +189,16 @@ class AttendanceEngine:
                 plate_number=None,
                 access_log_id=None,
                 message="Read too short — discarded",
+            )
+
+        if not _VALID_PLATE_RE.match(raw_plate):
+            logger.debug("[%s] Discarding invalid-format plate '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
+            return GateEventResult(
+                outcome=GateOutcome.BARRIER_CLOSED_REJECTED,
+                status=GateStatus.VISITOR,
+                plate_number=None,
+                access_log_id=None,
+                message="Invalid plate format — discarded",
             )
 
         # 1. LPM-MLED lookup
