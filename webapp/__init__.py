@@ -144,32 +144,56 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     app.register_blueprint(operator_bp)
     
     # ── UI routes — serve the static HTML pages at clean top-level URLs ──────
-    from flask import redirect, send_from_directory
+    from flask import redirect, send_from_directory, session, url_for
 
     UI_DIR = app.static_folder + "/ui"
 
+    def _require_login(next_url: str):
+        """Return a redirect to the login page if no session, else None."""
+        if "user_id" not in session:
+            return redirect(url_for("auth.login", next=next_url))
+        return None
+
     @app.route("/")
     def index():
-        return redirect("/static/ui/VAAS.html")
+        guard = _require_login("/VAAS.html")
+        if guard:
+            return guard
+        return redirect("/VAAS.html")
 
     @app.route("/VAAS.html")
     def ui_hub():
+        guard = _require_login("/VAAS.html")
+        if guard:
+            return guard
         return send_from_directory(UI_DIR, "VAAS.html")
 
     @app.route("/vaas-fleet.html")
     def ui_fleet():
+        guard = _require_login("/vaas-fleet.html")
+        if guard:
+            return guard
         return send_from_directory(UI_DIR, "vaas-fleet.html")
 
     @app.route("/vaas-forensic.html")
     def ui_forensic():
+        guard = _require_login("/vaas-forensic.html")
+        if guard:
+            return guard
         return send_from_directory(UI_DIR, "vaas-forensic.html")
 
     @app.route("/vaas-gateops.html")
     def ui_gateops():
+        guard = _require_login("/vaas-gateops.html")
+        if guard:
+            return guard
         return send_from_directory(UI_DIR, "vaas-gateops.html")
 
     @app.route("/vaas-manager.html")
     def ui_manager():
+        guard = _require_login("/vaas-manager.html")
+        if guard:
+            return guard
         return send_from_directory(UI_DIR, "vaas-manager.html")
 
     return app

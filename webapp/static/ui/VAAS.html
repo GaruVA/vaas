@@ -56,23 +56,23 @@
       <div class="grid grid-cols-4 gap-3">
         <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
           <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Gate Events Today</div>
-          <div class="text-3xl font-bold mono text-white">1,247</div>
-          <div class="text-xs text-blue-200 mt-1.5">↑ 83 vs yesterday</div>
+          <div id="kpi-events" class="text-3xl font-bold mono text-white">—</div>
+          <div class="text-xs text-blue-200 mt-1.5">access log entries today</div>
         </div>
         <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
-          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Active Vehicles in Yard</div>
-          <div class="text-3xl font-bold mono text-white">127</div>
-          <div class="text-xs text-blue-200 mt-1.5">across 8 zones</div>
+          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Registered Active Vehicles</div>
+          <div id="kpi-vehicles" class="text-3xl font-bold mono text-white">—</div>
+          <div class="text-xs text-blue-200 mt-1.5">status ACTIVE in fleet</div>
         </div>
         <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
           <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Pending Exceptions</div>
-          <div class="text-3xl font-bold mono" style="color:#f4bd0f">3</div>
+          <div id="kpi-exceptions" class="text-3xl font-bold mono" style="color:#f4bd0f">—</div>
           <div class="text-xs text-blue-200 mt-1.5">awaiting operator decision</div>
         </div>
-        <div class="rounded-xl px-5 py-4 glow-green" style="background:rgba(118,189,51,.12);border:1px solid rgba(118,189,51,.3)">
+        <div id="chain-card" class="rounded-xl px-5 py-4 glow-green" style="background:rgba(118,189,51,.12);border:1px solid rgba(118,189,51,.3)">
           <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Audit Chain Integrity</div>
-          <div class="text-2xl font-bold mono" style="color:#76bd33">INTACT</div>
-          <div class="text-xs text-blue-200 mt-1.5">verified 2 min ago · 15 records</div>
+          <div id="kpi-chain" class="text-2xl font-bold mono" style="color:#76bd33">—</div>
+          <div id="kpi-chain-sub" class="text-xs text-blue-200 mt-1.5">checking…</div>
         </div>
       </div>
     </div>
@@ -100,8 +100,8 @@
         <p class="text-xs text-gray-500 mb-5 leading-relaxed">SHA-256 hash chain integrity · Byte-level tamper visualization · Admin audit log with cross-referenced JSON delta diffs</p>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
-            <span class="text-xs mono text-gray-500">Chain INTACT · 15 records</span>
+            <span id="forensic-dot" class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+            <span id="forensic-status" class="text-xs mono text-gray-500">Chain checking…</span>
           </div>
           <span class="text-xs font-semibold" style="color:#1B3F95">Open →</span>
         </div>
@@ -124,10 +124,10 @@
         <p class="text-xs text-gray-500 mb-5 leading-relaxed">Vehicle CRUD with OHS risk flags · Shift 24-hour timeline · Zone capacity meters · User management with RBAC matrix</p>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3 text-xs mono text-gray-500">
-            <span>142 vehicles</span><span class="text-gray-200">·</span>
-            <span>3 shifts</span><span class="text-gray-200">·</span>
-            <span>8 zones</span><span class="text-gray-200">·</span>
-            <span>12 users</span>
+            <span id="fleet-vehicles">— vehicles</span><span class="text-gray-200">·</span>
+            <span id="fleet-shifts">— shifts</span><span class="text-gray-200">·</span>
+            <span id="fleet-zones">— zones</span><span class="text-gray-200">·</span>
+            <span id="fleet-users">— users</span>
           </div>
           <span class="text-xs font-semibold" style="color:#1B3F95">Open →</span>
         </div>
@@ -178,8 +178,8 @@
           <p class="text-xs mb-5 leading-relaxed" style="color:#4a5c7a">Tactical dark HUD · Live MJPEG camera feeds with scanlines · Dense event stream · Exception queue with full vehicle intelligence for gloved ADMIT / REJECT</p>
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full inline-block breathe" style="color:#ef4444;background:#ef4444"></span>
-              <span class="text-xs mono font-semibold tracking-wider" style="color:#06b6d4">3 EXCEPTIONS PENDING</span>
+              <span id="gateops-dot" class="w-2 h-2 rounded-full inline-block breathe" style="color:#76bd33;background:#76bd33"></span>
+              <span id="gateops-exc" class="text-xs mono font-semibold tracking-wider" style="color:#06b6d4">LOADING…</span>
             </div>
             <span class="text-xs font-semibold" style="color:#06b6d4">Open →</span>
           </div>
@@ -195,5 +195,78 @@
     </div>
   </div>
 
+<script>
+  // ── Live KPI refresh ──────────────────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const r = await fetch('/api/stats');
+      if (r.status === 401) { location.href = '/auth/login?next=/VAAS.html'; return; }
+      if (!r.ok) return;
+      const d = await r.json();
+
+      document.getElementById('kpi-events').textContent     = d.events_today.toLocaleString();
+      document.getElementById('kpi-vehicles').textContent   = d.active_vehicles.toLocaleString();
+      document.getElementById('kpi-exceptions').textContent = d.pending_exceptions.toLocaleString();
+
+      const chainOk  = d.chain_integrity;
+      const chainEl  = document.getElementById('kpi-chain');
+      const chainSub = document.getElementById('kpi-chain-sub');
+      const chainCard = document.getElementById('chain-card');
+      chainEl.textContent  = chainOk ? 'INTACT' : 'BROKEN';
+      chainSub.textContent = chainOk ? `verified just now · ${d.chain_msg}` : `⚠ ${d.chain_msg}`;
+      chainEl.style.color  = chainOk ? '#76bd33' : '#ef4444';
+      if (!chainOk) {
+        chainCard.style.background = 'rgba(239,68,68,.12)';
+        chainCard.style.border     = '1px solid rgba(239,68,68,.3)';
+      }
+
+      // Gate ops card
+      const excCount = d.pending_exceptions;
+      document.getElementById('gateops-exc').textContent =
+        excCount > 0 ? `${excCount} EXCEPTION${excCount !== 1 ? 'S' : ''} PENDING`
+                     : 'NO EXCEPTIONS — ALL CLEAR';
+      if (excCount > 0) {
+        document.getElementById('gateops-dot').style.background = '#ef4444';
+        document.getElementById('gateops-dot').style.color      = '#ef4444';
+      }
+
+      // Forensic card
+      document.getElementById('forensic-dot').className =
+        'w-2 h-2 rounded-full inline-block ' + (chainOk ? 'bg-green-400' : 'bg-red-500');
+      document.getElementById('forensic-status').textContent =
+        chainOk ? `Chain INTACT · ${d.chain_msg}` : `Chain BROKEN · ${d.chain_msg}`;
+
+    } catch (e) { console.warn('Stats fetch failed', e); }
+  }
+
+  async function loadFleetCounts() {
+    try {
+      const [vRes, sRes, zRes, uRes] = await Promise.all([
+        fetch('/api/vehicles'), fetch('/api/shifts'),
+        fetch('/api/zones'),   fetch('/api/users'),
+      ]);
+      if (vRes.ok) { const v = await vRes.json(); document.getElementById('fleet-vehicles').textContent = `${v.length} vehicles`; }
+      if (sRes.ok) { const s = await sRes.json(); document.getElementById('fleet-shifts').textContent   = `${s.length} shifts`; }
+      if (zRes.ok) { const z = await zRes.json(); document.getElementById('fleet-zones').textContent    = `${z.length} zones`; }
+      if (uRes.ok) { const u = await uRes.json(); document.getElementById('fleet-users').textContent    = `${u.length} users`; }
+    } catch (e) { console.warn('Fleet counts fetch failed', e); }
+  }
+
+  // Manager leakage stat
+  async function loadManagerStat() {
+    try {
+      const r = await fetch('/api/manager/dashboard');
+      if (!r.ok) return;
+      const d = await r.json();
+      const pct = d.prevented_pct;
+      const el  = document.querySelector('#vaas-manager-preview');
+      if (el) el.textContent = `${pct}% compliance rate this period`;
+    } catch (e) {}
+  }
+
+  loadStats();
+  loadFleetCounts();
+  setInterval(loadStats, 30000);
+</script>
 </body>
 </html>

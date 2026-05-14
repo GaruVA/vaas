@@ -153,6 +153,7 @@
     <button class="tab-btn" onclick="setTab('shifts',this)">Shifts</button>
     <button class="tab-btn" onclick="setTab('zones',this)">Zones</button>
     <button class="tab-btn" onclick="setTab('users',this)">Users</button>
+    <button class="tab-btn" onclick="setTab('projects',this)">Projects</button>
   </div>
 
   <!-- ══════════ TAB: VEHICLES ══════════ -->
@@ -188,7 +189,7 @@
               <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="tbody-vehicles">
             <!-- Row 1: ACTIVE / UNASSIGNED -->
             <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-1',this)">
               <td class="px-5 py-3 text-gray-400 text-base" id="vex-1-arrow">›</td>
@@ -344,7 +345,7 @@
       </div>
       <table class="w-full text-xs">
         <thead><tr class="border-b border-gray-100" style="background:#eef1fb"><th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Shift Name</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Start</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">End</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Grace (min)</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Vehicles</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Drivers</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th></tr></thead>
-        <tbody>
+        <tbody id="tbody-shifts">
           <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Morning</td><td class="px-4 py-3 mono">07:00</td><td class="px-4 py-3 mono">15:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">32</td><td class="px-4 py-3 mono font-semibold text-gray-700">28</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
           <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Evening</td><td class="px-4 py-3 mono">15:00</td><td class="px-4 py-3 mono">23:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">18</td><td class="px-4 py-3 mono font-semibold text-gray-700">16</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
           <tr class="hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Night</td><td class="px-4 py-3 mono">23:00</td><td class="px-4 py-3 mono">07:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">9</td><td class="px-4 py-3 mono font-semibold text-gray-700">8</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
@@ -355,7 +356,7 @@
 
   <!-- ══════════ TAB: ZONES ══════════ -->
   <div id="tab-zones" class="tab-content hidden">
-    <div class="grid grid-cols-4 gap-4">
+    <div id="zones-grid" class="grid grid-cols-4 gap-4">
       <!-- Zone cards: color cap bar green→amber→red -->
       <!-- Drydock 1 (84%) -->
       <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Drydock 1</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A · GATE_B</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">PRODUCTION</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">38</div><div class="text-[10px] text-gray-400">of 45 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#f97316">84%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:84%;background:#f97316"></div></div><div class="text-[10px] text-orange-500 font-semibold mt-1.5">↑ Approaching capacity</div></div>
@@ -388,7 +389,7 @@
       </div>
       <table class="w-full text-xs">
         <thead><tr class="border-b border-gray-100" style="background:#eef1fb"><th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Username</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Role</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Login</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Status</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th></tr></thead>
-        <tbody>
+        <tbody id="tbody-users">
           <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">R. Weerasinghe <span class="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full ml-1">YOU</span></td><td class="px-4 py-3 mono text-gray-600">rashid_admin</td><td class="px-4 py-3"><span class="badge-pill badge-expired">ADMIN</span></td><td class="px-4 py-3 text-gray-600">Today, 14:22</td><td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:#76bd33">● Active</span></td><td class="px-4 py-3 text-gray-300 text-xs">Protected</td></tr>
           <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">M. Fonseka</td><td class="px-4 py-3 mono text-gray-600">admin_sys</td><td class="px-4 py-3"><span class="badge-pill badge-expired">ADMIN</span></td><td class="px-4 py-3 text-gray-600">2 days ago</td><td class="px-4 py-3"><span class="text-[10px] text-gray-400">Inactive</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
           <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">P. Jayawardena</td><td class="px-4 py-3 mono text-gray-600">priya_mgr</td><td class="px-4 py-3"><span class="badge-pill badge-active" style="background:rgba(27,63,149,.1);color:#1B3F95;border-color:rgba(27,63,149,.25)">MANAGER</span></td><td class="px-4 py-3 text-gray-600">Today, 09:11</td><td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:#76bd33">● Active</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
@@ -418,8 +419,4 @@
     const arr = document.getElementById(id+'-arrow');
     const open = ex.style.display === 'table-row';
     ex.style.display = open ? 'none' : 'table-row';
-    if (arr) arr.textContent = open ? '›' : '‹';
-  }
-</script>
-</body>
-</html>
+   
