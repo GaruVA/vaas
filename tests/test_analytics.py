@@ -188,12 +188,23 @@ def test_ohs_04_suspended_vehicle_not_compliant(seeded_db):
 
 
 def test_ohs_05_overstay_count_tracked(seeded_db):
-    _seed_access(seeded_db, "WP-CAB-1234", "2026-01-10T07:00:00Z", status="ON_TIME_ENTRY")
-    _seed_access(seeded_db, "WP-CAB-1234", "2026-01-10T18:00:00Z",
+    recent = (date.today() - timedelta(days=5)).isoformat()
+    _seed_access(seeded_db, "WP-CAB-1234", f"{recent}T07:00:00Z", status="ON_TIME_ENTRY")
+    _seed_access(seeded_db, "WP-CAB-1234", f"{recent}T18:00:00Z",
                  direction="EXIT", status="OVERSTAY", dwell=39600.0)
     rows = ohs_compliance_report(seeded_db)
     cab = next(r for r in rows if r["plate_number"] == "WP-CAB-1234")
     assert cab["overstay_count"] >= 1
+
+
+def test_ohs_07_gate_anomaly_count_tracked(seeded_db):
+    recent = (date.today() - timedelta(days=3)).isoformat()
+    _seed_access(seeded_db, "WP-CAB-1234", f"{recent}T08:00:00Z", status="DOUBLE_ENTRY")
+    _seed_access(seeded_db, "WP-CAB-1234", f"{recent}T09:00:00Z",
+                 direction="EXIT", status="UNMATCHED_EXIT")
+    rows = ohs_compliance_report(seeded_db)
+    cab = next(r for r in rows if r["plate_number"] == "WP-CAB-1234")
+    assert cab["gate_anomaly_count"] >= 2
 
 
 def test_ohs_06_vehicle_with_assignment_is_compliant(seeded_db):

@@ -107,6 +107,7 @@ def ohs_compliance_report(conn) -> list[dict]:
             COALESCE(u.full_name, u.username, 'UNASSIGNED')  AS driver_name,
             COUNT(al.id)                        AS total_events,
             SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) AS overstay_count,
+            SUM(CASE WHEN al.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT') THEN 1 ELSE 0 END) AS gate_anomaly_count,
             CASE
                 WHEN rv.registration_status != 'ACTIVE' THEN 0
                 WHEN va.user_id IS NULL THEN 0
@@ -126,6 +127,7 @@ def ohs_compliance_report(conn) -> list[dict]:
             ON u.id = va.user_id
         LEFT JOIN access_log al
             ON al.plate_number = rv.plate_number
+            AND DATE(al.timestamp) >= DATE('now', '-30 days')
         GROUP BY rv.plate_number
         ORDER BY is_compliant ASC,
                  overstay_count DESC
