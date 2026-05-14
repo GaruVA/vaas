@@ -40,6 +40,7 @@ from src.analytics import (
     export_pdf,
     gate_rejection_audit,
     ohs_compliance_report,
+    personal_vehicle_allowance_report,
     subcontractor_billing_audit,
     zone_occupancy_snapshot,
 )
@@ -498,9 +499,9 @@ def vehicle_impact(plate: str):
     # Active project assignments
     try:
         proj_rows = g.db.execute(
-            "SELECT pv.project_code FROM project_vehicles pv "
-            "JOIN projects p ON pv.project_code = p.project_code "
-            "WHERE pv.plate_number=? AND p.status='ACTIVE'",
+            "SELECT pva.project_code FROM project_vehicle_assignments pva "
+            "JOIN projects p ON pva.project_code = p.project_code "
+            "WHERE pva.plate_number=? AND p.status='ACTIVE' AND pva.removed_at IS NULL",
             (plate,),
         ).fetchall()
         proj_codes = [r["project_code"] for r in proj_rows]
@@ -545,17 +546,15 @@ def create_vehicle():
             cur.execute(
                 "INSERT OR REPLACE INTO registered_vehicles "
                 "(plate_number, vehicle_category, vehicle_type, contractor_name, "
-                " department, make_model, registration_status, notes) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                " department, registration_status, notes) "
+                "VALUES (?,?,?,?,?,?,?)",
                 (plate, cat, vtype,
                  data.get("contractor_name"),
                  data.get("department"),
-                 data.get("make_model"),
                  status,
                  data.get("notes")),
             )
-            user_id  = data.get("user_id")
-            shift_id = data.get("shift_id")
+            user_id = data.get("user_id")
             if user_id:
                 cur.execute(
                     "UPDATE vehicle_assignments SET is_active=0 "
@@ -563,8 +562,8 @@ def create_vehicle():
                 )
                 cur.execute(
                     "INSERT INTO vehicle_assignments "
-                    "(plate_number, user_id, shift_id, is_active) VALUES (?,?,?,1)",
-                    (plate, user_id, shift_id),
+                    "(plate_number, user_id, is_active) VALUES (?,?,1)",
+                    (plate, user_id),
                 )
     except Exception as exc:
         return _err(str(exc))
@@ -605,7 +604,7 @@ def update_vehicle(plate: str):
         return _err("Vehicle not found", 404)
 
     fields = ["vehicle_category", "vehicle_type", "contractor_name",
-              "department", "make_model", "registration_status", "notes"]
+              "department", "registration_status", "notes"]
     updates = {f: data[f] for f in fields if f in data}
     if updates:
         set_clause = ", ".join(f"{k}=?" for k in updates)
@@ -614,8 +613,7 @@ def update_vehicle(plate: str):
             list(updates.values()) + [plate],
         )
 
-    user_id  = data.get("user_id")
-    shift_id = data.get("shift_id")
+    user_id = data.get("user_id")
     if user_id is not None:
         g.db.execute(
             "UPDATE vehicle_assignments SET is_active=0 WHERE plate_number=?",
@@ -624,8 +622,8 @@ def update_vehicle(plate: str):
         if user_id:
             g.db.execute(
                 "INSERT INTO vehicle_assignments "
-                "(plate_number, user_id, shift_id, is_active) VALUES (?,?,?,1)",
-                (plate, user_id, shift_id),
+                "(plate_number, user_id, is_active) VALUES (?,?,1)",
+                (plate, user_id),
             )
 
     _audit("UPDATE", "vehicle", plate, data)
@@ -637,11 +635,11 @@ def update_vehicle(plate: str):
 def delete_vehicle(plate: str):
     plate = plate.upper()
     g.db.execute(
-        "UPDATE registered_vehicles SET registration_status='INACTIVE' "
+        "UPDATE registered_vehicles SET registration_status='SUSPENDED' "
         "WHERE plate_number=?", (plate,)
     )
-    _audit("DEACTIVATE", "vehicle", plate)
-    return jsonify({"status": "deactivated", "plate_number": plate})
+    _audit("UPDATE", "vehicle", plate, {"registration_status": "SUSPENDED"})
+    return jsonify({"status": "suspended", "plate_number": plate})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -828,9 +826,9 @@ def create_user():
     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     try:
         cur = g.db.execute(
-            "INSERT INTO users (username, password_hash, role, full_name, email) "
-            "VALUES (?,?,?,?,?)",
-            (username, pw_hash, role, data.get("full_name"), data.get("email")),
+            "INSERT INTO users (username, password_hash, role, full_name) "
+            "VALUES (?,?,?,?)",
+            (username, pw_hash, role, data.get("full_name")),
         )
         user_id = cur.lastrowid
     except Exception as exc:
@@ -856,7 +854,7 @@ def get_user(user_id: int):
 def update_user(user_id: int):
     data = request.get_json(silent=True) or {}
     updates = {}
-    for f in ("full_name", "email", "role", "is_active"):
+    for f in ("full_name", "role"):
         if f in data:
             updates[f] = data[f]
     if "password" in data and data["password"]:
@@ -881,9 +879,9 @@ def update_user(user_id: int):
 def delete_user(user_id: int):
     if user_id == session.get("user_id"):
         return _err("Cannot delete your own account")
-    g.db.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
-    _audit("DEACTIVATE", "user", str(user_id))
-    return jsonify({"status": "deactivated", "user_id": user_id})
+    g.db.execute("DELETE FROM users WHERE id=?", (user_id,))
+    _audit("DELETE", "user", str(user_id))
+    return jsonify({"status": "deleted", "user_id": user_id})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

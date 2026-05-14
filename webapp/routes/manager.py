@@ -303,7 +303,7 @@ def audit():
     ).fetchall()
     tampered_row = None
     cross_ref_log = None
-    if not res.intact and res.first_bad_id is not None:
+    if not res.ok and res.first_bad_id is not None:
         tampered_row = db.execute(
             "SELECT id, plate_number, timestamp, gate_id, direction, status "
             "FROM access_log WHERE id = ?", (res.first_bad_id,)

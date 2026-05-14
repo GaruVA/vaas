@@ -81,7 +81,6 @@ def new_vehicle():
         vtype      = request.form.get("vehicle_type", "CAR")
         contractor = request.form.get("contractor_name") or None
         dept       = request.form.get("department") or None
-        make_model = request.form.get("make_model") or None
         shift_id   = request.form.get("shift_id")   or None
         user_id    = request.form.get("user_id")    or None
         notes      = request.form.get("notes")      or None
@@ -95,9 +94,9 @@ def new_vehicle():
             cur.execute(
                 "INSERT OR REPLACE INTO registered_vehicles "
                 "(plate_number,vehicle_category,vehicle_type,contractor_name,"
-                " department,make_model,registration_status,notes) "
-                "VALUES (?,?,?,?,?,?,'ACTIVE',?)",
-                (plate, cat, vtype, contractor, dept, make_model, notes),
+                " department,registration_status,notes) "
+                "VALUES (?,?,?,?,?,'ACTIVE',?)",
+                (plate, cat, vtype, contractor, dept, notes),
             )
             if shift_id:
                 cur.execute("DELETE FROM vehicle_shifts WHERE plate_number=?", (plate,))
@@ -152,7 +151,6 @@ def edit_vehicle(plate: str):
         vtype      = request.form.get("vehicle_type", "CAR")
         contractor = request.form.get("contractor_name") or None
         dept       = request.form.get("department") or None
-        make_model = request.form.get("make_model") or None
         shift_id   = request.form.get("shift_id")   or None
         user_id    = request.form.get("user_id")    or None
         notes      = request.form.get("notes")      or None
@@ -163,9 +161,9 @@ def edit_vehicle(plate: str):
         with transaction(db) as cur:
             cur.execute(
                 "UPDATE registered_vehicles SET vehicle_category=?,vehicle_type=?,"
-                "contractor_name=?,department=?,make_model=?,notes=? "
+                "contractor_name=?,department=?,notes=? "
                 "WHERE plate_number=?",
-                (cat, vtype, contractor, dept, make_model, notes, plate),
+                (cat, vtype, contractor, dept, notes, plate),
             )
             cur.execute("DELETE FROM vehicle_shifts WHERE plate_number=?", (plate,))
             if shift_id:
@@ -248,7 +246,6 @@ def shifts():
 @requires_role("ADMIN")
 def new_shift():
     if request.method == "POST":
-        sid   = request.form["shift_id"].strip().upper()
         name  = request.form["shift_name"]
         start = request.form["start_time"]
         end   = request.form["end_time"]
@@ -258,11 +255,14 @@ def new_shift():
         db = g.db
         with transaction(db) as cur:
             cur.execute(
-                "INSERT OR REPLACE INTO shifts VALUES (?,?,?,?,?,?,?)",
-                (sid, name, start, end, json.dumps(days), json.dumps(gates), grace),
+                "INSERT INTO shifts "
+                "(shift_name,start_time,end_time,days_of_week,permitted_gates,grace_period_minutes) "
+                "VALUES (?,?,?,?,?,?)",
+                (name, start, end, json.dumps(days), json.dumps(gates), grace),
             )
-        _audit(db, "CREATE", "SHIFT", sid)
-        flash(f"Saved shift {sid}", "success")
+            sid = cur.lastrowid
+        _audit(db, "CREATE", "SHIFT", str(sid))
+        flash(f"Saved shift {name}", "success")
         return redirect(url_for("admin.shifts"))
     return render_template("admin/shift_form.html")
 
