@@ -37,7 +37,6 @@ from src.analytics import (
     admin_audit_report,
     gate_rejection_audit,
     ohs_compliance_report,
-    personal_vehicle_allowance_report,
     subcontractor_billing_audit,
     zone_occupancy_snapshot,
 )
@@ -1106,38 +1105,93 @@ def manager_dashboard():
             "project_count": len(v["projects"]),
         })
 
-    # ── Personal vehicle allowance (FR-13) ────────────────────────────────────
-    allowance_rows = personal_vehicle_allowance_report(
-        db, date_from=date_from, date_to=date_to
-    )
-    allowance_eligible = sum(1 for r in allowance_rows if r["allowance_eligible"])
+    # ── Registered vehicles count ─────────────────────────────────────────────
+    registered_vehicles_count = db.execute(
+        "SELECT COUNT(*) FROM registered_vehicles WHERE registration_status = 'ACTIVE'"
+    ).fetchone()[0]
 
-    # ── Fuel compliance watchlist (overstay proxy) ────────────────────────────
-    fuel_watchlist = db.execute(
-        """SELECT plate_number,
-                  COUNT(*) AS overstay_count,
-                  MAX(timestamp) AS last_seen
-           FROM access_log
-           WHERE status = 'OVERSTAY'
-             AND DATE(timestamp) BETWEEN ? AND ?
-           GROUP BY plate_number
-           ORDER BY overstay_count DESC
-           LIMIT 10""",
+    # ── Events today and yesterday ────────────────────────────────────────────
+    today_str     = _today()
+    yesterday_str = _days_ago(1)
+    events_today_count = db.execute(
+        "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = ?", (today_str,)
+    ).fetchone()[0]
+    events_yesterday_count = db.execute(
+        "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = ?", (yesterday_str,)
+    ).fetchone()[0]
+
+    # ── Fuel compliance per driver (FR-13) ────────────────────────────────────
+    fc_rows = db.execute(
+        """SELECT
+               u.id AS user_id,
+               COALESCE(u.full_name, u.username) AS driver_name,
+               va.plate_number,
+               COUNT(DISTINCT DATE(al.timestamp)) AS total_days,
+               COUNT(DISTINCT CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL')
+                                   THEN DATE(al.timestamp) END) AS eligible_days
+           FROM users u
+           JOIN vehicle_assignments va ON va.user_id = u.id AND va.is_active = 1
+           JOIN access_log al ON al.plate_number = va.plate_number
+               AND al.direction = 'ENTRY'
+               AND DATE(al.timestamp) BETWEEN ? AND ?
+           GROUP BY u.id, va.plate_number
+           HAVING total_days > 0
+           ORDER BY (eligible_days * 1.0 / total_days) ASC""",
         (date_from, date_to),
     ).fetchall()
 
+    fuel_compliance = []
+    for row in fc_rows:
+        total    = row["total_days"]    or 0
+        eligible = row["eligible_days"] or 0
+        fuel_compliance.append({
+            "driver_name":     row["driver_name"],
+            "plate_number":    row["plate_number"],
+            "total_days":      total,
+            "eligible_days":   eligible,
+            "ineligible_days": total - eligible,
+            "compliance_pct":  round(eligible / total * 100) if total else 0,
+        })
+
+    # ── Prev period leakage (vs last month) ───────────────────────────────────
+    prev_leakage_lkr = 0
+    try:
+        prev_to   = (date.fromisoformat(date_from) - timedelta(days=1)).isoformat()
+        prev_from = (date.fromisoformat(date_from) - timedelta(days=30)).isoformat()
+        prev_fc = db.execute(
+            """SELECT
+                   COUNT(DISTINCT DATE(al.timestamp)) AS total_days,
+                   COUNT(DISTINCT CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL')
+                                       THEN DATE(al.timestamp) END) AS eligible_days
+               FROM users u
+               JOIN vehicle_assignments va ON va.user_id = u.id AND va.is_active = 1
+               JOIN access_log al ON al.plate_number = va.plate_number
+                   AND al.direction = 'ENTRY'
+                   AND DATE(al.timestamp) BETWEEN ? AND ?
+               GROUP BY u.id, va.plate_number
+               HAVING total_days > 0""",
+            (prev_from, prev_to),
+        ).fetchall()
+        prev_ineligible = sum((r["total_days"] - r["eligible_days"]) for r in prev_fc)
+        prev_leakage_lkr = prev_ineligible * 2678
+    except Exception:
+        prev_leakage_lkr = 0
+
     return jsonify({
-        "date_from":          date_from,
-        "date_to":            date_to,
-        "total_events":       total_events,
-        "authorised_events":  authorised_events,
-        "exceptions_total":   exceptions_total,
-        "prevented_pct":      prevented_pct,
-        "ohs":                ohs_summary,
-        "zone_occupancy":     zone_occupancy,
-        "billing":            billing_summary,
-        "allowance_eligible": allowance_eligible,
-        "fuel_watchlist":     [dict(r) for r in fuel_watchlist],
+        "date_from":                 date_from,
+        "date_to":                   date_to,
+        "total_events":              total_events,
+        "authorised_events":         authorised_events,
+        "exceptions_total":          exceptions_total,
+        "prevented_pct":             prevented_pct,
+        "registered_vehicles_count": registered_vehicles_count,
+        "events_today":              events_today_count,
+        "events_yesterday":          events_yesterday_count,
+        "ohs":                       ohs_summary,
+        "zone_occupancy":            zone_occupancy,
+        "billing":                   billing_summary,
+        "fuel_compliance":           fuel_compliance,
+        "prev_leakage_lkr":          prev_leakage_lkr,
     })
 
 
