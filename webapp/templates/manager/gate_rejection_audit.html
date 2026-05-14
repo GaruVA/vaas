@@ -1,119 +1,116 @@
-{% extends "base.html" %}
-{% block title %}Gate Rejection Audit — VAAS{% endblock %}
+{% extends "manager/report_base.html" %}
+{% block title %}Gate Rejection Audit -- VAAS{% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div class="page-header-left">
-    <h1 class="page-title"><i class="bi bi-shield-exclamation"></i> Gate Rejection Audit</h1>
-    <p class="page-subtitle">Enriched rejection log with registration status — {{ df }} to {{ dt }}</p>
-  </div>
-  <div class="page-actions">
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_csv_route', report_type='gate-rejection-audit',
-                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
-      <i class="bi bi-filetype-csv"></i> CSV
-    </a>
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_pdf_route', report_type='gate-rejection-audit',
-                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
-      <i class="bi bi-filetype-pdf"></i> PDF
-    </a>
-    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
-      <i class="bi bi-arrow-left"></i> Reports
-    </a>
-  </div>
+{% block report_icon %}<i class="bi bi-shield-exclamation" style="color:#b91c1c"></i>{% endblock %}
+{% block report_title %}Gate Rejection Audit{% endblock %}
+{% block report_subtitle %}Enriched rejection log with registration status &mdash; {{ df }} to {{ dt }}{% endblock %}
+
+{% block report_export %}
+  <a class="btn-export"
+     href="{{ url_for('manager.export_csv_route', report_type='gate-rejection-audit', **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+    <i class="bi bi-filetype-csv"></i> CSV
+  </a>
+  <a class="btn-export"
+     href="{{ url_for('manager.export_pdf_route', report_type='gate-rejection-audit', **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+    <i class="bi bi-filetype-pdf"></i> PDF
+  </a>
+{% endblock %}
+
+{% block report_toolbar %}
+<div class="saas-toolbar">
+  <i class="bi bi-funnel" style="color:#94a3b8;font-size:.85rem"></i>
+  <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+    <span class="filter-sep">From</span>
+    <input type="date" name="from" value="{{ df }}"
+           class="form-control form-control-sm" style="width:148px">
+    <span class="filter-sep">to</span>
+    <input type="date" name="to" value="{{ dt }}"
+           class="form-control form-control-sm" style="width:148px">
+    <input type="text" name="gate_id" value="{{ gate_id or '' }}"
+           placeholder="Gate ID (optional)"
+           class="form-control form-control-sm" style="width:160px">
+    <button class="btn-report-filter" type="submit">
+      <i class="bi bi-arrow-clockwise"></i> Apply
+    </button>
+  </form>
 </div>
+{% endblock %}
 
-<div class="report-card">
-  <div class="report-filter-bar">
-    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
-    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
-      <input type="date" name="from" value="{{ df }}" class="form-control form-control-sm" style="width:150px">
-      <span style="color:var(--text-muted);font-size:.8rem">to</span>
-      <input type="date" name="to"   value="{{ dt }}" class="form-control form-control-sm" style="width:150px">
-      <input type="text" name="gate_id" value="{{ gate_id or '' }}"
-             placeholder="Gate ID (optional)" class="form-control form-control-sm" style="width:160px">
-      <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Filter</button>
-    </form>
-  </div>
+{% block report_table %}
+<table class="saas-table">
+  <thead style="position:sticky;top:0;z-index:2;background:#fff">
+    <tr>
+      <th style="width:3.5rem">#</th>
+      <th>Timestamp</th>
+      <th>Plate</th>
+      <th style="text-align:center">Registered</th>
+      <th>Reg. Status</th>
+      <th>Gate</th>
+      <th>Reason</th>
+      <th>Confidence</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:.72rem;color:#94a3b8">{{ r.id }}</td>
+      <td style="font-family:var(--font-mono);font-size:.75rem;color:#64748b;white-space:nowrap">
+        {{ r.timestamp[:16] }}
+      </td>
+      <td><span class="saas-plate" style="color:#b45309">{{ r.plate_number }}</span></td>
+      <td style="text-align:center">
+        {% if r.registered %}
+          <i class="bi bi-check-circle-fill" style="color:#16a34a"></i>
+        {% else %}
+          <i class="bi bi-x-circle-fill" style="color:#dc2626"></i>
+        {% endif %}
+      </td>
+      <td>
+        {% if r.registration_status %}
+          <span class="report-badge
+            {% if r.registration_status == 'ACTIVE' %}rb-ok
+            {% elif r.registration_status == 'SUSPENDED' %}rb-warn
+            {% else %}rb-danger{% endif %}">
+            {{ r.registration_status }}
+          </span>
+        {% else %}
+          <span style="color:#94a3b8;font-size:.78rem">&mdash;</span>
+        {% endif %}
+      </td>
+      <td style="font-size:.78rem;color:#475569">{{ r.gate_id }}</td>
+      <td>
+        <span class="report-badge rb-danger">{{ r.reason | replace('_',' ') }}</span>
+      </td>
+      <td style="font-family:var(--font-mono);font-size:.78rem;font-weight:600;
+        color:{% if r.confidence_score is not none and r.confidence_score >= 0.8 %}#15803d
+              {% elif r.confidence_score is not none and r.confidence_score >= 0.6 %}#a16207
+              {% else %}#b91c1c{% endif %}">
+        {% if r.confidence_score is not none and r.confidence_score > 0 %}
+          {{ (r.confidence_score * 100) | round(1) }}%
+        {% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr>
+      <td colspan="8">
+        <div class="saas-empty">
+          <i class="bi bi-shield-check" style="color:#16a34a"></i>
+          <span>No rejection events for this period.</span>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
 
-  <div class="report-table-wrap">
-    <table class="vaas-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Timestamp</th>
-          <th>Plate</th>
-          <th>Registered</th>
-          <th>Reg. Status</th>
-          <th>Gate</th>
-          <th>Reason</th>
-          <th>Confidence</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for r in rows %}
-        <tr>
-          <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:.72rem">{{ r.id }}</td>
-          <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);white-space:nowrap">
-            {{ r.timestamp[:16] }}
-          </td>
-          <td style="font-family:var(--font-mono);font-weight:600;color:var(--amber);font-size:.8rem">
-            {{ r.plate_number }}
-          </td>
-          <td style="text-align:center">
-            {% if r.registered %}
-              <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
-            {% else %}
-              <i class="bi bi-x-circle-fill" style="color:var(--red)"></i>
-            {% endif %}
-          </td>
-          <td>
-            {% if r.registration_status %}
-              <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
-                {% if r.registration_status == 'ACTIVE' %}background:rgba(118,189,51,.12);color:var(--green)
-                {% elif r.registration_status == 'SUSPENDED' %}background:rgba(244,189,15,.12);color:var(--amber)
-                {% else %}background:rgba(255,61,90,.10);color:var(--red){% endif %}">
-                {{ r.registration_status }}
-              </span>
-            {% else %}
-              <span style="color:var(--text-muted);font-size:.78rem">—</span>
-            {% endif %}
-          </td>
-          <td style="color:var(--text-secondary);font-size:.78rem">{{ r.gate_id }}</td>
-          <td>
-            <span style="font-size:.72rem;padding:.18rem .55rem;border-radius:4px;
-              background:rgba(255,61,90,.12);color:var(--red)">
-              {{ r.reason | replace('_', ' ') }}
-            </span>
-          </td>
-          <td style="font-family:var(--font-mono);font-size:.78rem;
-             color:{% if r.confidence_score is not none and r.confidence_score >= 0.8 %}var(--green){% elif r.confidence_score is not none and r.confidence_score >= 0.6 %}var(--amber){% else %}var(--red){% endif %}">
-            {% if r.confidence_score is not none and r.confidence_score > 0 %}{{ (r.confidence_score * 100) | round(1) }}%{% else %}—{% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="8" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
-            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
-            No rejection events for this period.
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+{% block report_info %}
+<div class="report-info-panel">
+  <div class="report-info-panel-title">
+    <i class="bi bi-info-circle-fill"></i> Enriched Audit Context
   </div>
-</div>
-
-<div class="panel mt-3" style="max-width:680px">
-  <div class="panel-header">
-    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Enriched Audit Context</span>
-  </div>
-  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
-    This report extends the base rejection log by cross-referencing each plate against the
-    <strong>registered_vehicles</strong> table, surfacing whether the vehicle is known to the system
-    and its current registration status. Unregistered plates flagging SUSPENDED or EXPIRED
-    records warrant immediate security escalation.
-  </div>
+  <p>This report cross-references each plate against <code>registered_vehicles</code>,
+  surfacing whether the vehicle is known to the system and its current registration status.
+  Unregistered plates with SUSPENDED or EXPIRED records warrant immediate security escalation.</p>
 </div>
 {% endblock %}

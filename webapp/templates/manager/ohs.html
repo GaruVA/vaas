@@ -1,164 +1,174 @@
-{% extends "base.html" %}
-{% block title %}OHS Compliance — VAAS{% endblock %}
+{% extends "manager/report_base.html" %}
+{% block title %}OHS Compliance -- VAAS{% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div class="page-header-left">
-    <h1 class="page-title"><i class="bi bi-shield-exclamation"></i> OHS Compliance Snapshot</h1>
-    <p class="page-subtitle">Occupational health &amp; safety — vehicle assignment coverage and risk flags</p>
-  </div>
-  <div class="page-actions">
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_csv_route', report_type='ohs') }}">
-      <i class="bi bi-filetype-csv"></i> CSV
-    </a>
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_pdf_route', report_type='ohs') }}">
-      <i class="bi bi-filetype-pdf"></i> PDF
-    </a>
-    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
-      <i class="bi bi-arrow-left"></i> Reports
-    </a>
-  </div>
-</div>
+{% block report_icon %}<i class="bi bi-shield-fill-check" style="color:#1B3F95"></i>{% endblock %}
+{% block report_title %}OHS Compliance Snapshot{% endblock %}
+{% block report_subtitle %}Vehicle assignment coverage and risk flags &mdash; ISO 45001 audit evidence{% endblock %}
 
-<!-- Risk summary chips -->
-{% set ok_count         = rows | selectattr('risk_flag','eq','OK')          | list | length %}
-{% set unassigned_count = rows | selectattr('risk_flag','eq','UNASSIGNED')   | list | length %}
-{% set suspended_count  = rows | selectattr('risk_flag','eq','SUSPENDED')    | list | length %}
-{% set overstay_count   = rows | selectattr('risk_flag','eq','HIGH_OVERSTAY')| list | length %}
-<div class="d-flex flex-wrap gap-3 mb-4">
-  <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(118,189,51,.12);color:var(--green)">
-      <i class="bi bi-shield-fill-check"></i>
+{% block report_export %}
+  <a class="btn-export"
+     href="{{ url_for('manager.export_csv_route', report_type='ohs') }}">
+    <i class="bi bi-filetype-csv"></i> CSV
+  </a>
+  <a class="btn-export"
+     href="{{ url_for('manager.export_pdf_route', report_type='ohs') }}">
+    <i class="bi bi-filetype-pdf"></i> PDF
+  </a>
+{% endblock %}
+
+{% block report_kpi %}
+{% set ok_count         = rows | selectattr('risk_flag','eq','OK')           | list | length %}
+{% set unassigned_count = rows | selectattr('risk_flag','eq','UNASSIGNED')    | list | length %}
+{% set suspended_count  = rows | selectattr('risk_flag','eq','SUSPENDED')     | list | length %}
+{% set overstay_count   = rows | selectattr('risk_flag','eq','HIGH_OVERSTAY') | list | length %}
+<div class="saas-kpi-strip">
+  <div class="saas-kpi">
+    <div class="saas-kpi-icon" style="background:#dcfce7">
+      <i class="bi bi-shield-fill-check" style="color:#15803d"></i>
     </div>
     <div>
-      <div class="stat-chip-val">{{ ok_count }}</div>
-      <div class="stat-chip-lbl">Compliant</div>
+      <div class="saas-kpi-val">{{ ok_count }}</div>
+      <div class="saas-kpi-lbl">Compliant</div>
     </div>
   </div>
-  <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(255,61,90,.12);color:var(--red)">
-      <i class="bi bi-person-x-fill"></i>
+  <div class="saas-kpi">
+    <div class="saas-kpi-icon" style="background:#fee2e2">
+      <i class="bi bi-person-x-fill" style="color:#b91c1c"></i>
     </div>
     <div>
-      <div class="stat-chip-val">{{ unassigned_count }}</div>
-      <div class="stat-chip-lbl">Unassigned</div>
+      <div class="saas-kpi-val" style="color:#b91c1c">{{ unassigned_count }}</div>
+      <div class="saas-kpi-lbl">Unassigned</div>
     </div>
   </div>
-  <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(244,189,15,.12);color:var(--amber)">
-      <i class="bi bi-pause-circle-fill"></i>
+  <div class="saas-kpi">
+    <div class="saas-kpi-icon" style="background:#fef9c3">
+      <i class="bi bi-pause-circle-fill" style="color:#a16207"></i>
     </div>
     <div>
-      <div class="stat-chip-val">{{ suspended_count }}</div>
-      <div class="stat-chip-lbl">Suspended / Expired</div>
+      <div class="saas-kpi-val" style="color:#a16207">{{ suspended_count }}</div>
+      <div class="saas-kpi-lbl">Suspended / Expired</div>
     </div>
   </div>
-  <div class="stat-chip">
-    <div class="stat-chip-icon" style="background:rgba(244,189,15,.12);color:var(--amber)">
-      <i class="bi bi-alarm-fill"></i>
+  <div class="saas-kpi">
+    <div class="saas-kpi-icon" style="background:#fef9c3">
+      <i class="bi bi-alarm-fill" style="color:#a16207"></i>
     </div>
     <div>
-      <div class="stat-chip-val">{{ overstay_count }}</div>
-      <div class="stat-chip-lbl">High Overstay</div>
+      <div class="saas-kpi-val" style="color:#a16207">{{ overstay_count }}</div>
+      <div class="saas-kpi-lbl">High Overstay</div>
     </div>
   </div>
 </div>
+{% endblock %}
 
-<div class="report-card">
-  <div class="report-table-wrap">
-    <table class="vaas-table">
-      <thead>
-        <tr>
-          <th>Plate</th>
-          <th>Type</th>
-          <th>Category</th>
-          <th>Department</th>
-          <th>Status</th>
-          <th>Assigned Driver</th>
-          <th>Overstays</th>
-          <th>Total Events</th>
-          <th>Risk Flag</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for r in rows %}
-        <tr>
-          <td style="font-family:var(--font-mono);font-weight:600;color:#fff;font-size:.8rem">
-            {{ r.plate_number }}
-          </td>
-          <td style="color:var(--text-muted);font-size:.75rem">{{ r.vehicle_type }}</td>
-          <td style="color:var(--text-secondary);font-size:.75rem">{{ r.vehicle_category }}</td>
-          <td style="color:var(--text-secondary);font-size:.75rem">{{ r.department }}</td>
-          <td style="font-size:.75rem">
-            {% if r.registration_status == 'ACTIVE' %}
-              <span style="color:var(--green)"><i class="bi bi-check-circle-fill"></i> Active</span>
-            {% elif r.registration_status == 'SUSPENDED' %}
-              <span style="color:var(--amber)"><i class="bi bi-pause-circle-fill"></i> Suspended</span>
-            {% else %}
-              <span style="color:var(--red)"><i class="bi bi-x-circle-fill"></i> Expired</span>
-            {% endif %}
-          </td>
-          <td style="font-size:.78rem">
-            {% if r.assigned_driver != 'UNASSIGNED' %}
-              <i class="bi bi-person-fill" style="color:var(--blue)"></i>
-              {{ r.driver_name }}
-            {% else %}
-              <span style="color:var(--red)">
-                <i class="bi bi-person-x-fill"></i> Unassigned
-              </span>
-            {% endif %}
-          </td>
-          <td style="font-family:var(--font-mono);font-size:.8rem;
-             color:{% if r.overstay_events >= 3 %}var(--red){% elif r.overstay_events > 0 %}var(--amber){% else %}var(--text-muted){% endif %}">
-            {{ r.overstay_events }}
-          </td>
-          <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted)">
-            {{ r.total_access_events }}
-          </td>
-          <td style="font-size:.75rem">
-            {% if r.risk_flag == 'OK' %}
-              <span class="badge" style="background:rgba(118,189,51,.15);color:var(--green);border:1px solid rgba(118,189,51,.3)">
-                <i class="bi bi-check-lg me-1"></i>OK
-              </span>
-            {% elif r.risk_flag == 'UNASSIGNED' %}
-              <span class="badge" style="background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.3)">
-                <i class="bi bi-person-x-fill me-1"></i>UNASSIGNED
-              </span>
-            {% elif r.risk_flag == 'SUSPENDED' %}
-              <span class="badge" style="background:rgba(244,189,15,.15);color:var(--amber);border:1px solid rgba(244,189,15,.3)">
-                <i class="bi bi-pause-circle-fill me-1"></i>SUSPENDED
-              </span>
-            {% else %}
-              <span class="badge" style="background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.3)">
-                <i class="bi bi-alarm-fill me-1"></i>HIGH OVERSTAY
-              </span>
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="9" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
-            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
-            No vehicles registered.
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+{% block report_table %}
+<table class="saas-table">
+  <thead style="position:sticky;top:0;z-index:2;background:#fff">
+    <tr>
+      <th>Plate</th>
+      <th>Type</th>
+      <th>Category</th>
+      <th>Department</th>
+      <th>Status</th>
+      <th>Assigned Driver</th>
+      <th style="text-align:center">Overstays</th>
+      <th style="text-align:center">Events</th>
+      <th>Risk Flag</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><span class="saas-plate">{{ r.plate_number }}</span></td>
+      <td style="font-size:.75rem;color:#64748b">{{ r.vehicle_type }}</td>
+      <td style="font-size:.75rem;color:#475569">{{ r.vehicle_category }}</td>
+      <td style="font-size:.75rem;color:#475569">{{ r.department }}</td>
+      <td>
+        {% if r.registration_status == 'ACTIVE' %}
+          <span class="report-badge rb-ok">
+            <i class="bi bi-check-circle-fill"></i> Active
+          </span>
+        {% elif r.registration_status == 'SUSPENDED' %}
+          <span class="report-badge rb-warn">
+            <i class="bi bi-pause-circle-fill"></i> Suspended
+          </span>
+        {% else %}
+          <span class="report-badge rb-danger">
+            <i class="bi bi-x-circle-fill"></i> Expired
+          </span>
+        {% endif %}
+      </td>
+      <td style="font-size:.8rem">
+        {% if r.assigned_driver != 'UNASSIGNED' %}
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <i class="bi bi-person-circle" style="color:#1B3F95"></i>
+            <span style="color:#1e2535">{{ r.driver_name }}</span>
+          </div>
+        {% else %}
+          <span class="report-badge rb-danger">
+            <i class="bi bi-person-x-fill"></i> Unassigned
+          </span>
+        {% endif %}
+      </td>
+      <td style="text-align:center;font-family:var(--font-mono);font-size:.82rem;font-weight:700;
+        color:{% if r.overstay_events >= 3 %}#b91c1c{% elif r.overstay_events > 0 %}#a16207{% else %}#94a3b8{% endif %}">
+        {{ r.overstay_events }}
+      </td>
+      <td style="text-align:center;font-family:var(--font-mono);font-size:.82rem;color:#64748b">
+        {{ r.total_access_events }}
+      </td>
+      <td>
+        {% if r.risk_flag == 'OK' %}
+          <span class="report-badge rb-ok"><i class="bi bi-check-lg"></i> OK</span>
+        {% elif r.risk_flag == 'UNASSIGNED' %}
+          <span class="report-badge rb-danger">
+            <i class="bi bi-person-x-fill"></i> UNASSIGNED
+          </span>
+        {% elif r.risk_flag == 'SUSPENDED' %}
+          <span class="report-badge rb-warn">
+            <i class="bi bi-pause-circle-fill"></i> SUSPENDED
+          </span>
+        {% else %}
+          <span class="report-badge rb-danger">
+            <i class="bi bi-alarm-fill"></i> HIGH OVERSTAY
+          </span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr>
+      <td colspan="9">
+        <div class="saas-empty">
+          <i class="bi bi-inbox"></i>
+          <span>No vehicles registered.</span>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
 
-<div class="panel mt-3" style="max-width:680px">
-  <div class="panel-header">
-    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Risk Flag Definitions</span>
+{% block report_info %}
+<div class="report-info-panel">
+  <div class="report-info-panel-title">
+    <i class="bi bi-info-circle-fill"></i> Risk Flag Definitions
   </div>
-  <div class="panel-body" style="font-size:.8rem;line-height:1.9;color:var(--text-secondary)">
-    <div><span class="badge me-2" style="background:rgba(118,189,51,.15);color:var(--green);border:1px solid rgba(118,189,51,.3)">OK</span>Active vehicle with at least one assigned driver and no overstay pattern.</div>
-    <div><span class="badge me-2" style="background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.3)">UNASSIGNED</span>Active vehicle with <strong>no driver assignment</strong> — accountability gap for OHS purposes.</div>
-    <div><span class="badge me-2" style="background:rgba(244,189,15,.15);color:var(--amber);border:1px solid rgba(244,189,15,.3)">SUSPENDED</span>Registration is SUSPENDED or EXPIRED — vehicle should not be on-site.</div>
-    <div><span class="badge me-2" style="background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.3)">HIGH OVERSTAY</span>≥ 3 recorded overstay events — requires supervisor investigation.</div>
+  <div>
+    <span class="report-badge rb-ok me-2">OK</span>
+    Active vehicle with at least one assigned driver and no overstay pattern.
+  </div>
+  <div>
+    <span class="report-badge rb-danger me-2">UNASSIGNED</span>
+    Active vehicle with <strong>no driver assignment</strong> &mdash; accountability gap for OHS.
+  </div>
+  <div>
+    <span class="report-badge rb-warn me-2">SUSPENDED</span>
+    Registration is SUSPENDED or EXPIRED &mdash; vehicle should not be on-site.
+  </div>
+  <div>
+    <span class="report-badge rb-danger me-2">HIGH OVERSTAY</span>
+    &ge; 3 recorded overstay events &mdash; requires supervisor investigation.
   </div>
 </div>
 {% endblock %}

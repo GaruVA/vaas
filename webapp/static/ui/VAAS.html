@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VAAS — Vehicle Access &amp; Authorization System · CDL</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f6; }
+    .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+    .card-lift { transition: transform .2s ease, box-shadow .2s ease; }
+    .card-lift:hover { transform: translateY(-4px); }
+    .card-link { text-decoration: none; display: block; }
+    @keyframes breathe { 0%,100%{opacity:.45;box-shadow:0 0 5px currentColor}50%{opacity:1;box-shadow:0 0 12px currentColor} }
+    .breathe { animation: breathe 2.5s ease-in-out infinite; }
+    .glow-green { box-shadow: 0 0 0 1px rgba(118,189,51,.25), 0 0 24px rgba(118,189,51,.12); }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ═══ NAV ═══ -->
+  <nav class="bg-white sticky top-0 z-50" style="border-bottom:1px solid #e5e7eb;box-shadow:0 1px 0 rgba(0,0,0,.05)">
+    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#1B3F95">
+          <span class="text-white text-[10px] font-bold tracking-wider mono">CDL</span>
+        </div>
+        <div class="leading-tight">
+          <div class="text-sm font-bold text-gray-900">VAAS</div>
+          <div class="text-[11px] text-gray-400 -mt-0.5">Vehicle Access &amp; Authorization System</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full inline-block breathe" style="color:#76bd33;background:#76bd33"></span>
+          <span class="text-xs mono text-gray-500 font-medium tracking-wide">OPERATIONAL</span>
+        </div>
+        <div class="h-4 w-px bg-gray-200"></div>
+        <span class="text-xs mono text-gray-400">v1.0.0-rc4</span>
+        <div class="h-4 w-px bg-gray-200"></div>
+        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">ADMIN</span>
+        <span class="text-sm text-gray-700 font-medium">R. Weerasinghe</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ HERO ═══ -->
+  <div style="background:linear-gradient(135deg,#1B3F95 0%,#0e2660 100%)">
+    <div class="max-w-6xl mx-auto px-6 py-10">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-white tracking-tight">System Overview</h1>
+        <p class="text-blue-200 text-sm mt-1">Colombo Dockyard Limited · Naval Shipyard, Trincomalee Road, Colombo 15</p>
+      </div>
+      <div class="grid grid-cols-4 gap-3">
+        <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
+          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Gate Events Today</div>
+          <div class="text-3xl font-bold mono text-white">1,247</div>
+          <div class="text-xs text-blue-200 mt-1.5">↑ 83 vs yesterday</div>
+        </div>
+        <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
+          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Active Vehicles in Yard</div>
+          <div class="text-3xl font-bold mono text-white">127</div>
+          <div class="text-xs text-blue-200 mt-1.5">across 8 zones</div>
+        </div>
+        <div class="rounded-xl px-5 py-4" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)">
+          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Pending Exceptions</div>
+          <div class="text-3xl font-bold mono" style="color:#f4bd0f">3</div>
+          <div class="text-xs text-blue-200 mt-1.5">awaiting operator decision</div>
+        </div>
+        <div class="rounded-xl px-5 py-4 glow-green" style="background:rgba(118,189,51,.12);border:1px solid rgba(118,189,51,.3)">
+          <div class="text-[10px] text-blue-200 uppercase tracking-widest font-semibold mb-2">Audit Chain Integrity</div>
+          <div class="text-2xl font-bold mono" style="color:#76bd33">INTACT</div>
+          <div class="text-xs text-blue-200 mt-1.5">verified 2 min ago · 15 records</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION CARDS ═══ -->
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <div class="text-[10px] uppercase tracking-widest font-semibold text-gray-400 mb-4">Dashboard Access</div>
+    <div class="grid grid-cols-2 gap-4">
+
+      <!-- Section A: Forensic Audit -->
+      <a href="vaas-forensic.html" class="card-link card-lift bg-white rounded-2xl p-6" style="box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);border-left:4px solid #ef4444">
+        <div class="flex items-start justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:#eef1fb">
+              <svg class="w-5 h-5" style="color:#1B3F95" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900">Cryptographic Forensic Audit</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Section A · Admin Role</p>
+            </div>
+          </div>
+          <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">ADMIN</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-5 leading-relaxed">SHA-256 hash chain integrity · Byte-level tamper visualization · Admin audit log with cross-referenced JSON delta diffs</p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+            <span class="text-xs mono text-gray-500">Chain INTACT · 15 records</span>
+          </div>
+          <span class="text-xs font-semibold" style="color:#1B3F95">Open →</span>
+        </div>
+      </a>
+
+      <!-- Section B: Fleet Config -->
+      <a href="vaas-fleet.html" class="card-link card-lift bg-white rounded-2xl p-6" style="box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);border-left:4px solid #1B3F95">
+        <div class="flex items-start justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:#eef1fb">
+              <svg class="w-5 h-5" style="color:#1B3F95" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h3m0 0h4m4-8h2l3 3-2 2v3m-3-3h3"/></svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900">Fleet &amp; Access Configuration</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Section B · Admin Role</p>
+            </div>
+          </div>
+          <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">ADMIN</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-5 leading-relaxed">Vehicle CRUD with OHS risk flags · Shift 24-hour timeline · Zone capacity meters · User management with RBAC matrix</p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 text-xs mono text-gray-500">
+            <span>142 vehicles</span><span class="text-gray-200">·</span>
+            <span>3 shifts</span><span class="text-gray-200">·</span>
+            <span>8 zones</span><span class="text-gray-200">·</span>
+            <span>12 users</span>
+          </div>
+          <span class="text-xs font-semibold" style="color:#1B3F95">Open →</span>
+        </div>
+      </a>
+
+      <!-- Section C: BI Manager -->
+      <a href="vaas-manager.html" class="card-link card-lift bg-white rounded-2xl p-6" style="box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);border-left:4px solid #76bd33">
+        <div class="flex items-start justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:#f0fce8">
+              <svg class="w-5 h-5" style="color:#76bd33" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900">Business Intelligence Dashboard</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Section C · Manager Role</p>
+            </div>
+          </div>
+          <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">MANAGER</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-5 leading-relaxed">Prevented leakage (LKR) · Fuel allowance compliance watchlist · OHS fleet status · Subcontractor billing integrity scores</p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-bold mono" style="color:#76bd33">LKR 48,200</span>
+            <span class="text-xs text-gray-400">prevented leakage this month</span>
+          </div>
+          <span class="text-xs font-semibold" style="color:#1B3F95">Open →</span>
+        </div>
+      </a>
+
+      <!-- Section D: Gate Ops — dark card -->
+      <a href="vaas-gateops.html" class="card-link card-lift rounded-2xl p-6 overflow-hidden relative" style="background:#050810;border:1px solid #1e2a3a;box-shadow:0 4px 24px rgba(0,0,0,.4)">
+        <div class="absolute inset-0 opacity-[.04] pointer-events-none">
+          <svg width="100%" height="100%"><defs><pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0L0 0 0 32" fill="none" stroke="#06b6d4" stroke-width=".6"/></pattern></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>
+        </div>
+        <div class="relative">
+          <div class="flex items-start justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2)">
+                <svg class="w-5 h-5" style="color:#06b6d4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.362a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Gate Operations Control</h3>
+                <p class="text-xs mt-0.5" style="color:#4a5c7a">Section D · Operator Role</p>
+              </div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0" style="background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)">OPERATOR</span>
+          </div>
+          <p class="text-xs mb-5 leading-relaxed" style="color:#4a5c7a">Tactical dark HUD · Live MJPEG camera feeds with scanlines · Dense event stream · Exception queue with full vehicle intelligence for gloved ADMIT / REJECT</p>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full inline-block breathe" style="color:#ef4444;background:#ef4444"></span>
+              <span class="text-xs mono font-semibold tracking-wider" style="color:#06b6d4">3 EXCEPTIONS PENDING</span>
+            </div>
+            <span class="text-xs font-semibold" style="color:#06b6d4">Open →</span>
+          </div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-10 pt-5 flex items-center justify-between" style="border-top:1px solid #e5e7eb">
+      <span class="text-xs text-gray-400">© 2025 Colombo Dockyard Limited · Academic Capstone Project</span>
+      <span class="text-xs mono text-gray-400">Build 2025.03.14-r42 · Flask 3.0 / Jinja2 · PostgreSQL 16</span>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div data-bs-theme="light" class="saas-page">
+
+  <!-- Page header -->
+  <div class="page-header" style="padding-left:0;padding-right:0">
+    <div class="page-header-left">
+      <h1 class="page-title" style="color:#0f172a">{% block report_icon %}{% endblock %} {% block report_title %}Report{% endblock %}</h1>
+      <p class="page-subtitle" style="color:#64748b">{% block report_subtitle %}{% endblock %}</p>
+    </div>
+    <div class="page-actions">
+      {% block report_export %}{% endblock %}
+      <a class="btn-export" href="{{ url_for('manager.home') }}">
+        <i class="bi bi-arrow-left"></i> Reports
+      </a>
+    </div>
+  </div>
+
+  {# Optional KPI strip — used by OHS, zone occupancy, etc. #}
+  {% block report_kpi %}{% endblock %}
+
+  {# Main SaaS card #}
+  <div class="saas-card">
+
+    {# Filter toolbar — override per-report for date pickers, selects, etc. #}
+    {% block report_toolbar %}{% endblock %}
+
+    {# Table area — sticky thead applied by .saas-table-wrap via §29 CSS #}
+    <div class="saas-table-wrap">
+      {% block report_table %}{% endblock %}
+    </div>
+
+    {# Optional card footer — used for totals rows #}
+    {% block report_card_footer %}{% endblock %}
+
+  </div>
+
+  {# Context / methodology info panel at page bottom #}
+  {% block report_info %}{% endblock %}
+
+</div>
+{% endblock %}

@@ -32,6 +32,7 @@ from flask import (
 )
 
 from src.clahe import apply_clahe
+from src.analytics import ohs_compliance_report
 from src.config import CAMERA_INDEX_GATE_A, CAMERA_INDEX_GATE_B, EXCEPTION_TIMEOUT_SECONDS
 from src.pipeline import DEFAULT_COOLDOWN_SECONDS, PlateDebouncer, draw_overlays, process_frame
 
@@ -264,12 +265,42 @@ def dashboard():
         "       status, confidence_score "
         "FROM access_log ORDER BY id DESC LIMIT 20"
     ).fetchall()
+
+    # Enriched pending query: join vehicle registration data + anomaly count
     pending = g.db.execute(
-        "SELECT id, plate_number, timestamp, gate_id, confidence_score "
-        "FROM access_log WHERE status='VISITOR' ORDER BY id DESC"
+        "SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.confidence_score, "
+        "       COALESCE(v.registration_status, 'UNKNOWN') AS reg_status, "
+        "       COALESCE(v.vehicle_category, 'UNKNOWN')    AS vehicle_category, "
+        "       (SELECT COUNT(*) FROM access_log x "
+        "        WHERE x.plate_number = a.plate_number "
+        "          AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')) AS anomaly_count "
+        "FROM access_log a "
+        "LEFT JOIN registered_vehicles v ON a.plate_number = v.plate_number "
+        "WHERE a.status = 'VISITOR' ORDER BY a.id DESC"
     ).fetchall()
+
+    # Micro-timeline: last 3 gate events per pending plate
+    recent_by_plate = {}
+    for exc in pending:
+        plate = exc["plate_number"]
+        if plate not in recent_by_plate:
+            rows = g.db.execute(
+                "SELECT timestamp, gate_id, direction FROM access_log "
+                "WHERE plate_number=? ORDER BY id DESC LIMIT 3",
+                (plate,)
+            ).fetchall()
+            recent_by_plate[plate] = rows
+
+    events_today = g.db.execute(
+        "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = DATE('now')"
+    ).fetchone()[0]
+    ohs_by_plate = {r["plate_number"]: dict(r) for r in ohs_compliance_report(g.db)}
+
     return render_template("operator/dashboard.html",
-                           recent=recent, pending=pending)
+                           recent=recent, pending=pending,
+                           recent_by_plate=recent_by_plate,
+                           events_today=events_today,
+                           ohs_by_plate=ohs_by_plate)
 
 
 @operator_bp.route("/sse")

@@ -1,0 +1,121 @@
+{% extends "manager/report_base.html" %}
+{% block title %}Gate Anomaly Report -- VAAS{% endblock %}
+
+{% block report_icon %}<i class="bi bi-exclamation-diamond-fill" style="color:#7c3aed"></i>{% endblock %}
+{% block report_title %}Gate Anomaly Report{% endblock %}
+{% block report_subtitle %}Double-entry and unmatched-exit events &mdash; {{ df }} to {{ dt }}{% endblock %}
+
+{% block report_toolbar %}
+<div class="saas-toolbar">
+  <i class="bi bi-funnel" style="color:#94a3b8;font-size:.85rem"></i>
+  <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+    <span class="filter-sep">From</span>
+    <input type="date" name="from" value="{{ df }}"
+           class="form-control form-control-sm" style="width:148px">
+    <span class="filter-sep">to</span>
+    <input type="date" name="to" value="{{ dt }}"
+           class="form-control form-control-sm" style="width:148px">
+    <select name="status" class="form-control form-control-sm" style="width:185px">
+      <option value="" {% if not status_filter %}selected{% endif %}>All anomalies</option>
+      <option value="DOUBLE_ENTRY"   {% if status_filter == 'DOUBLE_ENTRY'   %}selected{% endif %}>
+        Double Entry only
+      </option>
+      <option value="UNMATCHED_EXIT" {% if status_filter == 'UNMATCHED_EXIT' %}selected{% endif %}>
+        Unmatched Exit only
+      </option>
+    </select>
+    <input type="text" name="gate_id" value="{{ gate_id or '' }}"
+           placeholder="Gate ID (optional)"
+           class="form-control form-control-sm" style="width:160px">
+    <button class="btn-report-filter" type="submit">
+      <i class="bi bi-arrow-clockwise"></i> Apply
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block report_table %}
+<table class="saas-table">
+  <thead style="position:sticky;top:0;z-index:2;background:#fff">
+    <tr>
+      <th style="width:3.5rem">#</th>
+      <th>Timestamp</th>
+      <th>Plate</th>
+      <th>Gate</th>
+      <th>Direction</th>
+      <th>Anomaly Type</th>
+      <th>Confidence</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr style="border-left:3px solid #ede9fe">
+      <td style="font-family:var(--font-mono);font-size:.72rem;color:#94a3b8">{{ r.id }}</td>
+      <td style="font-family:var(--font-mono);font-size:.75rem;color:#64748b;white-space:nowrap">
+        {{ r.timestamp[:16] }}
+      </td>
+      <td><span class="saas-plate" style="color:#7c3aed">{{ r.plate_number }}</span></td>
+      <td style="font-size:.78rem;color:#475569">{{ r.gate_id }}</td>
+      <td>
+        {% if r.direction == 'ENTRY' %}
+          <span class="report-badge rb-ok">
+            <i class="bi bi-arrow-up-right"></i> ENTRY
+          </span>
+        {% else %}
+          <span class="report-badge rb-info">
+            <i class="bi bi-arrow-down-left"></i> EXIT
+          </span>
+        {% endif %}
+      </td>
+      <td>
+        <span class="report-badge"
+              style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe">
+          <i class="bi bi-exclamation-diamond-fill"></i>
+          {{ r.status | replace('_',' ') }}
+        </span>
+      </td>
+      <td style="font-family:var(--font-mono);font-size:.78rem;font-weight:600;
+        color:{% if r.confidence_score is not none and r.confidence_score >= 0.8 %}#15803d
+              {% elif r.confidence_score is not none and r.confidence_score >= 0.6 %}#a16207
+              {% else %}#b91c1c{% endif %}">
+        {% if r.confidence_score is not none %}
+          {{ (r.confidence_score * 100) | round(1) }}%
+        {% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr>
+      <td colspan="7">
+        <div class="saas-empty">
+          <i class="bi bi-shield-check" style="color:#15803d"></i>
+          <span>No anomaly events for this period.</span>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block report_info %}
+<div class="report-info-panel">
+  <div class="report-info-panel-title">
+    <i class="bi bi-info-circle-fill"></i> Anomaly Definitions
+  </div>
+  <p>Events written to <code>access_log</code> when a direction inconsistency is detected for a
+  registered, active vehicle. The barrier opens in both cases &mdash; vehicles are never denied
+  entry due to a logging gap.</p>
+  <div>
+    <span class="report-badge me-2"
+          style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe">DOUBLE ENTRY</span>
+    Vehicle presented at entry while its last event was also an entry. Likely cause: prior exit
+    not captured (obscured plate, tailgate, wrong lane).
+  </div>
+  <div style="margin-top:.4rem">
+    <span class="report-badge me-2"
+          style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe">UNMATCHED EXIT</span>
+    Vehicle at exit gate with no matching entry on record. Likely cause: entry missed, or vehicle
+    entered before VAAS was operational for that shift.
+  </div>
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@ from flask import (
     request, session, url_for,
 )
 
+from src.analytics import zone_occupancy_snapshot
 from src.database import VEHICLE_CATEGORIES, VEHICLE_TYPES, transaction
 from webapp.auth import requires_role
 
@@ -322,6 +323,36 @@ def reset_password(uid: int):
     _audit(db, "UPDATE", "USER", str(uid), {"action": "password_reset"})
     flash("Password reset", "success")
     return redirect(url_for("admin.users"))
+
+
+# ── Zone Capacity Dashboard ───────────────────────────────────────────────────
+
+@admin_bp.route("/zones")
+@requires_role("ADMIN")
+def zones():
+    """Zone capacity grid: raw cdl_zones + live occupancy snapshot merged."""
+    db         = g.db
+    zones_raw  = db.execute("SELECT * FROM cdl_zones ORDER BY zone_id").fetchall()
+    snap_by_id = {z["zone_id"]: z for z in zone_occupancy_snapshot(db)}
+    rows = []
+    for z in zones_raw:
+        try:
+            gates = json.loads(z["associated_gates"]) if z["associated_gates"] else []
+        except (ValueError, TypeError):
+            gates = []
+        snap = snap_by_id.get(z["zone_id"], {})
+        cap  = z["vehicle_capacity"] or 1
+        cur  = snap.get("current_occupancy", 0)
+        rows.append({
+            "zone_id":           z["zone_id"],
+            "zone_name":         z["zone_name"],
+            "zone_type":         z["zone_type"],
+            "associated_gates":  gates,
+            "vehicle_capacity":  cap,
+            "current_occupancy": cur,
+            "utilisation_pct":   round(cur / cap * 100, 1),
+        })
+    return render_template("admin/zones.html", rows=rows)
 
 
 # ── Admin audit log viewer ────────────────────────────────────────────────────

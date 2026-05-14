@@ -1,82 +1,360 @@
 {% extends "base.html" %}
-{% block title %}Audit Chain — VAAS{% endblock %}
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  .page-wrapper{padding:0!important}
+  .mono{font-family:'JetBrains Mono','Courier New',monospace}
+  @keyframes pulse-banner{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}50%{box-shadow:0 0 0 8px rgba(239,68,68,.15)}}
+  @keyframes breathe{0%,100%{opacity:.45;box-shadow:0 0 5px currentColor}50%{opacity:1;box-shadow:0 0 14px currentColor}}
+  .pulse-banner{animation:pulse-banner 2.5s ease-in-out infinite}
+  .breathe{animation:breathe 2.5s ease-in-out infinite}
+  .card{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04)}
+  .hg-match{font-family:'JetBrains Mono',monospace;font-size:.6875rem;font-weight:500;padding:4px 7px;border-radius:3px;background:rgba(107,114,128,.08);color:#6b7280;border:1px solid rgba(107,114,128,.15);display:inline-block}
+  .hg-diff{font-family:'JetBrains Mono',monospace;font-size:.6875rem;font-weight:600;padding:4px 7px;border-radius:3px;background:rgba(239,68,68,.14);color:#ef4444;border:1px solid rgba(239,68,68,.35);display:inline-block;box-shadow:0 0 10px rgba(239,68,68,.12)}
+  .delta-line{font-family:'JetBrains Mono',monospace;font-size:.6875rem;padding:2px 10px;display:block;white-space:pre;line-height:1.7}
+  .dl-minus{color:#ef4444;background:rgba(239,68,68,.08)}
+  .dl-plus{color:#76bd33;background:rgba(118,189,51,.08)}
+  .dl-neutral{color:#94a3b8}
+  .action-create{background:rgba(118,189,51,.12);color:#2d7b00;border:1px solid rgba(118,189,51,.25)}
+  .action-update{background:rgba(244,189,15,.12);color:#8a6500;border:1px solid rgba(244,189,15,.25)}
+  .action-delete{background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)}
+  .action-assign{background:rgba(27,63,149,.1);color:#1B3F95;border:1px solid rgba(27,63,149,.2)}
+  .log-row:hover{background:#f8f9fb}
+  .log-row-tamper{background:rgba(239,68,68,.04)!important;border-left:3px solid #ef4444}
+  .filter-pill{padding:4px 13px;border-radius:20px;font-size:.6875rem;font-weight:500;cursor:pointer;border:1px solid #e5e7eb;background:#fff;color:#6b7280;transition:all .15s;font-family:'Inter',sans-serif}
+  .filter-pill.active{background:#1B3F95;color:#fff;border-color:#1B3F95}
+  .node-clean{flex-shrink:0;width:76px;padding:7px 5px;border-radius:4px;border:1px solid rgba(118,189,51,.3);background:rgba(118,189,51,.05);text-align:center;cursor:pointer;transition:border-color .15s}
+  .node-clean:hover{border-color:rgba(118,189,51,.6)}
+  .node-tamper{flex-shrink:0;width:88px;padding:7px 5px;border-radius:4px;border:2px solid #ef4444;background:rgba(239,68,68,.1);text-align:center;box-shadow:0 0 18px rgba(239,68,68,.25)}
+  .node-taint{flex-shrink:0;width:76px;padding:7px 5px;border-radius:4px;border:1px solid rgba(244,189,15,.35);background:rgba(244,189,15,.05);text-align:center;opacity:.85}
+  .conn-clean{flex-shrink:0;height:2px;width:28px;background:rgba(118,189,51,.4)}
+  .conn-taint{flex-shrink:0;height:2px;width:28px;border-top:2px dashed rgba(244,189,15,.5)}
+  ::-webkit-scrollbar{height:4px;width:4px}::-webkit-scrollbar-track{background:#f0f2f6}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div class="page-header-left">
-    <h1 class="page-title"><i class="bi bi-shield-check"></i> Audit Chain Verification</h1>
-    <p class="page-subtitle">SHA-256 hash chain integrity check on the live access log</p>
-  </div>
-  <div class="page-actions">
-    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
-      <i class="bi bi-arrow-left"></i> Reports
-    </a>
-  </div>
-</div>
+{%- set tns = namespace(tainted=0, clean=0, tamp=0) -%}
+{%- for row in chain_rows -%}
+  {%- if not res.intact and res.first_bad_id and row.id == res.first_bad_id -%}
+    {%- set tns.tamp = tns.tamp + 1 -%}
+  {%- elif not res.intact and res.first_bad_id and row.id > res.first_bad_id -%}
+    {%- set tns.tainted = tns.tainted + 1 -%}
+  {%- else -%}
+    {%- set tns.clean = tns.clean + 1 -%}
+  {%- endif -%}
+{%- endfor -%}
 
-<!-- Result card -->
-<div style="max-width:680px">
-  <div class="audit-result-card {{ 'intact' if res.intact else 'broken' }}">
-    <div class="audit-result-icon">
-      {% if res.intact %}
-        <i class="bi bi-shield-fill-check"></i>
-      {% else %}
-        <i class="bi bi-shield-fill-x"></i>
-      {% endif %}
-    </div>
-    <div style="flex:1">
-      <div class="audit-result-title">
-        {% if res.intact %}
-          &#10003; Chain Intact
-        {% else %}
-          &#10007; Chain Broken
-        {% endif %}
+{%- if not res.intact and tampered_row %}
+<div class="pulse-banner" style="background:linear-gradient(90deg,#7f1d1d 0%,#991b1b 40%,#7f1d1d 100%);border-bottom:1px solid rgba(239,68,68,.4)">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.5)">
+        <svg class="w-5 h-5 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
       </div>
-      <div class="audit-result-meta">
-        {% if res.intact %}
-          Verified <strong>{{ res.rows_checked }}</strong> row{{ 's' if res.rows_checked != 1 }}
-          successfully at {{ res.verified_at }}.<br>
-          No tampering detected. All SHA-256 hashes match.
-        {% else %}
-          First mismatch detected at row ID
-          <code>{{ res.first_bad_id }}</code>.<br>
-          All subsequent rows are also broken — hash chains propagate forward.<br>
-          This indicates data modification after original insertion.
-        {% endif %}
+      <div>
+        <div class="text-white font-bold text-base tracking-wide">TAMPER DETECTED AT ROW #{{ res.first_bad_id }}</div>
+        <div class="text-red-300 text-xs mt-0.5 mono">Plate {{ tampered_row.plate_number }} &middot; Gate {{ tampered_row.gate_id }} &middot; {{ tampered_row.timestamp }}</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-6">
+      <div class="text-right">
+        <div class="text-[10px] text-red-300 uppercase tracking-widest">Downstream Tainted</div>
+        <div class="text-white font-bold text-lg mono">{{ tns.tainted }} records</div>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] text-red-300 uppercase tracking-widest">Attributed To</div>
+        <div class="text-white font-bold text-sm mono">{{ cross_ref_log.username if cross_ref_log else 'UNKNOWN' }}</div>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] text-red-300 uppercase tracking-widest">Tamper Class</div>
+        <div class="text-yellow-300 font-bold text-sm">{{ 'APP-LEVEL' if cross_ref_log else 'DIRECT-DB' }}</div>
       </div>
     </div>
   </div>
-
-  <!-- Explanation panel -->
-  <div class="panel" style="margin-top:1rem">
-    <div class="panel-header">
-      <span class="panel-title">
-        <i class="bi bi-info-circle-fill"></i> How the Audit Chain Works
-      </span>
-    </div>
-    <div class="panel-body" style="font-size:.82rem;color:var(--text-secondary);line-height:1.7">
-      <p style="margin:0 0 .65rem">
-        Every row inserted into <code>access_log</code> is cryptographically linked
-        to the previous row via SHA-256:
-      </p>
-      <div style="background:var(--bg-surface);border:1px solid var(--border-dim);
-                  border-radius:var(--radius);padding:.75rem 1rem;
-                  font-family:var(--font-mono);font-size:.75rem;color:var(--cyan);
-                  margin-bottom:.65rem;overflow-x:auto;white-space:pre">
-hash_n = SHA256(JSON({ plate, timestamp, gate_id, direction, hash_(n-1) }))</div>
-      <p style="margin:0">
-        Row 1 uses the genesis salt <code>VAAS-GENESIS-2026</code> as its seed.
-        Any modification of a row — plate number, timestamp, gate, or direction —
-        breaks the chain at that point and all rows beyond it.
-      </p>
-    </div>
-  </div>
-
-  <!-- Re-run button -->
-  <div style="margin-top:1rem">
-    <a class="btn btn-primary" href="{{ url_for('manager.audit') }}">
-      <i class="bi bi-arrow-clockwise"></i> Re-verify Now
-    </a>
-  </div>
 </div>
+{%- endif %}
+
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-5">
+
+  <!-- Hash Chain Integrity Timeline -->
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-sm font-bold text-gray-900">Hash Chain Integrity Timeline</div>
+        <div class="text-xs text-gray-400 mt-0.5">SHA-256 linked chain &middot; each node hashes: plate_number + timestamp + gate_id + prev_hash</div>
+      </div>
+      <div class="flex items-center gap-4 text-xs">
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(118,189,51,.5)"></span><span class="text-gray-500">Clean ({{ tns.clean }})</span></div>
+        {%- if not res.intact %}
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block bg-red-400"></span><span class="text-gray-500">Tampered ({{ tns.tamp }})</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:rgba(244,189,15,.5)"></span><span class="text-gray-500">Tainted ({{ tns.tainted }})</span></div>
+        {%- endif %}
+      </div>
+    </div>
+    <div style="overflow-x:auto;padding-bottom:4px">
+      <div style="display:flex;align-items:center;min-width:max-content;padding:4px 2px">
+        {%- for row in chain_rows -%}
+          {%- set is_tamper = (not res.intact) and (res.first_bad_id is not none) and (row.id == res.first_bad_id) -%}
+          {%- set is_taint  = (not res.intact) and (res.first_bad_id is not none) and (row.id > res.first_bad_id) -%}
+          {%- if not loop.first -%}
+            {%- if is_tamper -%}
+        <div style="flex-shrink:0;width:28px;height:2px;background:linear-gradient(90deg,rgba(118,189,51,.4),rgba(239,68,68,.6))"></div>
+            {%- elif is_taint -%}
+        <div class="conn-taint"></div>
+            {%- else -%}
+        <div class="conn-clean"></div>
+            {%- endif -%}
+          {%- endif -%}
+          {%- if is_tamper -%}
+        <div class="node-tamper">
+          <div class="text-[9px] font-bold mono text-red-400">{{ '%02d'|format(loop.index) }} &#x2715;</div>
+          <div class="w-2.5 h-2.5 mx-auto my-1 rotate-45" style="background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.7)"></div>
+          <div class="text-[9px] mono font-bold text-red-400">{{ row.plate_number }}</div>
+          <div class="text-[8px] text-red-500 mt-0.5 font-semibold">TAMPERED</div>
+          <div class="text-[8px] text-red-600">{{ (row.timestamp|string)[11:16] }}</div>
+        </div>
+          {%- elif is_taint -%}
+        <div class="node-taint">
+          <div class="text-[9px] font-bold mono" style="color:#f4bd0f">{{ '%02d'|format(loop.index) }} &#x26A0;</div>
+          <div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#f4bd0f;opacity:.7"></div>
+          <div class="text-[9px] mono text-gray-500">{{ row.plate_number }}</div>
+          <div class="text-[8px] text-gray-500 mt-0.5">{{ (row.timestamp|string)[11:16] }}</div>
+        </div>
+          {%- else -%}
+        <div class="node-clean">
+          <div class="text-[9px] font-bold mono" style="color:#76bd33">{{ '%02d'|format(loop.index) }}</div>
+          <div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#76bd33;box-shadow:0 0 5px rgba(118,189,51,.6)"></div>
+          <div class="text-[9px] mono text-gray-400">{{ row.plate_number }}</div>
+          <div class="text-[8px] text-gray-400 mt-0.5">{{ (row.timestamp|string)[11:16] }}</div>
+        </div>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+    </div>
+    {%- if not res.intact %}
+    <div class="mt-3 text-xs text-gray-400 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+      <span class="font-semibold text-amber-700">Taint propagation:</span> Nodes after row #{{ res.first_bad_id }} have incorrect <span class="mono font-semibold">prev_hash</span> values because they inherited the corrupted hash from the tampered record. Their own hashes are internally consistent but cryptographically anchored to a falsified record.
+    </div>
+    {%- else %}
+    <div class="mt-3 text-xs text-gray-400 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+      <span class="font-semibold text-green-700">Chain intact:</span> All {{ res.rows_checked }} records verified. No tampering detected as of {{ res.verified_at }}.
+    </div>
+    {%- endif %}
+  </div>
+
+  <!-- Hash Diff + Attribution (only if chain broken) -->
+  {%- if not res.intact %}
+  <div class="grid grid-cols-2 gap-5">
+
+    <!-- Hash byte-diff panel -->
+    <div class="card p-5">
+      <div class="text-sm font-bold text-gray-900 mb-1">Hash Byte-Diff Inspector</div>
+      <div class="text-xs text-gray-400 mb-4">{% if tampered_row %}Plate {{ tampered_row.plate_number }}{% endif %} &middot; 8 groups &times; 8 hex chars</div>
+
+      {%- if tampered_row %}
+      <div class="rounded-lg p-3 mb-4 text-xs" style="background:#f8f9fb;border:1px solid #e5e7eb">
+        <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Hash Inputs (recomputed)</div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div class="flex items-center gap-2"><span class="text-gray-400">plate_number</span><span class="mono font-semibold text-gray-700">{{ tampered_row.plate_number }}</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">gate_id</span><span class="mono font-semibold text-gray-700">{{ tampered_row.gate_id }}</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">timestamp</span><span class="mono font-semibold text-gray-700">{{ tampered_row.timestamp }}</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-400">prev_hash</span><span class="mono font-semibold text-gray-700 truncate">{{ (res.expected_hash or '')[:8] }}&hellip;</span></div>
+        </div>
+      </div>
+      {%- endif %}
+
+      {%- if res.expected_hash and res.stored_hash %}
+      {%- set diffs = namespace(count=0) -%}
+      {%- for i in range(8) -%}
+        {%- if res.expected_hash[i*8:i*8+8] != res.stored_hash[i*8:i*8+8] -%}
+          {%- set diffs.count = diffs.count + 1 -%}
+        {%- endif -%}
+      {%- endfor -%}
+      <div class="space-y-3">
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Expected (recomputed from inputs)</div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            {%- for i in range(8) -%}
+              {%- set eg = res.expected_hash[i*8:i*8+8] -%}
+              {%- set sg = res.stored_hash[i*8:i*8+8] -%}
+              <span class="{{ 'hg-diff' if eg != sg else 'hg-match' }}"{% if eg != sg %} title="DIFFERS"{% endif %}>{{ eg }}</span>
+            {%- endfor -%}
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Stored (database value)</div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            {%- for i in range(8) -%}
+              {%- set eg = res.expected_hash[i*8:i*8+8] -%}
+              {%- set sg = res.stored_hash[i*8:i*8+8] -%}
+              <span class="{{ 'hg-diff' if eg != sg else 'hg-match' }}"{% if eg != sg %} title="DIFFERS"{% endif %}>{{ sg }}</span>
+            {%- endfor -%}
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 rounded-lg px-3 py-2 text-xs" style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2)">
+        <span class="font-semibold text-red-600">{{ diffs.count }} of 8 byte-groups diverge</span>
+        <span class="text-gray-500 mono text-[10px] ml-2">bytes {{ diffs.count * 8 }}&ndash;{{ diffs.count * 16 - 1 }} of 64</span>
+      </div>
+      {%- endif %}
+    </div>
+
+    <!-- Attribution cross-reference -->
+    <div class="card p-5">
+      <div class="text-sm font-bold text-gray-900 mb-1">Cross-Reference Attribution</div>
+      <div class="text-xs text-gray-400 mb-4">Matching admin_audit_log entry for tampered record</div>
+
+      {%- if cross_ref_log %}
+      <div class="rounded-lg p-4 mb-4" style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2)">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#1B3F95">{{ (cross_ref_log.username or 'XX')[:2].upper() }}</div>
+            <div>
+              <div class="text-sm font-bold text-gray-900 mono">{{ cross_ref_log.username }}</div>
+              <div class="text-xs text-gray-400">System User</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs px-2 py-0.5 rounded font-semibold action-{{ (cross_ref_log.action or 'update').lower() }}">{{ cross_ref_log.action }}</span>
+            <div class="text-xs mono text-gray-400 mt-1">{{ cross_ref_log.timestamp }}</div>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 mb-2">Entity: <span class="mono font-semibold text-gray-700">{{ cross_ref_log.entity_type }} &middot; {{ cross_ref_log.entity_id }}</span></div>
+        {%- if cross_ref_log.delta_json %}
+        <div class="rounded-md overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d">
+          <div class="px-3 py-1.5 text-[10px] uppercase tracking-widest" style="background:#0a1220;color:#4a5c7a;border-bottom:1px solid #1e2d3d">JSON &Delta; DELTA</div>
+          <span class="delta-line dl-neutral">{{ cross_ref_log.delta_json | e }}</span>
+        </div>
+        {%- endif %}
+      </div>
+      <div class="rounded-lg p-3 text-xs space-y-1.5" style="background:#fffbeb;border:1px solid #fde68a">
+        <div class="font-semibold text-amber-800">Forensic Interpretation</div>
+        <div class="text-amber-700">Admin user <span class="font-bold">{{ cross_ref_log.username }}</span> performed a <span class="font-bold">{{ cross_ref_log.action }}</span> on <span class="font-bold">{{ cross_ref_log.entity_type }}</span> at {{ cross_ref_log.timestamp }}, correlating temporally with the detected hash chain break at row #{{ res.first_bad_id }}.</div>
+        <div class="text-amber-600 font-medium">Tamper class: APPLICATION-LEVEL &mdash; audit log entry exists, came via app layer, not direct DB write.</div>
+      </div>
+      {%- else %}
+      <div class="rounded-lg p-6 text-center text-xs" style="background:#f8f9fb;border:1px solid #e5e7eb">
+        <div class="text-gray-400 mb-2">No matching admin_audit_log entry found near</div>
+        <div class="mono font-semibold text-gray-600 mb-3">{{ res.verified_at }}</div>
+        <div class="inline-block px-3 py-1.5 rounded-lg text-red-600 font-semibold" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)">Tamper class: DIRECT-DB (bypass of application layer)</div>
+      </div>
+      {%- endif %}
+    </div>
+  </div>
+  {%- endif %}
+
+  <!-- Admin Audit Log -->
+  <div class="card">
+    <div class="p-5 border-b border-gray-100">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-sm font-bold text-gray-900">Admin Audit Log</div>
+          <div class="text-xs text-gray-400 mt-0.5">All privileged actions &middot; FR-10</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" id="log-search" placeholder="Search user, entity, ID&hellip;" oninput="filterLog()" class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 w-52" style="font-family:'Inter',sans-serif">
+          <div class="flex items-center gap-1" id="filter-pills">
+            <button class="filter-pill active" onclick="setFilter('all',this)">All</button>
+            <button class="filter-pill" onclick="setFilter('CREATE',this)">Create</button>
+            <button class="filter-pill" onclick="setFilter('UPDATE',this)">Update</button>
+            <button class="filter-pill" onclick="setFilter('DELETE',this)">Delete</button>
+            <button class="filter-pill" onclick="setFilter('ASSIGN',this)">Assign</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:120px">Record ID</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:160px">User</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:80px">Action</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Entity / Target</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:160px">Timestamp</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:60px">Delta</th>
+          </tr>
+        </thead>
+        <tbody id="log-tbody">
+          {%- for row in audit_log_rows -%}
+          {%- set is_match = cross_ref_log is not none and row.id == cross_ref_log.id -%}
+          <tr class="log-row {{ 'log-row-tamper' if is_match else '' }} border-b border-gray-100"
+              data-action="{{ row.action }}"
+              data-text="{{ (row.username or '') | lower }} {{ (row.entity_id | string | lower) if row.entity_id else '' }} {{ (row.entity_type or '') | lower }}">
+            <td class="px-5 py-3 mono {{ 'font-semibold text-gray-800' if is_match else 'text-gray-700' }}">{{ row.id }}</td>
+            <td class="px-4 py-3 font-semibold text-gray-900">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style="background:{{ '#ef4444' if is_match else '#1B3F95' }}">{{ (row.username or 'SY')[:2].upper() }}</div>
+                <span class="mono">{{ row.username }}</span>
+                {%- if is_match %}
+                <span class="text-[9px] px-1.5 py-0.5 rounded font-semibold" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25)">MATCH</span>
+                {%- endif %}
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="text-[10px] px-2 py-0.5 rounded font-semibold action-{{ (row.action or 'update').lower() }}">{{ row.action }}</span></td>
+            <td class="px-4 py-3 mono text-gray-600">{{ row.entity_type }}{% if row.entity_id %} &middot; {{ row.entity_id }}{% endif %}</td>
+            <td class="px-4 py-3 mono text-gray-500">{{ row.timestamp }}</td>
+            <td class="px-4 py-3">
+              {%- if row.delta_json %}
+              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="toggleDelta(this)">View</button>
+              {%- else %}
+              <span class="text-[10px] text-gray-300">&mdash;</span>
+              {%- endif %}
+            </td>
+          </tr>
+          {%- if row.delta_json %}
+          <tr class="hidden border-b border-gray-100"{% if is_match %} style="background:rgba(239,68,68,.03)"{% endif %}>
+            <td colspan="6" class="px-5 py-3">
+              <div class="rounded overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d;max-width:520px">
+                <span class="delta-line dl-neutral">{{ row.delta_json | e }}</span>
+              </div>
+            </td>
+          </tr>
+          {%- endif %}
+          {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let currentFilter = 'all';
+
+  function toggleDelta(btn) {
+    const row = btn.closest('tr');
+    const deltaRow = row.nextElementSibling;
+    if (!deltaRow) return;
+    const hidden = deltaRow.classList.contains('hidden');
+    deltaRow.classList.toggle('hidden', !hidden);
+    btn.textContent = hidden ? 'Hide' : 'View';
+  }
+
+  function setFilter(f, el) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+  }
+
+  function filterLog() { applyFilters(); }
+
+  function applyFilters() {
+    const q = document.getElementById('log-search').value.toLowerCase();
+    document.querySelectorAll('#log-tbody tr').forEach(row => {
+      if (!row.dataset.action) return;
+      const matchAction = currentFilter === 'all' || row.dataset.action === currentFilter;
+      const matchText = !q || (row.dataset.text || '').includes(q);
+      const show = matchAction && matchText;
+      row.style.display = show ? '' : 'none';
+      const next = row.nextElementSibling;
+      if (next && !next.dataset.action) next.style.display = 'none';
+    });
+  }
+</script>
 {% endblock %}

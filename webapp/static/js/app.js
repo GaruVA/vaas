@@ -207,6 +207,8 @@ function dismissToast(el) {
             setGateStatus(gId, "gate-open",     "bi-exclamation",         "OPEN / LATE", 4000);
           else if (BAD_STATUSES.includes(s))
             setGateStatus(gId, "gate-rejected", "bi-x-circle-fill",       "DENIED",      5000);
+          else if (ANOMALY_STATUSES.includes(s))
+            setGateStatus(gId, "gate-alert",    "bi-exclamation-diamond", "ANOMALY",     6000);
         }
       })
       .catch(() => {});
@@ -320,11 +322,13 @@ function dismissToast(el) {
         prependEventRow(evt);
         const s = evt.status ?? "";
         if (OK_STATUSES.includes(s))
-          setGateStatus(gateId, "gate-open",     "bi-unlock-fill",   "OPEN",      4000);
+          setGateStatus(gateId, "gate-open",     "bi-unlock-fill",         "OPEN",        4000);
         else if (LATE_STATUSES.includes(s))
-          setGateStatus(gateId, "gate-open",     "bi-exclamation",   "OPEN / LATE", 4000);
+          setGateStatus(gateId, "gate-open",     "bi-exclamation",         "OPEN / LATE", 4000);
         else if (BAD_STATUSES.includes(s))
-          setGateStatus(gateId, "gate-rejected", "bi-x-circle-fill", "DENIED",    5000);
+          setGateStatus(gateId, "gate-rejected", "bi-x-circle-fill",       "DENIED",      5000);
+        else if (ANOMALY_STATUSES.includes(s))
+          setGateStatus(gateId, "gate-alert",    "bi-exclamation-diamond", "ANOMALY",     6000);
       }
 
       if (evt.type === "exception") {

@@ -143,10 +143,33 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     app.register_blueprint(manager_bp)
     app.register_blueprint(operator_bp)
     
-    # Index route (redirect to operator dashboard)
+    # ── UI routes — serve the static HTML pages at clean top-level URLs ──────
+    from flask import redirect, send_from_directory
+
+    UI_DIR = app.static_folder + "/ui"
+
     @app.route("/")
     def index():
-        from flask import redirect, url_for
-        return redirect(url_for("operator.dashboard"))
-    
+        return redirect("/static/ui/VAAS.html")
+
+    @app.route("/VAAS.html")
+    def ui_hub():
+        return send_from_directory(UI_DIR, "VAAS.html")
+
+    @app.route("/vaas-fleet.html")
+    def ui_fleet():
+        return send_from_directory(UI_DIR, "vaas-fleet.html")
+
+    @app.route("/vaas-forensic.html")
+    def ui_forensic():
+        return send_from_directory(UI_DIR, "vaas-forensic.html")
+
+    @app.route("/vaas-gateops.html")
+    def ui_gateops():
+        return send_from_directory(UI_DIR, "vaas-gateops.html")
+
+    @app.route("/vaas-manager.html")
+    def ui_manager():
+        return send_from_directory(UI_DIR, "vaas-manager.html")
+
     return app

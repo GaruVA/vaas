@@ -1,117 +1,120 @@
-{% extends "base.html" %}
-{% block title %}Subcontractor Billing Audit — VAAS{% endblock %}
+{% extends "manager/report_base.html" %}
+{% block title %}Subcontractor Billing Audit -- VAAS{% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div class="page-header-left">
-    <h1 class="page-title"><i class="bi bi-building-fill-gear"></i> Subcontractor Billing Audit</h1>
-    <p class="page-subtitle">Billed hours per company × vehicle × project — {{ df }} to {{ dt }}</p>
-  </div>
-  <div class="page-actions">
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_csv_route', report_type='subcontractor',
-                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
-      <i class="bi bi-filetype-csv"></i> CSV
-    </a>
-    <a class="btn btn-outline-secondary"
-       href="{{ url_for('manager.export_pdf_route', report_type='subcontractor',
-                        **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
-      <i class="bi bi-filetype-pdf"></i> PDF
-    </a>
-    <a class="btn btn-secondary" href="{{ url_for('manager.home') }}">
-      <i class="bi bi-arrow-left"></i> Reports
-    </a>
-  </div>
+{% block report_icon %}<i class="bi bi-building-fill-gear" style="color:#1B3F95"></i>{% endblock %}
+{% block report_title %}Subcontractor Billing Audit{% endblock %}
+{% block report_subtitle %}Billed hours per company &times; vehicle &times; project &mdash; {{ df }} to {{ dt }}{% endblock %}
+
+{% block report_export %}
+  <a class="btn-export"
+     href="{{ url_for('manager.export_csv_route', report_type='subcontractor', **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+    <i class="bi bi-filetype-csv"></i> CSV
+  </a>
+  <a class="btn-export"
+     href="{{ url_for('manager.export_pdf_route', report_type='subcontractor', **{'from': df.isoformat(), 'to': dt.isoformat()}) }}">
+    <i class="bi bi-filetype-pdf"></i> PDF
+  </a>
+{% endblock %}
+
+{% block report_toolbar %}
+<div class="saas-toolbar">
+  <i class="bi bi-funnel" style="color:#94a3b8;font-size:.85rem"></i>
+  <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
+    <span class="filter-sep">From</span>
+    <input type="date" name="from" value="{{ df }}"
+           class="form-control form-control-sm" style="width:148px">
+    <span class="filter-sep">to</span>
+    <input type="date" name="to" value="{{ dt }}"
+           class="form-control form-control-sm" style="width:148px">
+    <input type="text" name="company_id" value="{{ company_id or '' }}"
+           placeholder="Company ID (optional)"
+           class="form-control form-control-sm" style="width:190px">
+    <button class="btn-report-filter" type="submit">
+      <i class="bi bi-arrow-clockwise"></i> Apply
+    </button>
+  </form>
 </div>
+{% endblock %}
 
-<div class="report-card">
-  <div class="report-filter-bar">
-    <i class="bi bi-funnel" style="color:var(--text-muted)"></i>
-    <form class="d-flex align-items-center gap-2 flex-wrap m-0" method="get">
-      <input type="date" name="from" value="{{ df }}" class="form-control form-control-sm" style="width:150px">
-      <span style="color:var(--text-muted);font-size:.8rem">to</span>
-      <input type="date" name="to"   value="{{ dt }}" class="form-control form-control-sm" style="width:150px">
-      <input type="text" name="company_id" value="{{ company_id or '' }}"
-             placeholder="Company ID (optional)" class="form-control form-control-sm" style="width:190px">
-      <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Filter</button>
-    </form>
-  </div>
+{% block report_table %}
+<table class="saas-table">
+  <thead style="position:sticky;top:0;z-index:2;background:#fff">
+    <tr>
+      <th>Company</th>
+      <th>Project</th>
+      <th>Plate</th>
+      <th>Period</th>
+      <th style="text-align:center">Trips</th>
+      <th>Billed Hours</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% set ns = namespace(prev_co='') %}
+  {% for r in rows %}
+    <tr {% if r.company_id != ns.prev_co %}style="border-top:2px solid #eef1fb"{% endif %}>
+      {% set ns.prev_co = r.company_id %}
+      <td>
+        <div style="font-weight:600;font-size:.82rem;color:#0f172a">{{ r.company_name }}</div>
+        <div style="font-size:.7rem;font-family:var(--font-mono);color:#94a3b8">
+          {{ r.company_id }}
+        </div>
+      </td>
+      <td>
+        <div style="font-size:.82rem;color:#1e2535">{{ r.project_name }}</div>
+        <div style="font-size:.7rem;font-family:var(--font-mono);color:#94a3b8">
+          {{ r.project_code }}
+        </div>
+      </td>
+      <td><span class="saas-plate" style="color:#b45309">{{ r.plate_number }}</span></td>
+      <td style="font-family:var(--font-mono);font-size:.75rem;color:#64748b;white-space:nowrap">
+        {{ r.date_from[:10] }} &rarr; {{ r.date_to[:10] }}
+      </td>
+      <td style="font-family:var(--font-mono);font-size:.82rem;
+                 text-align:center;color:#1e2535">
+        {{ r.trips }}
+      </td>
+      <td style="font-family:var(--font-mono);font-weight:700;font-size:.92rem;
+                 color:#0e7490">
+        {{ r.billed_hours | round(2) }} h
+      </td>
+    </tr>
+  {% else %}
+    <tr>
+      <td colspan="6">
+        <div class="saas-empty">
+          <i class="bi bi-inbox"></i>
+          <span>No subcontractor billing records for this period.</span>
+          {% if not company_id %}
+            <span style="font-size:.75rem;color:#94a3b8">Enter a Company ID above to filter by specific contractor.</span>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
 
-  <div class="report-table-wrap">
-    <table class="vaas-table">
-      <thead>
-        <tr>
-          <th>Company</th>
-          <th>Project</th>
-          <th>Plate</th>
-          <th>Period</th>
-          <th>Trips</th>
-          <th>Billed Hours</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% set ns = namespace(prev_co='') %}
-      {% for r in rows %}
-        <tr {% if r.company_id != ns.prev_co %}style="border-top:1px solid rgba(255,255,255,.07)"{% endif %}>
-          {% set ns.prev_co = r.company_id %}
-          <td>
-            <div style="font-weight:600;font-size:.82rem">{{ r.company_name }}</div>
-            <div style="font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted)">{{ r.company_id }}</div>
-          </td>
-          <td>
-            <div style="font-size:.82rem">{{ r.project_name }}</div>
-            <div style="font-size:.7rem;font-family:var(--font-mono);color:var(--text-muted)">{{ r.project_code }}</div>
-          </td>
-          <td style="font-family:var(--font-mono);font-weight:600;color:var(--amber);font-size:.8rem">
-            {{ r.plate_number }}
-          </td>
-          <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);white-space:nowrap">
-            {{ r.date_from[:10] }} → {{ r.date_to[:10] }}
-          </td>
-          <td style="font-family:var(--font-mono);font-size:.82rem;text-align:center">
-            {{ r.trips }}
-          </td>
-          <td style="font-family:var(--font-mono);font-weight:700;font-size:.9rem;color:var(--cyan)">
-            {{ r.billed_hours | round(2) }} h
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="6" style="text-align:center;padding:2.5rem;color:var(--text-muted)">
-            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
-            No subcontractor billing records for this period.
-            {% if not company_id %}<br>Enter a Company ID above to filter by specific contractor.{% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  {% if rows %}
-  <!-- Totals footer -->
-  <div style="padding:.75rem 1.25rem;border-top:1px solid rgba(255,255,255,.06);
-    display:flex;justify-content:flex-end;gap:2rem;font-size:.82rem">
-    <span style="color:var(--text-muted)">
-      Total trips: <strong style="color:var(--text-primary)">{{ rows | sum(attribute='trips') }}</strong>
-    </span>
-    <span style="color:var(--text-muted)">
-      Total billed hours:
-      <strong style="color:var(--cyan)">{{ rows | sum(attribute='billed_hours') | round(2) }} h</strong>
-    </span>
-  </div>
-  {% endif %}
+{% block report_card_footer %}
+{% if rows %}
+<div class="saas-card-footer">
+  <span>Total trips: <strong>{{ rows | sum(attribute='trips') }}</strong></span>
+  <span>Total billed hours:
+    <strong style="color:#0e7490;font-family:var(--font-mono)">
+      {{ rows | sum(attribute='billed_hours') | round(2) }} h
+    </strong>
+  </span>
 </div>
+{% endif %}
+{% endblock %}
 
-<div class="panel mt-3" style="max-width:680px">
-  <div class="panel-header">
-    <span class="panel-title"><i class="bi bi-info-circle-fill"></i> Billing Derivation</span>
+{% block report_info %}
+<div class="report-info-panel">
+  <div class="report-info-panel-title">
+    <i class="bi bi-info-circle-fill"></i> Billing Derivation
   </div>
-  <div class="panel-body" style="font-size:.8rem;line-height:1.8;color:var(--text-secondary)">
-    Billed hours are derived from the <strong>dwell_time_seconds</strong> field on EXIT events in the
-    access log, cross-referenced against <strong>project_vehicle_assignments</strong> to attribute hours
-    to the correct project. Only vehicles assigned with the <code>SUBCONTRACTOR</code> role are included.
-    Export to CSV for submission to the CDL Finance department for invoice verification.
-  </div>
+  <p>Billed hours are derived from <code>dwell_time_seconds</code> on EXIT events, cross-referenced
+  against <code>project_vehicle_assignments</code>. Only vehicles with the
+  <strong>SUBCONTRACTOR</strong> role are included. Export to CSV for Finance invoice verification.</p>
 </div>
 {% endblock %}
