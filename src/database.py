@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS registered_vehicles (
 );
 
 CREATE TABLE IF NOT EXISTS shifts (
-    shift_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    shift_id             TEXT PRIMARY KEY,
     shift_name           TEXT NOT NULL,
     start_time           TEXT NOT NULL,
     end_time             TEXT NOT NULL,

@@ -191,17 +191,8 @@ class AttendanceEngine:
                 message="Read too short — discarded",
             )
 
-        if not _VALID_PLATE_RE.match(raw_plate):
-            logger.debug("[%s] Discarding invalid-format plate '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
-            return GateEventResult(
-                outcome=GateOutcome.BARRIER_CLOSED_REJECTED,
-                status=GateStatus.VISITOR,
-                plate_number=None,
-                access_log_id=None,
-                message="Invalid plate format — discarded",
-            )
-
-        # 1. LPM-MLED lookup
+        # 1. LPM-MLED lookup — runs before format check so 1-char OCR errors
+        #    (e.g. WP-CA8-1234 → WP-CAB-1234) are corrected on registered plates.
         candidates = [
             r[0] for r in self._conn.execute(
                 "SELECT plate_number FROM registered_vehicles"
@@ -210,6 +201,18 @@ class AttendanceEngine:
         matched_plate = lpm_mled_correct(raw_plate, candidates)
 
         if matched_plate is None:
+            # No registered-plate match — apply format check before treating as visitor.
+            # LPM already had its chance, so anything left is either a genuine visitor
+            # plate (valid format) or pure OCR garbage (invalid format → discard).
+            if not _VALID_PLATE_RE.match(raw_plate):
+                logger.debug("[%s] Discarding invalid-format plate '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
+                return GateEventResult(
+                    outcome=GateOutcome.BARRIER_CLOSED_REJECTED,
+                    status=GateStatus.VISITOR,
+                    plate_number=None,
+                    access_log_id=None,
+                    message="Invalid plate format — discarded",
+                )
             # Unregistered / unknown plate -> VISITOR exception
             return self._handle_visitor(raw_plate, confidence, gate_id, direction, ts_str, crop_b64)
 

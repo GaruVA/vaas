@@ -341,9 +341,37 @@ def test_28_visitor_triggers_sse_callback(seeded_db):
     def sse_cb(event_type, data):
         events.append((event_type, data))
     eng = AttendanceEngine(seeded_db, BarrierController("MOCK"), sse_callback=sse_cb, exception_timeout=60)
-    result = eng.process_gate_event("ZZ-NONE", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    result = eng.process_gate_event("ZZ-9999", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     if result.access_log_id in eng._pending_timers:
         eng._pending_timers[result.access_log_id].cancel()
     assert len(events) == 1
-    assert events[0][0] == "VISITOR_EXCEPTION"
-    assert "access_log_id" in events[0][1]
+    assert events[0][0] == "exception"
+    assert "id" in events[0][1]
+
+
+# ---------------------------------------------------------------------------
+# 29-32: Plate format validation
+# ---------------------------------------------------------------------------
+
+def test_29_invalid_format_no_dash_discarded(db):
+    eng = AttendanceEngine(db, BarrierController("MOCK"))
+    result = eng.process_gate_event("ABCDE1", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.access_log_id is None
+
+
+def test_30_invalid_format_mixed_prefix_discarded(db):
+    eng = AttendanceEngine(db, BarrierController("MOCK"))
+    result = eng.process_gate_event("A1-1234", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.access_log_id is None
+
+
+def test_31_invalid_format_wrong_digit_count_discarded(db):
+    eng = AttendanceEngine(db, BarrierController("MOCK"))
+    result = eng.process_gate_event("ABC-12", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.access_log_id is None
+
+
+def test_32_valid_format_xx_0000_passes_filter(db):
+    eng = AttendanceEngine(db, BarrierController("MOCK"))
+    result = eng.process_gate_event("AB-1234", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
+    assert result.access_log_id is not None

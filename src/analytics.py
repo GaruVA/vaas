@@ -57,17 +57,19 @@ def personal_vehicle_allowance_report(
             u.username,
             COALESCE(u.full_name, u.username)      AS driver_name,
             va.plate_number,
-            DATE(al.timestamp)                      AS period,
-            COUNT(al.id)                            AS trips,
+            DATE(al.timestamp)                      AS event_date,
+            COUNT(CASE WHEN al.status = 'ON_TIME_ENTRY'  THEN 1 END) AS on_time_entries,
             COALESCE(SUM(al.dwell_time_seconds) / 3600.0, 0) AS hours_on_site,
-            CASE WHEN COUNT(al.id) > 0 THEN 1 ELSE 0 END AS allowance_eligible
+            CASE WHEN COUNT(CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL')
+                                 THEN 1 END) > 0
+                 THEN 1 ELSE 0 END AS eligible
         FROM users u
         JOIN vehicle_assignments va
             ON va.user_id = u.id AND va.is_active = 1
         LEFT JOIN access_log al
             ON al.plate_number = va.plate_number
             AND al.direction = 'ENTRY'
-            AND al.status IN ('ON_TIME_ENTRY', 'EARLY_ARRIVAL')
+            AND al.status IN ('ON_TIME_ENTRY', 'EARLY_ARRIVAL', 'LATE_ARRIVAL')
             AND DATE(al.timestamp) BETWEEN ? AND ?
         WHERE 1=1
     """
@@ -75,7 +77,7 @@ def personal_vehicle_allowance_report(
     if driver_user_id is not None:
         sql += " AND u.id = ?"
         params.append(driver_user_id)
-    sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY period, u.username"
+    sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY event_date, u.username"
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
@@ -103,8 +105,13 @@ def ohs_compliance_report(conn) -> list[dict]:
             rv.department,
             va.user_id,
             COALESCE(u.full_name, u.username, 'UNASSIGNED')  AS driver_name,
-            COUNT(al.id)                        AS total_access_events,
-            SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) AS overstay_events,
+            COUNT(al.id)                        AS total_events,
+            SUM(CASE WHEN al.status = 'OVERSTAY' THEN 1 ELSE 0 END) AS overstay_count,
+            CASE
+                WHEN rv.registration_status != 'ACTIVE' THEN 0
+                WHEN va.user_id IS NULL THEN 0
+                ELSE 1
+            END AS is_compliant,
             CASE
                 WHEN rv.registration_status != 'ACTIVE' THEN 'SUSPENDED'
                 WHEN va.user_id IS NULL THEN 'UNASSIGNED'
@@ -120,12 +127,8 @@ def ohs_compliance_report(conn) -> list[dict]:
         LEFT JOIN access_log al
             ON al.plate_number = rv.plate_number
         GROUP BY rv.plate_number
-        ORDER BY CASE WHEN risk_flag = 'SUSPENDED' THEN 0
-                      WHEN risk_flag = 'UNASSIGNED' THEN 1
-                      WHEN risk_flag = 'HIGH_RISK' THEN 2
-                      WHEN risk_flag = 'MEDIUM_RISK' THEN 3
-                      ELSE 4 END,
-                 overstay_events DESC
+        ORDER BY is_compliant ASC,
+                 overstay_count DESC
         """
     ).fetchall()
     return [dict(r) for r in rows]
@@ -278,6 +281,129 @@ def subcontractor_billing_audit(
         params.append(company_id)
     sql += " GROUP BY sc.company_id, pva.plate_number, pva.project_code ORDER BY sc.company_id, pva.plate_number"
     rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# 7. Daily attendance report
+# ---------------------------------------------------------------------------
+
+def daily_attendance_report(conn, report_date: str) -> list[dict]:
+    """Attendance presence per registered vehicle for a single date.
+
+    Returns one row per registered vehicle with:
+      plate_number, vehicle_category, total_events, present (1/0)
+    """
+    rows = conn.execute(
+        """
+        SELECT rv.plate_number,
+               rv.vehicle_category,
+               COUNT(a.id)                        AS total_events,
+               CASE WHEN COUNT(a.id) > 0 THEN 1 ELSE 0 END AS present
+        FROM registered_vehicles rv
+        LEFT JOIN access_log a
+               ON a.plate_number = rv.plate_number
+              AND date(a.timestamp) = ?
+        GROUP BY rv.plate_number
+        ORDER BY rv.plate_number
+        """,
+        (report_date,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# 8. Weekly attendance report
+# ---------------------------------------------------------------------------
+
+def weekly_attendance_report(conn, week_start: str) -> list[dict]:
+    """Distinct days present per registered vehicle for the 7-day window
+    starting on *week_start* (ISO date string, inclusive).
+
+    Returns one row per registered vehicle with:
+      plate_number, vehicle_category, days_present
+    """
+    rows = conn.execute(
+        """
+        SELECT rv.plate_number,
+               rv.vehicle_category,
+               COUNT(DISTINCT date(a.timestamp)) AS days_present
+        FROM registered_vehicles rv
+        LEFT JOIN access_log a
+               ON a.plate_number = rv.plate_number
+              AND date(a.timestamp) >= ?
+              AND date(a.timestamp) <  date(?, '+7 days')
+        GROUP BY rv.plate_number
+        ORDER BY rv.plate_number
+        """,
+        (week_start, week_start),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# 9. Monthly attendance report
+# ---------------------------------------------------------------------------
+
+def monthly_attendance_report(conn, year: int, month: int) -> list[dict]:
+    """Distinct days present per registered vehicle for a calendar month.
+
+    Returns one row per registered vehicle with:
+      plate_number, vehicle_category, days_present
+    """
+    month_str = f"{year:04d}-{month:02d}"
+    rows = conn.execute(
+        """
+        SELECT rv.plate_number,
+               rv.vehicle_category,
+               COUNT(DISTINCT date(a.timestamp)) AS days_present
+        FROM registered_vehicles rv
+        LEFT JOIN access_log a
+               ON a.plate_number = rv.plate_number
+              AND strftime('%Y-%m', a.timestamp) = ?
+        GROUP BY rv.plate_number
+        ORDER BY rv.plate_number
+        """,
+        (month_str,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# 10. Gate throughput report
+# ---------------------------------------------------------------------------
+
+def gate_throughput_report(
+    conn,
+    date_from: str,
+    date_to: str,
+    gate_id: str | None = None,
+) -> list[dict]:
+    """Hourly gate throughput broken down by gate and direction.
+
+    Returns rows with: gate_id, event_date, hour (0-23), direction, count
+    """
+    params: list = [date_from, date_to]
+    gate_filter = ""
+    if gate_id:
+        gate_filter = "AND gate_id = ?"
+        params.append(gate_id)
+
+    rows = conn.execute(
+        f"""
+        SELECT gate_id,
+               date(timestamp)              AS event_date,
+               CAST(strftime('%H', timestamp) AS INTEGER) AS hour,
+               direction,
+               COUNT(*)                    AS count
+        FROM access_log
+        WHERE date(timestamp) BETWEEN ? AND ?
+          {gate_filter}
+        GROUP BY gate_id, event_date, hour, direction
+        ORDER BY gate_id, event_date, hour, direction
+        """,
+        params,
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
