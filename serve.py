@@ -87,7 +87,8 @@ if not env_file.exists():
         "  copy .env.example .env"
     )
 
-check_only = "--check-env" in sys.argv
+check_only    = "--check-env"    in sys.argv
+list_cameras  = "--list-cameras" in sys.argv
 
 for w in _WARNINGS:
     logger.warning(w)
@@ -98,6 +99,26 @@ if _ERRORS:
     if not check_only:
         logger.error("Startup aborted — fix the errors above, then re-run serve.py.")
         sys.exit(1)
+
+if list_cameras:
+    import cv2 as _cv2
+    import platform as _platform
+    print("\nProbing camera indices with DirectShow (Windows) backend...\n")
+    found = False
+    for _i in range(10):
+        _backend = _cv2.CAP_DSHOW if _platform.system() == "Windows" else _cv2.CAP_ANY
+        _cap = _cv2.VideoCapture(_i, _backend)
+        if _cap.isOpened():
+            _w = int(_cap.get(_cv2.CAP_PROP_FRAME_WIDTH))
+            _h = int(_cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))
+            print(f"  index {_i}  →  {_w}x{_h}  (available)")
+            found = True
+        _cap.release()
+    if not found:
+        print("  No cameras found.")
+    print(f"\nCurrent config:  VAAS_CAM_A={CAMERA_INDEX_GATE_A}  VAAS_CAM_B={CAMERA_INDEX_GATE_B}")
+    print("Update VAAS_CAM_A / VAAS_CAM_B in your .env to match the correct indices above.\n")
+    sys.exit(0)
 
 if check_only:
     if _ERRORS:
