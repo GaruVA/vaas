@@ -71,18 +71,18 @@
   </div>
   <div style="padding:10px 20px;border-bottom:2px solid #f4bd0f;border-right:1px solid #1a2235;background:rgba(244,189,15,.04)">
     <div style="font-size:.5625rem;text-transform:uppercase;letter-spacing:.16em;color:#3d4f6a;margin-bottom:3px">Pending Exceptions</div>
-    <div style="font-size:1.375rem;font-weight:700;color:#f4bd0f;line-height:1" id="pending-count">3</div>
+    <div style="font-size:1.375rem;font-weight:700;color:#f4bd0f;line-height:1" id="pending-count">—</div>
   </div>
   <div style="padding:10px 20px;border-bottom:2px solid #3d4f6a;border-right:1px solid #1a2235">
     <div style="font-size:.5625rem;text-transform:uppercase;letter-spacing:.16em;color:#3d4f6a;margin-bottom:3px">Session Events</div>
-    <div style="font-size:1.375rem;font-weight:700;color:#8899aa;line-height:1" id="session-count">47</div>
+    <div style="font-size:1.375rem;font-weight:700;color:#8899aa;line-height:1" id="session-count">0</div>
   </div>
   <div style="padding:10px 20px;border-bottom:2px solid #76bd33;border-right:1px solid #1a2235;background:rgba(118,189,51,.04);flex:1">
     <div style="font-size:.5625rem;text-transform:uppercase;letter-spacing:.16em;color:#3d4f6a;margin-bottom:3px">Active Shift</div>
     <div style="display:flex;align-items:baseline;gap:10px">
-      <span id="shift-name" style="font-size:1.375rem;font-weight:700;color:#76bd33;line-height:1">MORNING</span>
-      <span id="shift-label" style="font-size:.75rem;color:#76bd33">07:00–15:00 UTC</span>
-      <span style="font-size:.5625rem;padding:2px 7px;border-radius:2px;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)" id="shift-remaining">28 MIN LEFT</span>
+      <span id="shift-name" style="font-size:1.375rem;font-weight:700;color:#76bd33;line-height:1">—</span>
+      <span id="shift-label" style="font-size:.75rem;color:#76bd33">—</span>
+      <span style="font-size:.5625rem;padding:2px 7px;border-radius:2px;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)" id="shift-remaining">—</span>
     </div>
   </div>
   <div style="padding:10px 20px;border-bottom:2px solid #06b6d4;background:rgba(6,182,212,.04)">
@@ -207,7 +207,7 @@
     <div style="padding:10px 14px;background:#080c18;border-bottom:1px solid #1a2235;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:.5625rem;text-transform:uppercase;letter-spacing:.16em;color:#3d4f6a">Exception Queue</span>
-        <span id="queue-badge" style="font-size:.625rem;font-weight:700;padding:1px 7px;border-radius:2px;background:rgba(244,189,15,.18);color:#f4bd0f;border:1px solid rgba(244,189,15,.3)">3</span>
+        <span id="queue-badge" style="font-size:.625rem;font-weight:700;padding:1px 7px;border-radius:2px;background:rgba(244,189,15,.18);color:#f4bd0f;border:1px solid rgba(244,189,15,.3)">—</span>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
         <span class="breathe" style="width:5px;height:5px;border-radius:50%;display:inline-block;color:#f4bd0f;background:#f4bd0f"></span>
@@ -584,6 +584,8 @@
   }
 
   // ── SSE connection ────────────────────────────────────────────────────────
+  let _sseConnected = false;
+
   function connectSSE() {
     const es = new EventSource('/operator/sse');
     es.onmessage = e => {
@@ -597,14 +599,27 @@
             display_status: STATUS_DISPLAY[evt.status] || evt.status,
             confidence_score: evt.confidence,
           });
-        } else if (evt.type === 'exception_pending' || evt.type === 'exception_disposed') {
+        } else if (evt.type === 'exception' || evt.type === 'exception_pending' || evt.type === 'exception_disposed') {
+          // 'exception' is what the broker actually publishes (AttendanceEngine sse_callback)
           loadExceptions();
         } else if (evt.type === 'gate_status') {
           updateGateIndicators(evt.data);
         }
       } catch {}
     };
-    es.onerror = () => setTimeout(connectSSE, 5000);
+    es.onopen = () => {
+      if (_sseConnected) {
+        // Reconnected after a drop — backfill any events missed during the gap
+        loadEvents();
+        loadExceptions();
+      }
+      _sseConnected = true;
+    };
+    es.onerror = () => {
+      _sseConnected = false;
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
   }
 
   // ── Current user (navbar) ─────────────────────────────────────────────────
@@ -628,9 +643,9 @@
   loadExceptions();
   connectSSE();
 
-  // Faster refresh rates for gateops
-  setInterval(loadEvents,     8000);
-  setInterval(loadExceptions, 12000);
+  // Polling fallbacks — SSE is primary; these catch gaps on reconnect/miss
+  setInterval(loadEvents,     5000);
+  setInterval(loadExceptions, 5000);
   setInterval(loadShift,      60000);
   setInterval(async () => {
     try {
