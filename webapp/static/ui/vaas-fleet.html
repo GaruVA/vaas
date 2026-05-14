@@ -419,4 +419,153 @@
     const arr = document.getElementById(id+'-arrow');
     const open = ex.style.display === 'table-row';
     ex.style.display = open ? 'none' : 'table-row';
-   
+    if (arr) arr.textContent = open ? '›' : '‹';
+  }
+
+  // ── Data loading ────────────────────────────────────────────────────
+  async function loadVehicles() {
+    try {
+      const r = await fetch('/api/vehicles');
+      if (r.status === 401) { location.href = '/auth/login?next=/vaas-fleet.html'; return; }
+      if (!r.ok) return;
+      const vehicles = await r.json();
+      const tbody = document.getElementById('tbody-vehicles');
+      if (!tbody) return;
+
+      const rows = vehicles.map((v, i) => {
+        const riskBadgeClass = v.registration_status === 'ACTIVE' ? 'badge-ok'
+          : v.registration_status === 'SUSPENDED' ? 'badge-suspended'
+          : 'badge-expired';
+        const riskText = v.registration_status || 'UNKNOWN';
+        const driver = v.assigned_driver_name || 'Not assigned';
+        const driverClass = v.assigned_driver_name ? 'text-gray-700' : 'text-gray-400 italic';
+
+        return `
+          <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-${i}',this)">
+            <td class="px-5 py-3 text-gray-400 text-base" id="vex-${i}-arrow">›</td>
+            <td class="px-3 py-3 font-bold mono text-gray-900">${v.plate_number||'—'}</td>
+            <td class="px-3 py-3 text-gray-600">${v.make_model || 'Unknown'} · <span class="text-gray-400">${v.vehicle_category||'—'}</span></td>
+            <td class="px-3 py-3"><span class="badge-pill ${riskBadgeClass}">${riskText}</span></td>
+            <td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td>
+            <td class="px-3 py-3 font-medium ${driverClass}">${driver}</td>
+            <td class="px-3 py-3 mono text-gray-500">—</td>
+            <td class="px-3 py-3 flex items-center gap-1">
+              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button>
+            </td>
+          </tr>
+          <tr id="vex-${i}" class="expand-row border-b border-gray-100">
+            <td colspan="8" class="px-8 py-3" style="background:#f8f9fb">
+              <div class="flex items-center gap-8 text-xs">
+                <div><span class="text-gray-400">Plate</span> <span class="font-semibold text-gray-700 ml-1">${v.plate_number||'—'}</span></div>
+                <div><span class="text-gray-400">Category</span> <span class="font-semibold text-gray-700 ml-1">${v.vehicle_category||'—'}</span></div>
+                <div><span class="text-gray-400">Type</span> <span class="font-semibold text-gray-700 ml-1">${v.vehicle_type||'—'}</span></div>
+                <div><span class="text-gray-400">Status</span> <span class="font-semibold text-gray-700 ml-1">${riskText}</span></div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rows;
+    } catch(e) { console.warn('Vehicles load failed', e); }
+  }
+
+  async function loadShifts() {
+    try {
+      const r = await fetch('/api/shifts');
+      if (!r.ok) return;
+      const shifts = await r.json();
+      const tbody = document.getElementById('tbody-shifts');
+      if (!tbody) return;
+
+      const rows = shifts.map(s => `
+        <tr class="border-b border-gray-50 hover:bg-gray-50">
+          <td class="px-5 py-3 font-semibold text-gray-800">${s.shift_name||'—'}</td>
+          <td class="px-4 py-3 mono">${s.start_time||'—'}</td>
+          <td class="px-4 py-3 mono">${s.end_time||'—'}</td>
+          <td class="px-4 py-3 mono text-gray-600">${s.grace_minutes||0}</td>
+          <td class="px-4 py-3 mono font-semibold text-gray-700">—</td>
+          <td class="px-4 py-3 mono font-semibold text-gray-700">—</td>
+          <td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = rows;
+    } catch(e) { console.warn('Shifts load failed', e); }
+  }
+
+  async function loadZones() {
+    try {
+      const r = await fetch('/api/zones');
+      if (!r.ok) return;
+      const zones = await r.json();
+      const grid = document.getElementById('zones-grid');
+      if (!grid) return;
+
+      const cards = zones.map(z => {
+        const pct = Math.round((z.occupancy || 0) * 100);
+        const color = pct >= 85 ? '#ef4444' : pct >= 65 ? '#f4bd0f' : '#76bd33';
+        const colorClass = pct >= 85 ? 'red' : pct >= 65 ? 'amber' : 'green';
+        const msg = pct >= 85 ? 'Near capacity — restrict entry'
+          : pct >= 65 ? 'Approaching capacity'
+          : 'Normal utilisation';
+
+        return `
+          <div class="card p-4">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="text-xs font-bold text-gray-900">${z.zone_name||'—'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5">${z.associated_gates?.join(' · ') || 'GATE_A'}</div>
+              </div>
+              <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">${z.zone_type||'ZONE'}</span>
+            </div>
+            <div class="flex items-end justify-between mt-3">
+              <div>
+                <div class="text-2xl font-bold mono text-gray-900">${z.current_occupancy || 0}</div>
+                <div class="text-[10px] text-gray-400">of ${z.vehicle_capacity || 50} capacity</div>
+              </div>
+              <div class="text-right">
+                <div class="text-lg font-bold mono" style="color:${color}">${pct}%</div>
+              </div>
+            </div>
+            <div class="cap-bar"><div class="cap-fill" style="width:${pct}%;background:${color}"></div></div>
+            <div class="text-[10px] mt-1.5" style="color:${colorClass === 'red' ? '#dc2626' : colorClass === 'amber' ? '#d97706' : '#16a34a'}">${msg}</div>
+          </div>
+        `;
+      }).join('');
+
+      grid.innerHTML = cards;
+    } catch(e) { console.warn('Zones load failed', e); }
+  }
+
+  async function loadUsers() {
+    try {
+      const r = await fetch('/api/users');
+      if (!r.ok) return;
+      const users = await r.json();
+      const tbody = document.getElementById('tbody-users');
+      if (!tbody) return;
+
+      const rows = users.map(u => `
+        <tr class="border-b border-gray-50 hover:bg-gray-50">
+          <td class="px-5 py-3 font-semibold text-gray-900">${u.full_name || u.username}</td>
+          <td class="px-4 py-3 mono text-gray-600">${u.username}</td>
+          <td class="px-4 py-3"><span class="badge-pill ${u.role === 'ADMIN' ? 'badge-expired' : u.role === 'MANAGER' ? 'badge-active' : 'badge-ok'}">${u.role}</span></td>
+          <td class="px-4 py-3 text-gray-600">—</td>
+          <td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:${u.is_active ? '#76bd33' : '#999'}">● ${u.is_active ? 'Active' : 'Inactive'}</span></td>
+          <td class="px-4 py-3 flex items-center gap-1">
+            <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button>
+            <button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = rows;
+    } catch(e) { console.warn('Users load failed', e); }
+  }
+
+  // ── Bootstrap ────────────────────────────────────────────────────────
+  loadVehicles();
+  loadShifts();
+  loadZones();
+  loadUsers();

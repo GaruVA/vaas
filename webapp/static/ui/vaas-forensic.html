@@ -393,6 +393,7 @@
 
 <script>
   let currentFilter = 'all';
+  let allLogRows = [];
 
   function toggleDelta(btn) {
     const row = btn.closest('tr');
@@ -426,6 +427,91 @@
       if (next && !next.dataset.action) next.style.display = 'none';
     });
   }
+
+  // ── Load audit log from API ─────────────────────────────────────────
+  async function loadAuditLog() {
+    try {
+      const r = await fetch('/api/audit/log');
+      if (r.status === 401) { location.href = '/auth/login?next=/vaas-forensic.html'; return; }
+      if (!r.ok) return;
+      const rows = await r.json();
+      const tbody = document.getElementById('log-tbody');
+      if (!tbody) return;
+
+      const html = rows.map(row => {
+        const actionClass = row.action.includes('CREATE') ? 'action-create'
+          : row.action.includes('DELETE') ? 'action-delete'
+          : row.action.includes('ASSIGN') ? 'action-assign'
+          : 'action-update';
+        const initials = (row.username || 'U').split('_')[0].substring(0, 2).toUpperCase();
+        const deltaJson = row.delta_json ? JSON.parse(row.delta_json) : {};
+        const deltaLines = Object.entries(deltaJson).map(([k, v]) =>
+          `<span class="delta-line dl-plus">+  "${k}": ${JSON.stringify(v)}</span>`
+        ).join('');
+
+        return `
+          <tr class="log-row border-b border-gray-100" data-action="${row.action}" data-text="${(row.username + ' ' + row.entity_id + ' ' + row.entity_type).toLowerCase()}">
+            <td class="px-5 py-3 mono font-semibold text-gray-800">${row.username || 'system'}-${row.id}</td>
+            <td class="px-4 py-3 mono text-gray-600 flex items-center gap-1.5 mt-0.5">
+              <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style="background:#1B3F95">${initials}</div>
+              ${row.username || 'system'}
+            </td>
+            <td class="px-4 py-3"><span class="text-[10px] px-2 py-0.5 rounded font-semibold ${actionClass}">${row.action}</span></td>
+            <td class="px-4 py-3 mono text-gray-600">${row.entity_type} · ${row.entity_id}</td>
+            <td class="px-4 py-3 mono text-gray-500">${new Date(row.timestamp).toLocaleString()}</td>
+            <td class="px-4 py-3">${deltaLines ? '<button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="toggleDelta(this)">View</button>' : '—'}</td>
+          </tr>
+          ${deltaLines ? `<tr class="hidden border-b border-gray-100"><td colspan="6" class="px-5 py-2"><div class="rounded overflow-hidden text-xs" style="background:#0f1923;border:1px solid #1e2d3d;max-width:500px">${deltaLines}</div></td></tr>` : ''}
+        `;
+      }).join('');
+
+      tbody.innerHTML = html;
+      applyFilters();
+    } catch(e) { console.warn('Audit log load failed', e); }
+  }
+
+  // ── Load chain verification ────────────────────────────────────────
+  async function loadChainVerification() {
+    try {
+      const r = await fetch('/api/audit/chain');
+      if (!r.ok) return;
+      const data = await r.json();
+      const integrity = data.integrity;
+
+      // Update tamper banner visibility
+      const banner = document.querySelector('.pulse-banner');
+      if (integrity.ok) {
+        if (banner) banner.style.display = 'none';
+      } else {
+        // Show tamper banner with real data
+        if (banner) {
+          banner.innerHTML = `
+            <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.5)">
+                  <svg class="w-5 h-5 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <div>
+                  <div class="text-white font-bold text-base tracking-wide">CHAIN INTEGRITY FAILURE AT ROW #${integrity.first_bad_id}</div>
+                  <div class="text-red-300 text-xs mt-0.5 mono">${integrity.reason || 'Hash mismatch detected'}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-6">
+                <div class="text-right">
+                  <div class="text-[10px] text-red-300 uppercase tracking-widest">Rows Checked</div>
+                  <div class="text-white font-bold text-lg mono">${integrity.rows_checked}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+    } catch(e) { console.warn('Chain load failed', e); }
+  }
+
+  // ── Bootstrap ──────────────────────────────────────────────────────
+  loadChainVerification();
+  loadAuditLog();
 </script>
 </body>
 </html>
