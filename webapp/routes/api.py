@@ -503,7 +503,7 @@ def delete_zone(zone_id: str):
 @requires_role("ADMIN")
 def list_users():
     rows = g.db.execute(
-        "SELECT id, username, full_name, role, email, is_active "
+        "SELECT id, username, full_name, role, last_login "
         "FROM users ORDER BY username"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -538,7 +538,7 @@ def create_user():
 @requires_role("ADMIN")
 def get_user(user_id: int):
     row = g.db.execute(
-        "SELECT id, username, full_name, role, email, is_active "
+        "SELECT id, username, full_name, role, last_login "
         "FROM users WHERE id=?", (user_id,)
     ).fetchone()
     if not row:
