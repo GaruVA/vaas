@@ -102,22 +102,46 @@ if _ERRORS:
 
 if list_cameras:
     import cv2 as _cv2
+    import os as _os
     import platform as _platform
-    print("\nProbing camera indices with DirectShow (Windows) backend...\n")
-    found = False
+
+    # Suppress OpenCV's per-index DSHOW warnings for indices that have no device.
+    # They go to the C-level stderr fd, so we reroute fd 2 to nul temporarily.
+    _nul = open(_os.devnull, "w")
+    _saved_stderr_fd = _os.dup(2)
+    _os.dup2(_nul.fileno(), 2)
+
+    _backend = _cv2.CAP_DSHOW if _platform.system() == "Windows" else _cv2.CAP_ANY
+    _found: list[tuple[int, int, int, str]] = []  # (index, w, h, thumb_path)
+
     for _i in range(10):
-        _backend = _cv2.CAP_DSHOW if _platform.system() == "Windows" else _cv2.CAP_ANY
         _cap = _cv2.VideoCapture(_i, _backend)
         if _cap.isOpened():
             _w = int(_cap.get(_cv2.CAP_PROP_FRAME_WIDTH))
             _h = int(_cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))
-            print(f"  index {_i}  →  {_w}x{_h}  (available)")
-            found = True
+            _ret, _frame = _cap.read()
+            _thumb = f"camera_index_{_i}.jpg"
+            if _ret and _frame is not None:
+                _cv2.imwrite(_thumb, _cv2.resize(_frame, (320, 180)))
+            else:
+                _thumb = "(no frame)"
+            _found.append((_i, _w, _h, _thumb))
         _cap.release()
-    if not found:
+
+    # Restore stderr
+    _os.dup2(_saved_stderr_fd, 2)
+    _os.close(_saved_stderr_fd)
+    _nul.close()
+
+    print("\nCamera index probe (DirectShow):\n")
+    if _found:
+        for _i, _w, _h, _thumb in _found:
+            print(f"  index {_i}  →  {_w}x{_h}  →  {_thumb}")
+        print("\nOpen the thumbnail images to identify each camera visually.")
+    else:
         print("  No cameras found.")
-    print(f"\nCurrent config:  VAAS_CAM_A={CAMERA_INDEX_GATE_A}  VAAS_CAM_B={CAMERA_INDEX_GATE_B}")
-    print("Update VAAS_CAM_A / VAAS_CAM_B in your .env to match the correct indices above.\n")
+    print(f"\nCurrent .env:  VAAS_CAM_A={CAMERA_INDEX_GATE_A}  VAAS_CAM_B={CAMERA_INDEX_GATE_B}")
+    print("Set VAAS_CAM_A and VAAS_CAM_B to the correct indices, then restart.\n")
     sys.exit(0)
 
 if check_only:
