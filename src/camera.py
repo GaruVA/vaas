@@ -13,6 +13,7 @@ References: §6.10 of BUILD_SPEC.md.
 """
 
 import logging
+import platform
 import time
 from pathlib import Path
 from typing import Iterator
@@ -86,14 +87,22 @@ class USBCamera:
         width: int = 1920,
         height: int = 1080,
     ) -> None:
-        self._cap = cv2.VideoCapture(index)
+        # On Windows, VideoCapture without a backend enumerates every available
+        # backend sequentially (MSMF, DirectShow, …) which can block for many
+        # minutes on USB cameras.  CAP_DSHOW goes directly to DirectShow and
+        # opens in under a second.  For non-integer sources (RTSP URLs) fall
+        # back to the default so OpenCV picks the appropriate network backend.
+        if isinstance(index, int) and platform.system() == "Windows":
+            backend = cv2.CAP_DSHOW
+        else:
+            backend = cv2.CAP_ANY
+        self._cap = cv2.VideoCapture(index, backend)
         if width and height:
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         if not self._cap.isOpened():
-            logger.error("USBCamera: could not open capture device %s", index)
-        else:
-            logger.info("USBCamera opened: index=%s res=%dx%d", index, width, height)
+            raise RuntimeError(f"Could not open capture device {index}")
+        logger.info("USBCamera opened: index=%s res=%dx%d", index, width, height)
 
     def read(self) -> np.ndarray | None:
         """Return current frame as BGR ndarray, or None on failure."""
