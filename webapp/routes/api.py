@@ -28,7 +28,7 @@ Audit          GET  /api/audit/chain
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import bcrypt
 from flask import Blueprint, current_app, g, jsonify, request, session
@@ -98,6 +98,68 @@ def _err(msg: str, code: int = 400):
     return jsonify({"error": msg}), code
 
 
+# Display label mapping for access_log statuses → UI badge text
+_STATUS_DISPLAY: dict[str, str] = {
+    "AUTHORISED":                   "CLEARED",
+    "VISITOR":                      "EXCEPTION",
+    "DOUBLE_ENTRY":                 "FLAGGED",
+    "UNMATCHED_EXIT":               "FLAGGED",
+    "OVERSTAY":                     "OVERSTAY",
+    "VISITOR_ADMITTED":             "ADMITTED",
+    "VISITOR_REJECTED":             "REJECTED",
+    "BLOCKED":                      "BLOCKED",
+    "VISITOR_PENDING_REGISTRATION": "PENDING REG",
+}
+
+
+def _current_shift() -> dict:
+    """Return the current operational shift name, label, and minutes remaining."""
+    now = datetime.now(timezone.utc)
+    h = now.hour
+    if 7 <= h < 15:
+        name, label = "MORNING", "07:00 – 15:00 UTC"
+        end = now.replace(hour=15, minute=0, second=0, microsecond=0)
+    elif 15 <= h < 23:
+        name, label = "EVENING", "15:00 – 23:00 UTC"
+        end = now.replace(hour=23, minute=0, second=0, microsecond=0)
+    else:
+        name, label = "NIGHT", "23:00 – 07:00 UTC"
+        if h >= 23:
+            end = (now + timedelta(days=1)).replace(
+                hour=7, minute=0, second=0, microsecond=0)
+        else:
+            end = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    minutes_remaining = max(0, int((end - now).total_seconds() / 60))
+    return {"name": name, "label": label, "minutes_remaining": minutes_remaining}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Session User Info
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/user")
+def get_current_user():
+    """Return current logged-in user info from session."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return _err("Not authenticated", 401)
+
+    row = g.db.execute(
+        "SELECT id, username, full_name, role FROM users WHERE id=?",
+        (user_id,)
+    ).fetchone()
+
+    if not row:
+        return _err("User not found", 404)
+
+    return jsonify({
+        "id": row["id"],
+        "username": row["username"],
+        "full_name": row["full_name"],
+        "role": row["role"],
+    })
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # FR-01 / FR-02  Stats hub
 # ─────────────────────────────────────────────────────────────────────────────
@@ -107,8 +169,10 @@ def _err(msg: str, code: int = 400):
 def stats():
     """Top-level KPI summary for the VAAS hub page."""
     db = g.db
+    today_str = _today()
     events_today = db.execute(
-        "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = DATE('now')"
+        "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = ?",
+        (today_str,)
     ).fetchone()[0]
 
     active_vehicles = db.execute(
@@ -151,7 +215,16 @@ def events_recent():
         "FROM access_log ORDER BY id DESC LIMIT ?",
         (limit,),
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    result = []
+    for r in rows:
+        row = dict(r)
+        row["display_status"] = _STATUS_DISPLAY.get(row.get("status", ""), row.get("status", ""))
+
+        is_anomaly = row.get("status") in ("DOUBLE_ENTRY", "UNMATCHED_EXIT", "VISITOR", "OVERSTAY")
+        row["is_anomaly"] = is_anomaly
+
+        result.append(row)
+    return jsonify(result)
 
 
 # Legacy alias kept for backwards compat
@@ -162,25 +235,122 @@ def recent():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Shift status
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/shift")
+@requires_role("OPERATOR", "MANAGER", "ADMIN")
+def current_shift_route():
+    """Return active shift name, label, and minutes remaining (UTC-based)."""
+    return jsonify(_current_shift())
+
+
+@api_bp.route("/gates/status")
+@requires_role("OPERATOR", "MANAGER", "ADMIN")
+def gates_status():
+    """Return real-time status of all gates — which have pending exceptions/ALPR activity."""
+    gates = g.db.execute(
+        """SELECT DISTINCT gate_id FROM access_log
+           WHERE DATE(timestamp) = DATE('now')
+           ORDER BY gate_id"""
+    ).fetchall()
+
+    result = {}
+    for row in gates:
+        gate_id = row["gate_id"]
+
+        pending_exc = g.db.execute(
+            "SELECT COUNT(*) FROM access_log WHERE gate_id=? AND status='VISITOR'",
+            (gate_id,)
+        ).fetchone()[0]
+
+        recent_activity = g.db.execute(
+            "SELECT MAX(timestamp) FROM access_log WHERE gate_id=? AND DATE(timestamp)=DATE('now')",
+            (gate_id,)
+        ).fetchone()[0]
+
+        result[gate_id] = {
+            "gate_id": gate_id,
+            "has_exceptions": pending_exc > 0,
+            "exception_count": pending_exc,
+            "alpr_active": recent_activity is not None,
+            "last_activity": recent_activity,
+        }
+
+    return jsonify(result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FR-02  Exception queue + disposition
 # ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/exceptions/pending")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def exceptions_pending():
+    seven_days_ago  = _days_ago(7)
+    thirty_days_ago = _days_ago(30)
+
     rows = g.db.execute(
-        """SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.confidence_score,
+        """SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.direction,
+                  a.confidence_score,
                   COALESCE(v.registration_status, 'UNKNOWN') AS reg_status,
                   COALESCE(v.vehicle_category,    'UNKNOWN') AS vehicle_category,
+                  COALESCE(u.full_name, u.username)          AS driver_name,
+                  va.user_id                                 AS driver_user_id,
                   (SELECT COUNT(*) FROM access_log x
                    WHERE x.plate_number = a.plate_number
-                     AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')) AS anomaly_count
+                     AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')
+                     AND DATE(x.timestamp) >= :d7)           AS anomaly_count,
+                  (SELECT COUNT(*) FROM access_log x
+                   WHERE x.plate_number = a.plate_number
+                     AND DATE(x.timestamp) >= :d30)          AS total_events_30d,
+                  (SELECT COUNT(*) FROM access_log x
+                   WHERE x.plate_number = a.plate_number
+                     AND DATE(x.timestamp) >= :d30
+                     AND x.status = 'AUTHORISED')            AS auth_events_30d
            FROM access_log a
-           LEFT JOIN registered_vehicles v ON a.plate_number = v.plate_number
+           LEFT JOIN registered_vehicles v  ON a.plate_number = v.plate_number
+           LEFT JOIN vehicle_assignments va ON a.plate_number = va.plate_number
+                                           AND va.is_active = 1
+           LEFT JOIN users u                ON va.user_id = u.id
            WHERE a.status = 'VISITOR'
-           ORDER BY a.id DESC"""
+           ORDER BY a.id DESC""",
+        {"d7": seven_days_ago, "d30": thirty_days_ago},
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+
+    result = []
+    for r in rows:
+        row = dict(r)
+
+        # OHS status derived from assignment + anomaly history
+        if not row.get("driver_user_id"):
+            row["ohs_status"] = "UNASSIGNED"
+        elif row["anomaly_count"] >= 5:
+            row["ohs_status"] = "HIGH_OVERSTAY"
+        elif row["anomaly_count"] >= 2:
+            row["ohs_status"] = "MEDIUM_RISK"
+        else:
+            row["ohs_status"] = "OK"
+
+        # 30-day compliance percentage
+        total = row.get("total_events_30d") or 0
+        auth  = row.get("auth_events_30d")  or 0
+        row["compliance_pct"] = round(auth / total * 100) if total else 100
+
+        # Last 3 gate events for this plate (mini-timeline)
+        recent = g.db.execute(
+            "SELECT id, timestamp, gate_id, direction, status "
+            "FROM access_log WHERE plate_number=? ORDER BY id DESC LIMIT 3",
+            (row["plate_number"],),
+        ).fetchall()
+        row["recent_events"] = [
+            {**dict(re), "display_status": _STATUS_DISPLAY.get(re["status"], re["status"])}
+            for re in recent
+        ]
+
+        result.append(row)
+
+    return jsonify(result)
 
 
 # Legacy alias
@@ -232,6 +402,26 @@ def dispose_exception(access_log_id: int):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Fleet counts (lightweight — for home page card)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/fleet/counts")
+@requires_role("ADMIN", "MANAGER")
+def fleet_counts():
+    """Return total counts of active vehicles, shifts, zones, and users."""
+    vehicles = g.db.execute(
+        "SELECT COUNT(*) FROM registered_vehicles WHERE registration_status='ACTIVE'"
+    ).fetchone()[0]
+    shifts = g.db.execute("SELECT COUNT(*) FROM shifts").fetchone()[0]
+    zones  = g.db.execute("SELECT COUNT(*) FROM cdl_zones").fetchone()[0]
+    users  = g.db.execute(
+        "SELECT COUNT(*) FROM users WHERE is_active IS NULL OR is_active=1"
+    ).fetchone()[0]
+    return jsonify({"vehicles": vehicles, "shifts": shifts,
+                    "zones": zones, "users": users})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FR-05  Vehicles
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -261,6 +451,7 @@ def create_vehicle():
         return _err("plate_number is required")
     cat   = data.get("vehicle_category", "CONTRACTOR")
     vtype = data.get("vehicle_type", "CAR")
+    status = data.get("registration_status", "ACTIVE")
     if cat not in VEHICLE_CATEGORIES:
         cat = "CONTRACTOR"
     if vtype not in VEHICLE_TYPES:
@@ -272,11 +463,12 @@ def create_vehicle():
                 "INSERT OR REPLACE INTO registered_vehicles "
                 "(plate_number, vehicle_category, vehicle_type, contractor_name, "
                 " department, make_model, registration_status, notes) "
-                "VALUES (?,?,?,?,?,?,'ACTIVE',?)",
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (plate, cat, vtype,
                  data.get("contractor_name"),
                  data.get("department"),
                  data.get("make_model"),
+                 status,
                  data.get("notes")),
             )
             user_id  = data.get("user_id")
@@ -391,9 +583,12 @@ def create_shift():
         return _err("shift_name, start_time, end_time are required")
     try:
         cur = g.db.execute(
-            "INSERT INTO shifts (shift_name, start_time, end_time, grace_minutes) "
-            "VALUES (?,?,?,?)",
-            (name, start, end, data.get("grace_minutes", 15)),
+            "INSERT INTO shifts (shift_name, start_time, end_time, days_of_week, permitted_gates, grace_period_minutes) "
+            "VALUES (?,?,?,?,?,?)",
+            (name, start, end,
+             data.get("days_of_week", ""),
+             data.get("permitted_gates", ""),
+             data.get("grace_minutes", 15)),
         )
         shift_id = cur.lastrowid
     except Exception as exc:
@@ -417,10 +612,22 @@ def get_shift(shift_id: int):
 @requires_role("ADMIN")
 def update_shift(shift_id: int):
     data = request.get_json(silent=True) or {}
-    fields = ["shift_name", "start_time", "end_time", "grace_minutes"]
-    updates = {f: data[f] for f in fields if f in data}
+    updates = {}
+
+    if "shift_name" in data:
+        updates["shift_name"] = data["shift_name"]
+    if "start_time" in data:
+        updates["start_time"] = data["start_time"]
+    if "end_time" in data:
+        updates["end_time"] = data["end_time"]
+    if "days_of_week" in data:
+        updates["days_of_week"] = data["days_of_week"]
+    if "grace_minutes" in data:
+        updates["grace_period_minutes"] = data["grace_minutes"]
+
     if not updates:
         return _err("No updatable fields provided")
+
     set_clause = ", ".join(f"{k}=?" for k in updates)
     g.db.execute(
         f"UPDATE shifts SET {set_clause} WHERE shift_id=?",
@@ -446,6 +653,21 @@ def delete_shift(shift_id: int):
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def get_zones():
     rows = zone_occupancy_snapshot(g.db)
+    # Supplement snapshot with associated_gates (needed by fleet edit modal)
+    gates_map = {
+        r["zone_id"]: r["associated_gates"]
+        for r in g.db.execute(
+            "SELECT zone_id, associated_gates FROM cdl_zones"
+        ).fetchall()
+    }
+    for row in rows:
+        raw = gates_map.get(row["zone_id"], "[]")
+        try:
+            row["associated_gates"] = json.loads(raw) if isinstance(raw, str) else (raw or [])
+        except Exception:
+            row["associated_gates"] = []
+        # Alias for frontend compatibility
+        row["vehicle_capacity"] = row.get("capacity_vehicles", 50)
     return jsonify(rows)
 
 

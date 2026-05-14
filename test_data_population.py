@@ -24,15 +24,15 @@ def populate_test_data():
 
     # Insert test shifts
     shifts = [
-        ('shift_morning', 'Morning', '07:00', '15:00', 'Mon-Fri', 'GATE_A,GATE_B'),
-        ('shift_evening', 'Evening', '15:00', '23:00', 'Mon-Fri', 'GATE_A,GATE_B'),
-        ('shift_night', 'Night', '23:00', '07:00', 'Daily', 'GATE_A,GATE_B'),
+        ('Morning', '07:00', '15:00', 'Mon-Fri', 'GATE_A,GATE_B'),
+        ('Evening', '15:00', '23:00', 'Mon-Fri', 'GATE_A,GATE_B'),
+        ('Night', '23:00', '07:00', 'Daily', 'GATE_A,GATE_B'),
     ]
-    for sid, name, start, end, dow, gates in shifts:
+    for name, start, end, dow, gates in shifts:
         db.execute(
-            'INSERT OR REPLACE INTO shifts (shift_id, shift_name, start_time, end_time, days_of_week, permitted_gates, grace_period_minutes) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (sid, name, start, end, dow, gates, 30)
+            'INSERT INTO shifts (shift_name, start_time, end_time, days_of_week, permitted_gates, grace_period_minutes) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            (name, start, end, dow, gates, 30)
         )
 
     # Insert test zones

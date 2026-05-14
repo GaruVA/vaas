@@ -59,22 +59,22 @@
       <a href="vaas-manager.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Manager</a>
       <a href="vaas-gateops.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Gate Ops</a>
       <div class="h-4 w-px bg-gray-200 mx-1"></div>
-      <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">ADMIN</span>
-      <span class="text-sm text-gray-700 font-medium">R. Weerasinghe</span>
+      <span id="nav-role" class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">ADMIN</span>
+      <span id="nav-user" class="text-sm text-gray-700 font-medium">—</span>
     </div>
   </div>
 </nav>
 
 <!-- ═══ TAMPER DETECTED BANNER ═══ -->
-<div class="pulse-banner" style="background:linear-gradient(90deg,#7f1d1d 0%,#991b1b 40%,#7f1d1d 100%);border-bottom:1px solid rgba(239,68,68,.4)">
+<div id="tamper-banner" class="pulse-banner" style="display:none;background:linear-gradient(90deg,#7f1d1d 0%,#991b1b 40%,#7f1d1d 100%);border-bottom:1px solid rgba(239,68,68,.4)">
   <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-4">
       <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.5)">
         <svg class="w-5 h-5 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
       </div>
       <div>
-        <div class="text-white font-bold text-base tracking-wide">TAMPER DETECTED AT ROW #7</div>
-        <div class="text-red-300 text-xs mt-0.5 mono">Record VE-20250314-007 · Plate WP·KJ-3847 · Gate GATE_B · 2025-03-14 23:41:07</div>
+        <div id="banner-title" class="text-white font-bold text-base tracking-wide">TAMPER DETECTED</div>
+        <div id="banner-detail" class="text-red-300 text-xs mt-0.5 mono">—</div>
       </div>
     </div>
     <div class="flex items-center gap-6">
@@ -110,7 +110,7 @@
       </div>
     </div>
     <div style="overflow-x:auto;padding-bottom:4px">
-      <div style="display:flex;align-items:center;min-width:max-content;padding:4px 2px">
+      <div id="chain-timeline" style="display:flex;align-items:center;min-width:max-content;padding:4px 2px">
 
         <!-- Nodes 1–6: clean -->
         <div class="node-clean"><div class="text-[9px] font-bold mono" style="color:#76bd33">01</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#76bd33;box-shadow:0 0 5px rgba(118,189,51,.6)"></div><div class="text-[9px] mono text-gray-400">WP·GF-4521</div><div class="text-[8px] text-gray-400 mt-0.5">07:12</div></div>
@@ -478,38 +478,64 @@
       const data = await r.json();
       const integrity = data.integrity;
 
-      // Update tamper banner visibility
-      const banner = document.querySelector('.pulse-banner');
+      // Update tamper banner via its ID
+      const banner = document.getElementById('tamper-banner');
       if (integrity.ok) {
         if (banner) banner.style.display = 'none';
       } else {
-        // Show tamper banner with real data
         if (banner) {
-          banner.innerHTML = `
-            <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.5)">
-                  <svg class="w-5 h-5 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                </div>
-                <div>
-                  <div class="text-white font-bold text-base tracking-wide">CHAIN INTEGRITY FAILURE AT ROW #${integrity.first_bad_id}</div>
-                  <div class="text-red-300 text-xs mt-0.5 mono">${integrity.reason || 'Hash mismatch detected'}</div>
-                </div>
-              </div>
-              <div class="flex items-center gap-6">
-                <div class="text-right">
-                  <div class="text-[10px] text-red-300 uppercase tracking-widest">Rows Checked</div>
-                  <div class="text-white font-bold text-lg mono">${integrity.rows_checked}</div>
-                </div>
-              </div>
-            </div>
-          `;
+          banner.style.display = 'block';
+          const titleEl  = document.getElementById('banner-title');
+          const detailEl = document.getElementById('banner-detail');
+          if (titleEl)  titleEl.textContent  = 'CHAIN INTEGRITY FAILURE AT ROW #' + (integrity.first_bad_id || '?');
+          if (detailEl) detailEl.textContent = integrity.reason || 'Hash mismatch detected';
         }
+      }
+
+      // Render chain timeline from real access_log entries
+      const timeline = document.getElementById('chain-timeline');
+      if (timeline && data.entries && data.entries.length > 0) {
+        const firstBad = integrity.first_bad_id;
+        const nodes = data.entries.slice().reverse(); // oldest first
+        let html = '';
+        nodes.forEach((entry, idx) => {
+          const num = String(idx + 1).padStart(2, '0');
+          const ts = entry.timestamp ? entry.timestamp.slice(11, 16) : '—';
+          const plate = (entry.plate_number || '—').substring(0, 10);
+          const isBad = firstBad && entry.id === firstBad;
+          const isTaint = firstBad && entry.id > firstBad;
+          const nodeClass = isBad ? 'node-tamper' : isTaint ? 'node-taint' : 'node-clean';
+          const connClass = isTaint ? 'conn-taint' : 'conn-clean';
+          if (idx > 0) html += `<div class="${connClass}"></div>`;
+          if (isBad) {
+            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono text-red-400">${num} ✕</div><div class="w-2.5 h-2.5 mx-auto my-1 rotate-45" style="background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.7)"></div><div class="text-[9px] mono font-bold text-red-400">${plate}</div><div class="text-[8px] text-red-300 mt-0.5">${ts}</div></div>`;
+          } else if (isTaint) {
+            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono" style="color:#f4bd0f">${num}</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#f4bd0f;opacity:.7"></div><div class="text-[9px] mono text-gray-400">${plate}</div><div class="text-[8px] text-gray-400 mt-0.5">${ts}</div></div>`;
+          } else {
+            html += `<div class="${nodeClass}"><div class="text-[9px] font-bold mono" style="color:#76bd33">${num}</div><div class="w-2 h-2 rounded-full mx-auto my-1" style="background:#76bd33;box-shadow:0 0 5px rgba(118,189,51,.6)"></div><div class="text-[9px] mono text-gray-400">${plate}</div><div class="text-[8px] text-gray-400 mt-0.5">${ts}</div></div>`;
+          }
+        });
+        timeline.innerHTML = html;
       }
     } catch(e) { console.warn('Chain load failed', e); }
   }
 
+  // ── Load current user for navbar ───────────────────────────────────
+  async function loadUser() {
+    try {
+      const r = await fetch('/api/user');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) return;
+      const u = await r.json();
+      const roleEl = document.getElementById('nav-role');
+      const userEl = document.getElementById('nav-user');
+      if (roleEl) roleEl.textContent = u.role;
+      if (userEl) userEl.textContent = u.full_name || u.username;
+    } catch(e) {}
+  }
+
   // ── Bootstrap ──────────────────────────────────────────────────────
+  loadUser();
   loadChainVerification();
   loadAuditLog();
 </script>

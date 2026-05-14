@@ -57,8 +57,8 @@
         <span style="font-size:.625rem;color:#76bd33;font-weight:600">LIVE</span>
       </div>
       <div style="height:12px;width:1px;background:#1a2235"></div>
-      <span style="font-size:.625rem;padding:2px 8px;border-radius:3px;font-weight:600;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)">OPERATOR</span>
-      <span style="font-size:.75rem;color:#4a5c7a">S. Pathirage</span>
+      <span id="nav-role" style="font-size:.625rem;padding:2px 8px;border-radius:3px;font-weight:600;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)">OPERATOR</span>
+      <span id="nav-user" style="font-size:.75rem;color:#4a5c7a">—</span>
     </div>
   </div>
 </nav>
@@ -80,8 +80,8 @@
   <div style="padding:10px 20px;border-bottom:2px solid #76bd33;border-right:1px solid #1a2235;background:rgba(118,189,51,.04);flex:1">
     <div style="font-size:.5625rem;text-transform:uppercase;letter-spacing:.16em;color:#3d4f6a;margin-bottom:3px">Active Shift</div>
     <div style="display:flex;align-items:baseline;gap:10px">
-      <span style="font-size:1.375rem;font-weight:700;color:#76bd33;line-height:1">MORNING</span>
-      <span style="font-size:.75rem;color:#76bd33">07:00–15:00</span>
+      <span id="shift-name" style="font-size:1.375rem;font-weight:700;color:#76bd33;line-height:1">MORNING</span>
+      <span id="shift-label" style="font-size:.75rem;color:#76bd33">07:00–15:00 UTC</span>
       <span style="font-size:.5625rem;padding:2px 7px;border-radius:2px;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)" id="shift-remaining">28 MIN LEFT</span>
     </div>
   </div>
@@ -125,7 +125,7 @@
           <span style="font-size:.5rem;color:#2a3a4e">1920×1080 · 30fps · IR-ON</span>
         </div>
         <div style="position:absolute;bottom:10px;right:10px;z-index:20">
-          <span style="font-size:.5625rem;color:#06b6d4">ALPR ACTIVE</span>
+          <span style="font-size:.5625rem;color:#06b6d4" id="gate-a-status">ALPR ACTIVE</span>
         </div>
         <!-- Corner bracket overlays -->
         <svg style="position:absolute;inset:0;width:100%;height:100%;z-index:15;pointer-events:none" viewBox="0 0 520 200">
@@ -159,7 +159,7 @@
         <div style="position:absolute;bottom:10px;left:12px;z-index:20">
           <span style="font-size:.5rem;color:#2a3a4e">1920×1080 · 30fps · IR-ON</span>
         </div>
-        <div style="position:absolute;bottom:10px;right:10px;z-index:20;display:flex;align-items:center;gap:5px">
+        <div style="position:absolute;bottom:10px;right:10px;z-index:20;display:flex;align-items:center;gap:5px" id="gate-b-status">
           <span style="width:5px;height:5px;border-radius:50%;background:#f4bd0f;display:inline-block;box-shadow:0 0 7px #f4bd0f"></span>
           <span style="font-size:.5625rem;color:#f4bd0f">EXCEPTION PENDING</span>
         </div>
@@ -211,7 +211,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:5px">
         <span class="breathe" style="width:5px;height:5px;border-radius:50%;display:inline-block;color:#f4bd0f;background:#f4bd0f"></span>
-        <span style="font-size:.5625rem;color:#f4bd0f;font-weight:600">REQUIRES ACTION</span>
+        <span style="font-size:.5625rem;color:#f4bd0f;font-weight:600" id="requires-action-label">REQUIRES ACTION</span>
       </div>
     </div>
 
@@ -231,11 +231,38 @@
 </div>
 
 <script>
-  // ── UTC Clock ──────────────────────────────────────────────────────────────
+  // ── Status display mapping (mirrors api.py _STATUS_DISPLAY) ───────────────
+  const STATUS_DISPLAY = {
+    'AUTHORISED':                   'CLEARED',
+    'VISITOR':                      'EXCEPTION',
+    'DOUBLE_ENTRY':                 'FLAGGED',
+    'UNMATCHED_EXIT':               'FLAGGED',
+    'OVERSTAY':                     'OVERSTAY',
+    'VISITOR_ADMITTED':             'ADMITTED',
+    'VISITOR_REJECTED':             'REJECTED',
+    'BLOCKED':                      'BLOCKED',
+    'VISITOR_PENDING_REGISTRATION': 'PENDING REG',
+  };
+
+  const GATES = ['GATE_A', 'GATE_B'];
+  let gateStatus = {};
+
+  // ── UTC Clock + shift remaining countdown ─────────────────────────────────
+  let shiftEndUTC = null; // set by loadShift()
+
   function tick() {
     const n = new Date(), pad = v => String(v).padStart(2,'0');
     document.getElementById('utc-clock').textContent =
       pad(n.getUTCHours())+':'+pad(n.getUTCMinutes())+':'+pad(n.getUTCSeconds());
+
+    if (shiftEndUTC) {
+      const minsLeft = Math.max(0, Math.floor((shiftEndUTC - n) / 60000));
+      const remEl = document.getElementById('shift-remaining');
+      if (remEl) {
+        const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
+        remEl.textContent = h > 0 ? `${h}H ${m}M LEFT` : `${m} MIN LEFT`;
+      }
+    }
   }
   tick(); setInterval(tick, 1000);
 
@@ -246,18 +273,31 @@
     document.getElementById('session-count').textContent = sessCount;
   }
 
-  // ── Status colour map ──────────────────────────────────────────────────────
-  function statusBadge(status) {
-    const s = (status||'').toUpperCase();
-    if (s.includes('VISITOR') || s === 'EXCEPTION_PENDING_DISPOSITION')
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z');
+    return isNaN(d) ? (ts.slice(11,19)||ts) :
+      String(d.getUTCHours()).padStart(2,'0')+':'+
+      String(d.getUTCMinutes()).padStart(2,'0')+':'+
+      String(d.getUTCSeconds()).padStart(2,'0');
+  }
+
+  function statusBadge(ev) {
+    // Accept event object (uses display_status if present) or raw status string
+    const raw = typeof ev === 'object' ? ev.status : ev;
+    const disp = (typeof ev === 'object' && ev.display_status) ? ev.display_status
+                 : (STATUS_DISPLAY[raw] || raw || '');
+    const s = disp.toUpperCase();
+    if (['EXCEPTION','ADMITTED','PENDING REG'].includes(s) || s.startsWith('VISITOR'))
       return `<span style="font-size:.6rem;padding:2px 8px;border-radius:2px;font-weight:600;background:rgba(244,189,15,.15);color:#f4bd0f;border:1px solid rgba(244,189,15,.2)">${s}</span>`;
-    if (s.includes('REJECT') || s.includes('OVERSTAY') || s === 'BLOCKED')
+    if (['REJECTED','OVERSTAY','BLOCKED','FLAGGED'].includes(s))
       return `<span style="font-size:.6rem;padding:2px 8px;border-radius:2px;font-weight:600;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)">${s}</span>`;
     return `<span style="font-size:.6rem;padding:2px 8px;border-radius:2px;font-weight:600;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.2)">${s}</span>`;
   }
 
-  function confBar(pct) {
-    const p = Math.round((pct||0)*100);
+  function confBar(score) {
+    const p = Math.round((score||0)*100);
     const col = p >= 85 ? '#76bd33' : p >= 65 ? '#f4bd0f' : '#ef4444';
     return `<div style="display:flex;align-items:center;gap:7px">
       <div style="width:72px;height:4px;border-radius:2px;overflow:hidden;background:#1a2235">
@@ -265,16 +305,42 @@
       <span style="font-size:.625rem;color:${col}">${p}.0%</span></div>`;
   }
 
-  function fmtTime(ts) {
-    if (!ts) return '—';
-    const d = new Date(ts);
-    return isNaN(d) ? ts.slice(11,19)||ts :
-      String(d.getUTCHours()).padStart(2,'0')+':'+
-      String(d.getUTCMinutes()).padStart(2,'0')+':'+
-      String(d.getUTCSeconds()).padStart(2,'0');
+  // ── Update camera indicators from gate status ──────────────────────────────
+  function updateGateIndicators(status) {
+    gateStatus = status;
+
+    const gateA = status['GATE_A'] || {};
+    const gateB = status['GATE_B'] || {};
+
+    const gateAStatusEl = document.getElementById('gate-a-status');
+    if (gateAStatusEl) {
+      gateAStatusEl.textContent = gateA.has_exceptions ? 'EXCEPTION PENDING' : 'ALPR ACTIVE';
+      gateAStatusEl.style.color = gateA.has_exceptions ? '#f4bd0f' : '#06b6d4';
+    }
+
+    const gateBStatusEl = document.getElementById('gate-b-status');
+    if (gateBStatusEl) {
+      gateBStatusEl.style.display = gateB.has_exceptions ? 'flex' : 'none';
+    }
   }
 
-  // ── Events table ───────────────────────────────────────────────────────────
+  // ── Shift status ──────────────────────────────────────────────────────────
+  async function loadShift() {
+    try {
+      const r = await fetch('/api/shift');
+      if (!r.ok) return;
+      const s = await r.json();
+      const nameEl  = document.getElementById('shift-name');
+      const labelEl = document.getElementById('shift-label');
+      if (nameEl)  nameEl.textContent  = s.name;
+      if (labelEl) labelEl.textContent = s.label;
+      // Compute absolute end time so tick() can count down
+      const now = new Date();
+      shiftEndUTC = new Date(now.getTime() + s.minutes_remaining * 60000);
+    } catch(e) { console.warn('Shift fetch failed', e); }
+  }
+
+  // ── Events table ──────────────────────────────────────────────────────────
   function renderEventsRow(ev, fresh) {
     const dirCol = (ev.direction||'').includes('EXIT') ? '#06b6d4' : '#76bd33';
     const dirTxt = (ev.direction||'').includes('EXIT') ? '↓ OUT' : '↑ IN';
@@ -282,7 +348,7 @@
       <td style="padding:9px 16px;color:#06b6d4;font-size:.75rem">${fmtTime(ev.timestamp)}</td>
       <td style="padding:9px 12px;font-weight:600;color:#e8edf5;font-size:.75rem">${ev.plate_number||'—'}</td>
       <td style="padding:9px 12px;color:${dirCol};font-size:.75rem">${dirTxt}</td>
-      <td style="padding:9px 12px">${statusBadge(ev.status)}</td>
+      <td style="padding:9px 12px">${statusBadge(ev)}</td>
       <td style="padding:9px 12px">${confBar(ev.confidence_score)}</td>
       <td style="padding:9px 12px;color:#3d4f6a;font-size:.6875rem">${ev.gate_id||'—'}</td>
     </tr>`;
@@ -295,35 +361,40 @@
       if (r.status === 401) { location.href = '/auth/login?next=/vaas-gateops.html'; return; }
       if (!r.ok) return;
       eventsData = await r.json();
-      const tbody = document.getElementById('events-tbody');
+      const tbody   = document.getElementById('events-tbody');
       const loading = document.getElementById('events-loading');
       if (loading) loading.remove();
       tbody.innerHTML = eventsData.map((e,i) => renderEventsRow(e, i===0)).join('');
+
+      // Events today counter (UTC date match)
       const todayEl = document.getElementById('events-today');
       if (todayEl) {
-        const todayCount = eventsData.filter(e => {
-          if (!e.timestamp) return false;
-          return new Date(e.timestamp).toDateString() === new Date().toDateString();
-        }).length;
-        todayEl.textContent = todayCount;
+        const today = new Date();
+        const todayStr = today.getUTCFullYear() + '-' +
+          String(today.getUTCMonth() + 1).padStart(2,'0') + '-' +
+          String(today.getUTCDate()).padStart(2,'0');
+        const count = eventsData.filter(e =>
+          e.timestamp && (e.timestamp.startsWith(todayStr) ||
+            new Date(e.timestamp.includes('Z')?e.timestamp:e.timestamp+'Z')
+              .toISOString().startsWith(todayStr))
+        ).length;
+        todayEl.textContent = count;
       }
     } catch(e) { console.warn('Events fetch failed', e); }
   }
 
   function prependEventRow(ev) {
     const tbody = document.getElementById('events-tbody');
-    const row = document.createElement('template');
-    row.innerHTML = renderEventsRow(ev, true);
-    tbody.insertBefore(row.content.firstChild, tbody.firstChild);
-    // keep max 50 rows
+    const tmpl  = document.createElement('template');
+    tmpl.innerHTML = renderEventsRow(ev, true);
+    tbody.insertBefore(tmpl.content.firstChild, tbody.firstChild);
     while (tbody.rows.length > 50) tbody.deleteRow(tbody.rows.length - 1);
-    // update today counter
     const el = document.getElementById('events-today');
     if (el) el.textContent = parseInt(el.textContent||0) + 1;
     incSession();
   }
 
-  // ── Exception queue ────────────────────────────────────────────────────────
+  // ── Exception queue ───────────────────────────────────────────────────────
   function regBadge(status) {
     const s = (status||'UNKNOWN').toUpperCase();
     const map = {
@@ -335,16 +406,87 @@
     return `<span style="font-size:.5625rem;font-weight:600;padding:3px 8px;border-radius:2px;background:${bg};color:${fg};border:1px solid ${br}">REG: ${s}</span>`;
   }
 
+  function ohsBadge(ohs) {
+    const cfg = {
+      'UNASSIGNED':    ['rgba(239,68,68,.12)',  '#ef4444','rgba(239,68,68,.25)',  'OHS: UNASSIGNED'],
+      'HIGH_OVERSTAY': ['rgba(239,68,68,.12)',  '#ef4444','rgba(239,68,68,.25)',  'OHS: HIGH RISK'],
+      'MEDIUM_RISK':   ['rgba(244,189,15,.12)', '#f4bd0f','rgba(244,189,15,.25)', 'OHS: MEDIUM RISK'],
+      'OK':            ['rgba(118,189,51,.12)', '#76bd33','rgba(118,189,51,.25)', 'OHS: OK'],
+    };
+    const [bg,fg,br,lbl] = cfg[ohs] || cfg['UNASSIGNED'];
+    return `<span style="font-size:.5625rem;font-weight:600;padding:3px 8px;border-radius:2px;background:${bg};color:${fg};border:1px solid ${br}">${lbl}</span>`;
+  }
+
+  function complianceBar(pct) {
+    const p = Math.max(0, Math.min(100, pct||0));
+    const col = p >= 80 ? '#76bd33' : p >= 60 ? '#f4bd0f' : '#ef4444';
+    return `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a">30-Day Compliance</span>
+        <span style="font-size:.5625rem;font-weight:700;color:${col}">${p}%</span>
+      </div>
+      <div style="height:3px;border-radius:2px;overflow:hidden;background:#1a2235">
+        <div style="height:100%;background:${col};width:${p}%"></div>
+      </div>
+    </div>`;
+  }
+
+  function miniTimeline(events) {
+    if (!events || !events.length) return '';
+    const rows = events.map(ev => {
+      const isIn  = !(ev.direction||'').includes('EXIT');
+      const dCol  = isIn ? '#76bd33' : '#06b6d4';
+      const dTxt  = isIn ? '↑ IN' : '↓ OUT';
+      const disp  = ev.display_status || STATUS_DISPLAY[ev.status] || ev.status || '?';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #0d1525">
+        <span style="font-size:.5625rem;color:#3d4f6a;width:52px;flex-shrink:0">${fmtTime(ev.timestamp)}</span>
+        <span style="font-size:.5625rem;color:${dCol};width:32px;flex-shrink:0">${dTxt}</span>
+        <span style="font-size:.5rem;color:#4a5c7a;flex:1;overflow:hidden;text-overflow:ellipsis">${ev.gate_id||'?'}</span>
+        <span style="font-size:.5rem;color:#5a6c8a">${disp}</span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a;margin-bottom:4px">Last ${events.length} Event${events.length>1?'s':''}</div>
+      <div style="border:1px solid #0d1525;border-radius:3px;padding:0 8px;background:#050810">${rows}</div>
+    </div>`;
+  }
+
   function buildExcCard(exc) {
-    const conf = Math.round((exc.confidence_score||0)*100);
+    const conf    = Math.round((exc.confidence_score||0)*100);
     const confCol = conf >= 85 ? '#76bd33' : conf >= 65 ? '#f4bd0f' : '#ef4444';
-    const ts = fmtTime(exc.timestamp);
-    const anom = exc.anomaly_count || 0;
+    const ts      = fmtTime(exc.timestamp);
+    const anom    = exc.anomaly_count || 0;
+    const ohs     = exc.ohs_status || 'UNASSIGNED';
+
     const anomBadge = anom > 0
       ? `<span style="font-size:.5625rem;font-weight:700;padding:2px 8px;border-radius:2px;background:rgba(244,189,15,.15);color:#f4bd0f;border:1px solid rgba(244,189,15,.3)">${anom} FLAGGED</span>`
       : `<span style="font-size:.5625rem;font-weight:600;padding:2px 8px;border-radius:2px;color:#3d4f6a;border:1px solid #1a2235">0 CLEAN</span>`;
+
     const lowConf = conf < 65
       ? `<div style="font-size:.5625rem;color:#f4bd0f;margin-top:2px">⚠ LOW ALPR CONFIDENCE</div>` : '';
+
+    // OHS-contextual warning / info box
+    let warningBox = '';
+    if (ohs === 'UNASSIGNED') {
+      warningBox = `<div style="border:1px solid rgba(239,68,68,.25);border-radius:3px;padding:8px 10px;background:rgba(239,68,68,.06);margin-bottom:8px">
+        <div style="font-size:.5625rem;font-weight:600;color:#ef4444;margin-bottom:2px">⚠ NO DRIVER ASSIGNED</div>
+        <div style="font-size:.5rem;color:#5a6c8a">Vehicle has no active driver on record</div>
+      </div>`;
+    } else if (ohs === 'HIGH_OVERSTAY' || ohs === 'MEDIUM_RISK') {
+      const riskCol = ohs === 'HIGH_OVERSTAY' ? '#ef4444' : '#f4bd0f';
+      const driver  = exc.driver_name || 'Unknown driver';
+      warningBox = `<div style="border:1px solid rgba(244,189,15,.2);border-radius:3px;padding:8px 10px;background:rgba(244,189,15,.04);margin-bottom:8px">
+        <div style="font-size:.5625rem;font-weight:600;color:${riskCol};margin-bottom:2px">⚠ RISK FLAG · ${driver}</div>
+        <div style="font-size:.5rem;color:#5a6c8a">${anom} anomalies in last 7 days</div>
+      </div>`;
+    } else {
+      const driver = exc.driver_name || 'Unknown driver';
+      warningBox = `<div style="border:1px solid rgba(118,189,51,.15);border-radius:3px;padding:8px 10px;background:rgba(118,189,51,.04);margin-bottom:8px">
+        <div style="font-size:.5625rem;font-weight:600;color:#76bd33;margin-bottom:2px">✓ ${driver}</div>
+        <div style="font-size:.5rem;color:#5a6c8a">Driver on record — compliant</div>
+      </div>`;
+    }
+
     return `
       <div class="exc-card" id="exc-card-${exc.id}" style="padding:14px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
@@ -362,14 +504,18 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          ${ohsBadge(ohs)}
           ${regBadge(exc.reg_status)}
         </div>
+        ${warningBox}
+        ${complianceBar(exc.compliance_pct)}
+        ${miniTimeline(exc.recent_events)}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a">Anomalies (all time)</span>
+          <span style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a">Anomalies (7d)</span>
           ${anomBadge}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:7px">
-          <button class="btn-admit" onclick="disposeExc(${exc.id},'ADMIT')">✓ ADMIT</button>
+          <button class="btn-admit"  onclick="disposeExc(${exc.id},'ADMIT')">✓ ADMIT</button>
           <button class="btn-reject" onclick="disposeExc(${exc.id},'REJECT')">✗ REJECT</button>
         </div>
         <button class="btn-register" onclick="disposeExc(${exc.id},'REGISTER')">+ REGISTER NEW VEHICLE</button>
@@ -380,31 +526,34 @@
     try {
       const r = await fetch('/api/exceptions/pending');
       if (!r.ok) return;
-      const items = await r.json();
-      const queue   = document.getElementById('exception-queue');
-      const loading = document.getElementById('queue-loading');
-      const empty   = document.getElementById('queue-empty');
-      const badge   = document.getElementById('queue-badge');
-      const pendEl  = document.getElementById('pending-count');
+      const items  = await r.json();
+      const queue  = document.getElementById('exception-queue');
+      const loading= document.getElementById('queue-loading');
+      const empty  = document.getElementById('queue-empty');
+      const badge  = document.getElementById('queue-badge');
+      const pendEl = document.getElementById('pending-count');
+      const requiresActionEl = document.getElementById('requires-action-label');
 
       if (loading) loading.remove();
-      // remove existing exc cards (keep empty state div)
       queue.querySelectorAll('[id^="exc-card-"]').forEach(el => el.remove());
 
       if (items.length === 0) {
         empty.style.display = 'block';
         badge.textContent = '0';
-        badge.style.background = 'rgba(118,189,51,.15)';
-        badge.style.color = '#76bd33';
-        badge.style.borderColor = 'rgba(118,189,51,.3)';
+        badge.style.background    = 'rgba(118,189,51,.15)';
+        badge.style.color         = '#76bd33';
+        badge.style.borderColor   = 'rgba(118,189,51,.3)';
         if (pendEl) pendEl.textContent = '0';
+        if (requiresActionEl) requiresActionEl.parentElement.style.opacity = '0.3';
       } else {
         empty.style.display = 'none';
         badge.textContent = items.length;
-        badge.style.background = 'rgba(244,189,15,.18)';
-        badge.style.color = '#f4bd0f';
-        badge.style.borderColor = 'rgba(244,189,15,.3)';
+        badge.style.background    = 'rgba(244,189,15,.18)';
+        badge.style.color         = '#f4bd0f';
+        badge.style.borderColor   = 'rgba(244,189,15,.3)';
         if (pendEl) pendEl.textContent = items.length;
+        if (requiresActionEl) requiresActionEl.parentElement.style.opacity = '1';
+
         items.forEach(exc => {
           const tmpl = document.createElement('template');
           tmpl.innerHTML = buildExcCard(exc).trim();
@@ -423,20 +572,18 @@
         body: JSON.stringify({disposition}),
       });
       if (!r.ok) { alert('Dispose failed: ' + (await r.text())); return; }
-      const data = await r.json();
-      if (data.redirect) { location.href = data.redirect; return; }
     } catch(e) { alert('Network error: ' + e); return; }
     if (card) {
       card.style.transition = 'all .28s ease';
-      card.style.opacity = '0';
-      card.style.transform = disposition === 'REJECT' ? 'translateX(28px)' : 'translateX(-28px)';
+      card.style.opacity    = '0';
+      card.style.transform  = disposition === 'REJECT' ? 'translateX(28px)' : 'translateX(-28px)';
       setTimeout(() => { card.remove(); loadExceptions(); }, 290);
     } else {
       loadExceptions();
     }
   }
 
-  // ── SSE connection ─────────────────────────────────────────────────────────
+  // ── SSE connection ────────────────────────────────────────────────────────
   function connectSSE() {
     const es = new EventSource('/operator/sse');
     es.onmessage = e => {
@@ -447,22 +594,50 @@
             id: Date.now(), plate_number: evt.plate,
             timestamp: evt.timestamp, gate_id: evt.gate_id,
             direction: evt.direction, status: evt.status,
+            display_status: STATUS_DISPLAY[evt.status] || evt.status,
             confidence_score: evt.confidence,
           });
         } else if (evt.type === 'exception_pending' || evt.type === 'exception_disposed') {
           loadExceptions();
+        } else if (evt.type === 'gate_status') {
+          updateGateIndicators(evt.data);
         }
       } catch {}
     };
-    es.onerror = () => setTimeout(connectSSE, 5000); // reconnect
+    es.onerror = () => setTimeout(connectSSE, 5000);
   }
 
-  // ── Bootstrap ──────────────────────────────────────────────────────────────
+  // ── Current user (navbar) ─────────────────────────────────────────────────
+  async function loadUserInfo() {
+    try {
+      const r = await fetch('/api/user');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) return;
+      const u = await r.json();
+      const roleEl = document.getElementById('nav-role');
+      const userEl = document.getElementById('nav-user');
+      if (roleEl) roleEl.textContent = u.role;
+      if (userEl) userEl.textContent = u.full_name || u.username;
+    } catch(e) {}
+  }
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  loadUserInfo();
+  loadShift();
   loadEvents();
   loadExceptions();
   connectSSE();
-  setInterval(loadEvents, 15000);
-  setInterval(loadExceptions, 30000);
+
+  // Faster refresh rates for gateops
+  setInterval(loadEvents,     8000);
+  setInterval(loadExceptions, 12000);
+  setInterval(loadShift,      60000);
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/gates/status');
+      if (r.ok) updateGateIndicators(await r.json());
+    } catch(e) {}
+  }, 5000);
 </script>
 </body>
 </html>

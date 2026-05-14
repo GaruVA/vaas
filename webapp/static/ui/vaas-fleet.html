@@ -26,20 +26,22 @@
     .expand-row{display:none}
     .mini-bar{height:4px;border-radius:2px;overflow:hidden;background:#f0f2f6}
     .mini-bar-fill{height:100%;border-radius:2px}
-    /* Cascade modal */
-    .cascade-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
-    .cascade-panel{background:rgba(255,255,255,.95);border-radius:16px;padding:28px;width:480px;box-shadow:0 24px 64px rgba(0,0,0,.2),0 0 0 1px rgba(0,0,0,.06)}
-    /* RBAC modal */
-    .rbac-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
-    .rbac-panel{background:#fff;border-radius:16px;padding:24px;width:600px;box-shadow:0 24px 64px rgba(0,0,0,.2)}
-    .rbac-yes{color:#2d7b00;font-size:.875rem}
-    .rbac-no{color:#d1d5db;font-size:.875rem}
-    /* Zone capacity */
+    .modal-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);background:rgba(15,23,42,.35)}
+    .modal-panel{background:rgba(255,255,255,.95);border-radius:16px;padding:28px;width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2),0 0 0 1px rgba(0,0,0,.06)}
+    .form-group{margin-bottom:16px}
+    .form-label{display:block;font-size:.875rem;font-weight:600;margin-bottom:6px;color:#111}
+    .form-input{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.875rem;font-family:inherit}
+    .form-input:focus{outline:none;border-color:#1B3F95;box-shadow:0 0 0 2px rgba(27,63,149,.1)}
+    .form-select{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.875rem;font-family:inherit}
+    .form-select:focus{outline:none;border-color:#1B3F95;box-shadow:0 0 0 2px rgba(27,63,149,.1)}
+    .btn-primary{padding:10px 16px;background:#1B3F95;color:#fff;font-weight:600;border:none;border-radius:8px;cursor:pointer;font-size:.875rem}
+    .btn-primary:hover{background:#152d5f}
+    .btn-secondary{padding:10px 16px;background:transparent;color:#666;border:1px solid #d1d5db;font-weight:600;border-radius:8px;cursor:pointer;font-size:.875rem}
+    .btn-secondary:hover{background:#f8f9fa}
+    .error-msg{color:#dc2626;font-size:.875rem;margin-top:4px}
+    .success-msg{color:#16a34a;font-size:.875rem;margin-top:4px}
     .cap-bar{height:8px;border-radius:4px;overflow:hidden;background:#f0f2f6;margin-top:6px}
     .cap-fill{height:100%;border-radius:4px;transition:width .6s ease}
-    /* Shift timeline */
-    .shift-block{position:absolute;top:0;height:100%;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden}
-    .grace{position:absolute;top:0;height:100%;opacity:.35}
     @keyframes breathe{0%,100%{opacity:.45;box-shadow:0 0 5px currentColor}50%{opacity:1;box-shadow:0 0 14px currentColor}}
     .breathe{animation:breathe 2.5s ease-in-out infinite}
     ::-webkit-scrollbar{height:4px;width:4px}::-webkit-scrollbar-track{background:#f0f2f6}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}
@@ -56,7 +58,7 @@
       </div>
       <div class="leading-tight">
         <div class="text-sm font-bold text-gray-900">VAAS <span class="font-normal text-gray-300 mx-1">/</span> <span class="font-semibold" style="color:#1B3F95">Fleet &amp; Access Config</span></div>
-        <div class="text-[11px] text-gray-400 -mt-0.5">Vehicles · Shifts · Zones · Users · FR-02 · FR-04 · FR-05 · FR-12</div>
+        <div class="text-[11px] text-gray-400 -mt-0.5">Vehicles · Shifts · Zones · Users</div>
       </div>
     </div>
     <div class="flex items-center gap-2 text-xs">
@@ -65,83 +67,185 @@
       <a href="vaas-manager.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Manager</a>
       <a href="vaas-gateops.html" class="px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 no-underline">Gate Ops</a>
       <div class="h-4 w-px bg-gray-200 mx-1"></div>
-      <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">ADMIN</span>
-      <span class="text-sm text-gray-700 font-medium">R. Weerasinghe</span>
+      <span id="nav-role" class="text-xs px-2 py-0.5 rounded-full font-semibold" style="background:rgba(239,68,68,.12);color:#cc2222">—</span>
+      <span id="nav-user" class="text-sm text-gray-700 font-medium">—</span>
+      <a href="/auth/logout" class="text-xs px-2 py-0.5 rounded text-gray-600 hover:bg-gray-200 no-underline">Logout</a>
     </div>
   </div>
 </nav>
 
-<!-- ═══ CASCADE IMPACT MODAL ═══ -->
-<div class="cascade-overlay" id="cascade-modal" style="display:none">
-  <div class="cascade-panel">
-    <div class="flex items-start gap-3 mb-5">
-      <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:#fff3cd;border:1px solid #fde68a">
-        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      </div>
-      <div>
-        <div class="text-base font-bold text-gray-900">Confirm: Suspend WP·KJ-3847?</div>
-        <div class="text-sm text-gray-500 mt-0.5">Review downstream impact before confirming</div>
-      </div>
+<!-- ═══ ADD/EDIT VEHICLE MODAL ═══ -->
+<div class="modal-overlay" id="vehicleModal" style="display:none">
+  <div class="modal-panel">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-900" id="vehicleModalTitle">Add Vehicle</h2>
+      <button onclick="closeModal('vehicleModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
     </div>
-    <div class="space-y-2 mb-5">
-      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Cascading Effects</div>
-      <div class="flex items-start gap-3 p-3 rounded-lg" style="background:#fff7ed;border:1px solid #fed7aa">
-        <svg class="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
-        <div class="text-xs"><span class="font-semibold text-orange-700">1 driver assignment orphaned</span><br><span class="text-orange-600">N. Perera (DR-00031) will lose active vehicle — requires reassignment</span></div>
+    <form id="vehicleForm" onsubmit="handleVehicleSubmit(event)">
+      <input type="hidden" id="vehicleId">
+      <div class="form-group">
+        <label class="form-label">Plate Number</label>
+        <input type="text" id="vehiclePlate" class="form-input" required>
       </div>
-      <div class="flex items-start gap-3 p-3 rounded-lg" style="background:#fff7ed;border:1px solid #fed7aa">
-        <svg class="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        <div class="text-xs"><span class="font-semibold text-orange-700">2 active project assignments affected</span><br><span class="text-orange-600">Drydock 1 — Hull Repair Project (Phase 3), Berth 3 — Anchor Chain Replacement</span></div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select id="vehicleCategory" class="form-select" required>
+          <option value="">Select category...</option>
+          <option value="STAFF">Staff</option>
+          <option value="CONTRACTOR">Contractor</option>
+          <option value="MANAGEMENT">Management</option>
+        </select>
       </div>
-      <div class="flex items-start gap-3 p-3 rounded-lg" style="background:#fef2f2;border:1px solid #fecaca">
-        <svg class="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-        <div class="text-xs"><span class="font-semibold text-red-700">OHS report impact</span><br><span class="text-red-600">Vehicle will appear as SUSPENDED in next ISO 45001 monthly report, increasing non-compliance count by 1 (current: 11 → 12)</span></div>
+      <div class="form-group">
+        <label class="form-label">Vehicle Type</label>
+        <select id="vehicleType" class="form-select" required>
+          <option value="">Select type...</option>
+          <option value="CAR">Car</option>
+          <option value="TRUCK">Truck</option>
+          <option value="BUS">Bus</option>
+        </select>
       </div>
-    </div>
-    <div class="flex items-center gap-3">
-      <button onclick="document.getElementById('cascade-modal').style.display='none'" class="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
-      <button onclick="document.getElementById('cascade-modal').style.display='none'" class="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style="background:#ef4444">Confirm Suspend</button>
-    </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="vehicleStatus" class="form-select" required>
+          <option value="ACTIVE">Active</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="EXPIRED">Expired</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contractor Name (optional)</label>
+        <input type="text" id="vehicleContractor" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Department</label>
+        <input type="text" id="vehicleDepartment" class="form-input">
+      </div>
+      <div id="vehicleError" class="error-msg"></div>
+      <div class="flex gap-2 mt-6">
+        <button type="button" class="flex-1 btn-secondary" onclick="closeModal('vehicleModal')">Cancel</button>
+        <button type="submit" class="flex-1 btn-primary">Save Vehicle</button>
+      </div>
+    </form>
   </div>
 </div>
 
-<!-- ═══ RBAC MATRIX MODAL ═══ -->
-<div class="rbac-overlay" id="rbac-modal" style="display:none">
-  <div class="rbac-panel">
-    <div class="flex items-center justify-between mb-5">
-      <div>
-        <div class="text-base font-bold text-gray-900">Role Permission Matrix</div>
-        <div class="text-xs text-gray-400 mt-0.5">Three-role RBAC — read / write / delete per resource</div>
+<!-- ═══ ADD/EDIT SHIFT MODAL ═══ -->
+<div class="modal-overlay" id="shiftModal" style="display:none">
+  <div class="modal-panel">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-900" id="shiftModalTitle">Add Shift</h2>
+      <button onclick="closeModal('shiftModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    </div>
+    <form id="shiftForm" onsubmit="handleShiftSubmit(event)">
+      <input type="hidden" id="shiftId">
+      <div class="form-group">
+        <label class="form-label">Shift Name</label>
+        <input type="text" id="shiftName" class="form-input" required>
       </div>
-      <button onclick="document.getElementById('rbac-modal').style.display='none'" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+      <div class="form-group">
+        <label class="form-label">Start Time</label>
+        <input type="time" id="shiftStart" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Time</label>
+        <input type="time" id="shiftEnd" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Grace Period (minutes)</label>
+        <input type="number" id="shiftGrace" class="form-input" value="30" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Days of Week</label>
+        <input type="text" id="shiftDays" class="form-input" placeholder="e.g., Mon-Fri" required>
+      </div>
+      <div id="shiftError" class="error-msg"></div>
+      <div class="flex gap-2 mt-6">
+        <button type="button" class="flex-1 btn-secondary" onclick="closeModal('shiftModal')">Cancel</button>
+        <button type="submit" class="flex-1 btn-primary">Save Shift</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ ADD/EDIT ZONE MODAL ═══ -->
+<div class="modal-overlay" id="zoneModal" style="display:none">
+  <div class="modal-panel">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-900" id="zoneModalTitle">Add Zone</h2>
+      <button onclick="closeModal('zoneModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-xs">
-        <thead>
-          <tr class="border-b border-gray-100" style="background:#eef1fb">
-            <th class="px-3 py-2 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Resource</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin R</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin W</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#ef4444">Admin D</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr R</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr W</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#1B3F95">Mgr D</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op R</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op W</th>
-            <th class="px-2 py-2 text-center font-semibold text-[10px]" style="color:#76bd33">Op D</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Vehicles</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Gate Events</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Exceptions</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Reports / BI</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Users</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">Audit Log</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-          <tr class="hover:bg-gray-50"><td class="px-3 py-2 font-medium text-gray-700">System Config</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-yes">✓</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td><td class="px-2 py-2 text-center rbac-no">—</td></tr>
-        </tbody>
-      </table>
+    <form id="zoneForm" onsubmit="handleZoneSubmit(event)">
+      <input type="hidden" id="zoneId">
+      <div class="form-group">
+        <label class="form-label">Zone Name</label>
+        <input type="text" id="zoneName" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Zone Type</label>
+        <select id="zoneType" class="form-select" required>
+          <option value="">Select type...</option>
+          <option value="DRYDOCK">Drydock</option>
+          <option value="BERTH">Berth</option>
+          <option value="WORKSHOP">Workshop</option>
+          <option value="ADMIN">Admin</option>
+          <option value="SECURITY">Security</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Associated Gates</label>
+        <input type="text" id="zoneGates" class="form-input" placeholder="e.g., GATE_A,GATE_B" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Vehicle Capacity</label>
+        <input type="number" id="zoneCapacity" class="form-input" required>
+      </div>
+      <div id="zoneError" class="error-msg"></div>
+      <div class="flex gap-2 mt-6">
+        <button type="button" class="flex-1 btn-secondary" onclick="closeModal('zoneModal')">Cancel</button>
+        <button type="submit" class="flex-1 btn-primary">Save Zone</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ ADD/EDIT USER MODAL ═══ -->
+<div class="modal-overlay" id="userModal" style="display:none">
+  <div class="modal-panel">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-900" id="userModalTitle">Add User</h2>
+      <button onclick="closeModal('userModal')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
     </div>
+    <form id="userForm" onsubmit="handleUserSubmit(event)">
+      <input type="hidden" id="userId">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="userName" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="userUsername" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="userPassword" class="form-input">
+        <small class="text-gray-500">Leave blank to keep existing password</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select id="userRole" class="form-select" required>
+          <option value="">Select role...</option>
+          <option value="ADMIN">Admin</option>
+          <option value="MANAGER">Manager</option>
+          <option value="OPERATOR">Operator</option>
+        </select>
+      </div>
+      <div id="userError" class="error-msg"></div>
+      <div class="flex gap-2 mt-6">
+        <button type="button" class="flex-1 btn-secondary" onclick="closeModal('userModal')">Cancel</button>
+        <button type="submit" class="flex-1 btn-primary">Save User</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -153,7 +257,6 @@
     <button class="tab-btn" onclick="setTab('shifts',this)">Shifts</button>
     <button class="tab-btn" onclick="setTab('zones',this)">Zones</button>
     <button class="tab-btn" onclick="setTab('users',this)">Users</button>
-    <button class="tab-btn" onclick="setTab('projects',this)">Projects</button>
   </div>
 
   <!-- ══════════ TAB: VEHICLES ══════════ -->
@@ -162,17 +265,11 @@
       <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-4">
         <div>
           <div class="text-sm font-bold text-gray-900">Vehicle Registry</div>
-          <div class="text-xs text-gray-400 mt-0.5">FR-04 · FR-05 · 142 registered · OHS risk monitoring active</div>
+          <div class="text-xs text-gray-400 mt-0.5" id="vehicleCount">Loading...</div>
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" placeholder="Search plate, driver…" class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 w-48" style="font-family:'Inter',sans-serif">
-          <select class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none text-gray-600" style="font-family:'Inter',sans-serif">
-            <option>All Categories</option><option>Cargo</option><option>Heavy</option><option>Light</option>
-          </select>
-          <select class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none text-gray-600" style="font-family:'Inter',sans-serif">
-            <option>All Status</option><option>Active</option><option>Suspended</option><option>Expired</option>
-          </select>
-          <button class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Add Vehicle</button>
+          <input type="text" id="vehicleSearch" placeholder="Search plate..." class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 w-48" style="font-family:'Inter',sans-serif">
+          <button onclick="openModal('vehicleModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Add Vehicle</button>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -181,174 +278,44 @@
             <tr class="border-b border-gray-100" style="background:#eef1fb">
               <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95;width:36px"></th>
               <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Plate</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Type / Category</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Reg. Status</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">OHS Risk</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Assigned Driver</th>
-              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Event</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Category</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Type</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Status</th>
+              <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Department</th>
               <th class="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
             </tr>
           </thead>
           <tbody id="tbody-vehicles">
-            <!-- Row 1: ACTIVE / UNASSIGNED -->
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-1',this)">
-              <td class="px-5 py-3 text-gray-400 text-base" id="vex-1-arrow">›</td>
-              <td class="px-3 py-3 font-bold mono text-gray-900">WP·KJ-3847</td>
-              <td class="px-3 py-3 text-gray-600">Toyota Land Cruiser · <span class="text-gray-400">Cargo</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-active">ACTIVE</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-unassigned">UNASSIGNED</span></td>
-              <td class="px-3 py-3 text-gray-400 italic">Not assigned</td>
-              <td class="px-3 py-3 mono text-gray-500">14:31 today</td>
-              <td class="px-3 py-3 flex items-center gap-1">
-                <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button>
-                <button onclick="event.stopPropagation();document.getElementById('cascade-modal').style.display='flex'" class="text-[10px] px-2 py-0.5 rounded border text-amber-600 hover:bg-amber-50" style="border-color:rgba(244,189,15,.4)">Suspend</button>
-              </td>
-            </tr>
-            <tr id="vex-1" class="expand-row border-b border-gray-100">
-              <td colspan="8" class="px-8 py-3" style="background:#f8f9fb">
-                <div class="flex items-center gap-8 text-xs">
-                  <div><span class="text-gray-400">Assigned Driver</span> <span class="font-semibold text-red-500 ml-1">None — OHS liability</span></div>
-                  <div><span class="text-gray-400">Active Projects</span> <span class="font-semibold text-gray-700 ml-1">2</span></div>
-                  <div><span class="text-gray-400">Last Gate Event</span> <span class="font-semibold mono text-gray-700 ml-1">2025-03-14 14:31 · GATE_B · IN</span></div>
-                  <div><span class="text-gray-400">Registered</span> <span class="font-semibold text-gray-700 ml-1">2024-01-15</span></div>
-                  <div><span class="text-gray-400">Exp.</span> <span class="font-semibold text-gray-700 ml-1">2026-01-14</span></div>
-                </div>
-              </td>
-            </tr>
-            <!-- Row 2: SUSPENDED / HIGH_OVERSTAY -->
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-2',this)" style="background:#fffbf0">
-              <td class="px-5 py-3 text-gray-400 text-base" id="vex-2-arrow">›</td>
-              <td class="px-3 py-3 font-bold mono text-gray-900">NB·AA-0012</td>
-              <td class="px-3 py-3 text-gray-600">Mitsubishi Canter · <span class="text-gray-400">Heavy</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-suspended">SUSPENDED</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-high-overstay">HIGH_OVERSTAY</span></td>
-              <td class="px-3 py-3 font-medium text-gray-700">K. Fernando</td>
-              <td class="px-3 py-3 mono text-gray-500">14:26 today</td>
-              <td class="px-3 py-3 flex items-center gap-1">
-                <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button>
-                <button class="text-[10px] px-2 py-0.5 rounded border text-green-600 hover:bg-green-50" style="border-color:rgba(118,189,51,.4)">Reinstate</button>
-              </td>
-            </tr>
-            <tr id="vex-2" class="expand-row border-b border-gray-100">
-              <td colspan="8" class="px-8 py-3" style="background:#f8f9fb">
-                <div class="flex items-center gap-8 text-xs">
-                  <div><span class="text-gray-400">Assigned Driver</span> <span class="font-semibold text-gray-700 ml-1">K. Fernando (DR-00024)</span></div>
-                  <div><span class="text-gray-400">Active Projects</span> <span class="font-semibold text-gray-700 ml-1">0</span></div>
-                  <div><span class="text-gray-400">Last Gate Event</span> <span class="font-semibold mono text-gray-700 ml-1">2025-03-14 14:26 · GATE_B · IN</span></div>
-                  <div><span class="text-gray-400">Suspension Reason</span> <span class="font-semibold text-amber-600 ml-1">Overstay ×7 in 14 days</span></div>
-                </div>
-              </td>
-            </tr>
-            <!-- Row 3 -->
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-3',this)">
-              <td class="px-5 py-3 text-gray-400 text-base" id="vex-3-arrow">›</td>
-              <td class="px-3 py-3 font-bold mono text-gray-900">CP·MA-2341</td>
-              <td class="px-3 py-3 text-gray-600">Mahindra Bolero · <span class="text-gray-400">Light</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-active">ACTIVE</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td>
-              <td class="px-3 py-3 font-medium text-gray-700">C. Wickramasinghe</td>
-              <td class="px-3 py-3 mono text-gray-500">12:03 today</td>
-              <td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button><button onclick="event.stopPropagation();document.getElementById('cascade-modal').style.display='flex'" class="text-[10px] px-2 py-0.5 rounded border text-amber-600 hover:bg-amber-50" style="border-color:rgba(244,189,15,.4)">Suspend</button></td>
-            </tr>
-            <tr id="vex-3" class="expand-row border-b border-gray-100"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="flex items-center gap-8 text-xs"><div><span class="text-gray-400">Driver</span><span class="font-semibold text-gray-700 ml-1">C. Wickramasinghe (DR-00047)</span></div><div><span class="text-gray-400">Projects</span><span class="font-semibold text-gray-700 ml-1">1</span></div><div><span class="text-gray-400">Last Event</span><span class="font-semibold mono text-gray-700 ml-1">2025-03-14 12:03 · GATE_A · OUT</span></div></div></td></tr>
-            <!-- Row 4: EXPIRED -->
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-4',this)" style="background:#fff5f5">
-              <td class="px-5 py-3 text-gray-400 text-base" id="vex-4-arrow">›</td>
-              <td class="px-3 py-3 font-bold mono text-gray-900">SP·BD-7783</td>
-              <td class="px-3 py-3 text-gray-600">Tata Prima · <span class="text-gray-400">Heavy</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-expired">EXPIRED</span></td>
-              <td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td>
-              <td class="px-3 py-3 text-gray-400 italic">Not assigned</td>
-              <td class="px-3 py-3 mono text-gray-500">14:31 today</td>
-              <td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button><button class="text-[10px] px-2 py-0.5 rounded border text-blue-600 hover:bg-blue-50" style="border-color:rgba(27,63,149,.3)">Renew</button></td>
-            </tr>
-            <tr id="vex-4" class="expand-row border-b border-gray-100"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="flex items-center gap-8 text-xs"><div><span class="text-gray-400">Expiry</span><span class="font-semibold text-red-500 ml-1">2025-03-10 (expired 4 days ago)</span></div><div><span class="text-gray-400">Projects</span><span class="font-semibold text-gray-700 ml-1">0</span></div></div></td></tr>
-            <!-- Rows 5–8 compact -->
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-5',this)"><td class="px-5 py-3 text-gray-400 text-base" id="vex-5-arrow">›</td><td class="px-3 py-3 font-bold mono text-gray-900">WP·CA-1192</td><td class="px-3 py-3 text-gray-600">Toyota Hilux · <span class="text-gray-400">Light</span></td><td class="px-3 py-3"><span class="badge-pill badge-active">ACTIVE</span></td><td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td><td class="px-3 py-3 font-medium text-gray-700">N. Perera</td><td class="px-3 py-3 mono text-gray-500">14:31 today</td><td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
-            <tr id="vex-5" class="expand-row border-b border-gray-100"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="flex items-center gap-8 text-xs"><div><span class="text-gray-400">Driver</span><span class="font-semibold text-gray-700 ml-1">N. Perera (DR-00031)</span></div><div><span class="text-gray-400">Projects</span><span class="font-semibold text-gray-700 ml-1">3</span></div><div><span class="text-gray-400">Last Event</span><span class="font-semibold mono text-gray-700 ml-1">2025-03-14 14:31 · GATE_A · OUT</span></div></div></td></tr>
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-6',this)"><td class="px-5 py-3 text-gray-400 text-base" id="vex-6-arrow">›</td><td class="px-3 py-3 font-bold mono text-gray-900">WP·GF-4521</td><td class="px-3 py-3 text-gray-600">Isuzu ELF · <span class="text-gray-400">Cargo</span></td><td class="px-3 py-3"><span class="badge-pill badge-active">ACTIVE</span></td><td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td><td class="px-3 py-3 font-medium text-gray-700">S. Silva</td><td class="px-3 py-3 mono text-gray-500">14:25 today</td><td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
-            <tr id="vex-6" class="expand-row border-b border-gray-100"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="flex items-center gap-8 text-xs"><div><span class="text-gray-400">Driver</span><span class="font-semibold text-gray-700 ml-1">S. Silva (DR-00018)</span></div><div><span class="text-gray-400">Projects</span><span class="font-semibold text-gray-700 ml-1">2</span></div></div></td></tr>
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-7',this)"><td class="px-5 py-3 text-gray-400 text-base" id="vex-7-arrow">›</td><td class="px-3 py-3 font-bold mono text-gray-900">CP·BB-8834</td><td class="px-3 py-3 text-gray-600">Ford Transit · <span class="text-gray-400">Light</span></td><td class="px-3 py-3"><span class="badge-pill badge-suspended">SUSPENDED</span></td><td class="px-3 py-3"><span class="badge-pill badge-suspended">SUSPENDED</span></td><td class="px-3 py-3 font-medium text-gray-700">P. Jayawardena</td><td class="px-3 py-3 mono text-gray-500">2d ago</td><td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button><button class="text-[10px] px-2 py-0.5 rounded border text-green-600 hover:bg-green-50" style="border-color:rgba(118,189,51,.4)">Reinstate</button></td></tr>
-            <tr id="vex-7" class="expand-row border-b border-gray-100"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="text-xs text-gray-500">Suspension reason: Failed CDL safety inspection — brake system maintenance required</div></td></tr>
-            <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-8',this)"><td class="px-5 py-3 text-gray-400 text-base" id="vex-8-arrow">›</td><td class="px-3 py-3 font-bold mono text-gray-900">NB·KA-1773</td><td class="px-3 py-3 text-gray-600">Hyundai HD65 · <span class="text-gray-400">Cargo</span></td><td class="px-3 py-3"><span class="badge-pill badge-active">ACTIVE</span></td><td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td><td class="px-3 py-3 font-medium text-gray-700">R. Dissanayake</td><td class="px-3 py-3 mono text-gray-500">14:19 today</td><td class="px-3 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
-            <tr id="vex-8" class="expand-row"><td colspan="8" class="px-8 py-3" style="background:#f8f9fb"><div class="flex items-center gap-8 text-xs"><div><span class="text-gray-400">Driver</span><span class="font-semibold text-gray-700 ml-1">R. Dissanayake (DR-00009)</span></div><div><span class="text-gray-400">Projects</span><span class="font-semibold text-gray-700 ml-1">1</span></div></div></td></tr>
+            <tr><td colspan="7" class="px-5 py-3 text-center text-gray-400">Loading vehicles...</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100">Showing 8 of 142 vehicles · <a href="#" class="text-blue-500 no-underline">View all</a></div>
     </div>
   </div>
 
   <!-- ══════════ TAB: SHIFTS ══════════ -->
-  <div id="tab-shifts" class="tab-content hidden space-y-5">
-    <div class="card p-5">
-      <div class="text-sm font-bold text-gray-900 mb-1">CDL Shift Schedule — 24-Hour Timeline</div>
-      <div class="text-xs text-gray-400 mb-5">FR-02 · Three rotating shifts · Grace periods shown as translucent extensions</div>
-      <!-- Hour labels -->
-      <div class="relative mb-1" style="height:18px">
-        <div style="position:absolute;left:0%;font-size:.55rem;color:#94a3b8">00:00</div>
-        <div style="position:absolute;left:12.5%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">03:00</div>
-        <div style="position:absolute;left:25%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">06:00</div>
-        <div style="position:absolute;left:29.17%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">07:00</div>
-        <div style="position:absolute;left:37.5%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">09:00</div>
-        <div style="position:absolute;left:50%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">12:00</div>
-        <div style="position:absolute;left:62.5%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">15:00</div>
-        <div style="position:absolute;left:75%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">18:00</div>
-        <div style="position:absolute;left:87.5%;font-size:.55rem;color:#94a3b8;transform:translateX(-50%)">21:00</div>
-        <div style="position:absolute;left:95.83%;font-size:.55rem;color:#1B3F95;font-weight:600;transform:translateX(-50%)">23:00</div>
-        <div style="position:absolute;right:0;font-size:.55rem;color:#94a3b8">24:00</div>
-      </div>
-      <!-- Timeline bar -->
-      <div class="relative rounded-lg overflow-hidden" style="height:72px;background:#f0f2f6;border:1px solid #e5e7eb">
-        <!-- Night shift 00:00–07:00 -->
-        <div class="shift-block" style="left:0%;width:29.17%;background:rgba(30,58,138,.75)">
-          <div style="font-size:.625rem;font-weight:700;color:#bfdbfe;text-transform:uppercase;letter-spacing:.08em">Night</div>
-          <div style="font-size:.5rem;color:#93c5fd">9 veh · 8 drv</div>
-        </div>
-        <!-- Grace: Night→Morning -->
-        <div class="grace" style="left:28.55%;width:1.25%;background:#76bd33;border-radius:0"></div>
-        <!-- Morning shift 07:00–15:00 -->
-        <div class="shift-block" style="left:29.17%;width:33.33%;background:rgba(27,63,149,.85)">
-          <div style="font-size:.625rem;font-weight:700;color:#e0e7ff;text-transform:uppercase;letter-spacing:.08em">Morning</div>
-          <div style="font-size:.5rem;color:#c7d2fe">32 veh · 28 drv</div>
-          <div style="font-size:.5rem;color:#a5b4fc;margin-top:1px">07:00–15:00</div>
-        </div>
-        <!-- Grace: Morning→Evening -->
-        <div class="grace" style="left:62.5%;width:1.25%;background:#76bd33;border-radius:0"></div>
-        <!-- Evening shift 15:00–23:00 -->
-        <div class="shift-block" style="left:62.5%;width:33.33%;background:rgba(79,70,229,.8)">
-          <div style="font-size:.625rem;font-weight:700;color:#e0e7ff;text-transform:uppercase;letter-spacing:.08em">Evening</div>
-          <div style="font-size:.5rem;color:#c7d2fe">18 veh · 16 drv</div>
-          <div style="font-size:.5rem;color:#a5b4fc;margin-top:1px">15:00–23:00</div>
-        </div>
-        <!-- Grace: Evening→Night -->
-        <div class="grace" style="left:95.83%;width:1.25%;background:#76bd33;border-radius:0"></div>
-        <!-- Night tail 23:00–24:00 -->
-        <div class="shift-block" style="left:95.83%;width:4.17%;background:rgba(30,58,138,.75)"></div>
-        <!-- Grace legend -->
-        <div style="position:absolute;bottom:4px;right:8px;font-size:.5rem;color:#94a3b8;display:flex;align-items:center;gap:4px">
-          <div style="width:10px;height:8px;background:rgba(118,189,51,.35);border-radius:1px"></div>
-          <span>Grace period (30 min)</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-6 mt-3 text-xs text-gray-400">
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm" style="background:rgba(27,63,149,.85)"></div><span>Morning 07:00–15:00</span></div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm" style="background:rgba(79,70,229,.8)"></div><span>Evening 15:00–23:00</span></div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm" style="background:rgba(30,58,138,.75)"></div><span>Night 23:00–07:00</span></div>
-      </div>
-    </div>
-    <!-- Shift CRUD table -->
+  <div id="tab-shifts" class="tab-content hidden">
     <div class="card">
       <div class="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div class="text-sm font-bold text-gray-900">Shift Configuration</div>
-        <button class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ New Shift</button>
+        <div>
+          <div class="text-sm font-bold text-gray-900">Shift Configuration</div>
+          <div class="text-xs text-gray-400 mt-0.5" id="shiftCount">Loading...</div>
+        </div>
+        <button onclick="openModal('shiftModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ New Shift</button>
       </div>
       <table class="w-full text-xs">
-        <thead><tr class="border-b border-gray-100" style="background:#eef1fb"><th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Shift Name</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Start</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">End</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Grace (min)</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Vehicles</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Drivers</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th></tr></thead>
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Start</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">End</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Grace (min)</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Days</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
+          </tr>
+        </thead>
         <tbody id="tbody-shifts">
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Morning</td><td class="px-4 py-3 mono">07:00</td><td class="px-4 py-3 mono">15:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">32</td><td class="px-4 py-3 mono font-semibold text-gray-700">28</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Evening</td><td class="px-4 py-3 mono">15:00</td><td class="px-4 py-3 mono">23:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">18</td><td class="px-4 py-3 mono font-semibold text-gray-700">16</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
-          <tr class="hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-800">Night</td><td class="px-4 py-3 mono">23:00</td><td class="px-4 py-3 mono">07:00</td><td class="px-4 py-3 mono text-gray-600">30</td><td class="px-4 py-3 mono font-semibold text-gray-700">9</td><td class="px-4 py-3 mono font-semibold text-gray-700">8</td><td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td></tr>
+          <tr><td colspan="6" class="px-5 py-3 text-center text-gray-400">Loading shifts...</td></tr>
         </tbody>
       </table>
     </div>
@@ -356,24 +323,11 @@
 
   <!-- ══════════ TAB: ZONES ══════════ -->
   <div id="tab-zones" class="tab-content hidden">
-    <div id="zones-grid" class="grid grid-cols-4 gap-4">
-      <!-- Zone cards: color cap bar green→amber→red -->
-      <!-- Drydock 1 (84%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Drydock 1</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A · GATE_B</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">PRODUCTION</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">38</div><div class="text-[10px] text-gray-400">of 45 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#f97316">84%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:84%;background:#f97316"></div></div><div class="text-[10px] text-orange-500 font-semibold mt-1.5">↑ Approaching capacity</div></div>
-      <!-- Drydock 2 (55%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Drydock 2</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">PRODUCTION</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">22</div><div class="text-[10px] text-gray-400">of 40 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#76bd33">55%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:55%;background:#76bd33"></div></div><div class="text-[10px] text-gray-400 mt-1.5">Normal utilisation</div></div>
-      <!-- Berth 3 (93%) CRITICAL -->
-      <div class="card p-4" style="border:1px solid rgba(239,68,68,.3)"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Berth 3</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_B</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">BERTHING</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">28</div><div class="text-[10px] text-gray-400">of 30 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono text-red-500">93%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:93%;background:#ef4444"></div></div><div class="flex items-center gap-1 mt-1.5"><span class="w-1.5 h-1.5 rounded-full breathe inline-block" style="color:#ef4444;background:#ef4444"></span><span class="text-[10px] text-red-500 font-semibold">Near capacity — restrict entry</span></div></div>
-      <!-- Berth 7 (32%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Berth 7</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_C</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">BERTHING</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">8</div><div class="text-[10px] text-gray-400">of 25 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#76bd33">32%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:32%;background:#76bd33"></div></div><div class="text-[10px] text-gray-400 mt-1.5">Low utilisation</div></div>
-      <!-- Workshop A (75%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Workshop A</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">WORKSHOP</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">15</div><div class="text-[10px] text-gray-400">of 20 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#f4bd0f">75%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:75%;background:#f4bd0f"></div></div><div class="text-[10px] text-amber-600 mt-1.5">Moderate load</div></div>
-      <!-- Workshop B (55%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Workshop B</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_B</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">WORKSHOP</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">11</div><div class="text-[10px] text-gray-400">of 20 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#76bd33">55%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:55%;background:#76bd33"></div></div><div class="text-[10px] text-gray-400 mt-1.5">Normal utilisation</div></div>
-      <!-- Admin Block (38%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Admin Block</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">ADMIN</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">19</div><div class="text-[10px] text-gray-400">of 50 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#76bd33">38%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:38%;background:#76bd33"></div></div><div class="text-[10px] text-gray-400 mt-1.5">Low utilisation</div></div>
-      <!-- Security Perimeter (47%) -->
-      <div class="card p-4"><div class="flex items-start justify-between mb-2"><div><div class="text-xs font-bold text-gray-900">Security Perimeter</div><div class="text-[10px] text-gray-400 mt-0.5">GATE_A · B · C</div></div><span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">SECURITY</span></div><div class="flex items-end justify-between mt-3"><div><div class="text-2xl font-bold mono text-gray-900">47</div><div class="text-[10px] text-gray-400">of 100 capacity</div></div><div class="text-right"><div class="text-lg font-bold mono" style="color:#76bd33">47%</div></div></div><div class="cap-bar"><div class="cap-fill" style="width:47%;background:#76bd33"></div></div><div class="text-[10px] text-gray-400 mt-1.5">Normal utilisation</div></div>
+    <div class="flex justify-end mb-4">
+      <button onclick="openModal('zoneModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Add Zone</button>
+    </div>
+    <div id="zones-grid" class="grid grid-cols-3 gap-4">
+      <div class="card p-4 text-center text-gray-400">Loading zones...</div>
     </div>
   </div>
 
@@ -381,24 +335,24 @@
   <div id="tab-users" class="tab-content hidden">
     <div class="card">
       <div class="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div><div class="text-sm font-bold text-gray-900">User Management</div><div class="text-xs text-gray-400 mt-0.5">FR-10 · NFR-07 · Three-role RBAC · 9 users</div></div>
-        <div class="flex items-center gap-2">
-          <button onclick="document.getElementById('rbac-modal').style.display='flex'" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">View Permission Matrix</button>
-          <button class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Invite User</button>
+        <div>
+          <div class="text-sm font-bold text-gray-900">User Management</div>
+          <div class="text-xs text-gray-400 mt-0.5" id="userCount">Loading...</div>
         </div>
+        <button onclick="openModal('userModal','add')" class="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style="background:#1B3F95">+ Invite User</button>
       </div>
       <table class="w-full text-xs">
-        <thead><tr class="border-b border-gray-100" style="background:#eef1fb"><th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Username</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Role</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Login</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Status</th><th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th></tr></thead>
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-5 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Name</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Username</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Role</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Last Login</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Actions</th>
+          </tr>
+        </thead>
         <tbody id="tbody-users">
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">R. Weerasinghe <span class="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full ml-1">YOU</span></td><td class="px-4 py-3 mono text-gray-600">rashid_admin</td><td class="px-4 py-3"><span class="badge-pill badge-expired">ADMIN</span></td><td class="px-4 py-3 text-gray-600">Today, 14:22</td><td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:#76bd33">● Active</span></td><td class="px-4 py-3 text-gray-300 text-xs">Protected</td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">M. Fonseka</td><td class="px-4 py-3 mono text-gray-600">admin_sys</td><td class="px-4 py-3"><span class="badge-pill badge-expired">ADMIN</span></td><td class="px-4 py-3 text-gray-600">2 days ago</td><td class="px-4 py-3"><span class="text-[10px] text-gray-400">Inactive</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">P. Jayawardena</td><td class="px-4 py-3 mono text-gray-600">priya_mgr</td><td class="px-4 py-3"><span class="badge-pill badge-active" style="background:rgba(27,63,149,.1);color:#1B3F95;border-color:rgba(27,63,149,.25)">MANAGER</span></td><td class="px-4 py-3 text-gray-600">Today, 09:11</td><td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:#76bd33">● Active</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">K. Bandara</td><td class="px-4 py-3 mono text-gray-600">kavi_mgr</td><td class="px-4 py-3"><span class="badge-pill badge-active" style="background:rgba(27,63,149,.1);color:#1B3F95;border-color:rgba(27,63,149,.25)">MANAGER</span></td><td class="px-4 py-3 text-gray-600">5 days ago</td><td class="px-4 py-3"><span class="text-[10px] text-gray-400">Inactive</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">S. Pathirage</td><td class="px-4 py-3 mono text-gray-600">pathirage_op</td><td class="px-4 py-3"><span class="badge-pill badge-ok">OPERATOR</span></td><td class="px-4 py-3 text-gray-600">Today, 07:00</td><td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:#76bd33">● Active (session)</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">L. Kumara</td><td class="px-4 py-3 mono text-gray-600">lakshman_op</td><td class="px-4 py-3"><span class="badge-pill badge-ok">OPERATOR</span></td><td class="px-4 py-3 text-gray-600">Yesterday</td><td class="px-4 py-3"><span class="text-[10px] text-gray-400">Inactive</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
-          <tr class="border-b border-gray-50 hover:bg-gray-50"><td class="px-5 py-3 font-semibold text-gray-900">T. Rajapaksa</td><td class="px-4 py-3 mono text-gray-600">tharaka_op</td><td class="px-4 py-3"><span class="badge-pill badge-ok">OPERATOR</span></td><td class="px-4 py-3 text-gray-600">3 days ago</td><td class="px-4 py-3"><span class="text-[10px] text-gray-400">Inactive</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button></td></tr>
-          <!-- STALE account: >30 days -->
-          <tr class="border-b border-gray-50" style="background:rgba(239,68,68,.03)"><td class="px-5 py-3 font-semibold text-gray-900">B. Wickremasinghe <span class="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style="background:rgba(239,68,68,.12);color:#cc2222;border:1px solid rgba(239,68,68,.25)">STALE</span></td><td class="px-4 py-3 mono text-gray-600">bandu_op</td><td class="px-4 py-3"><span class="badge-pill badge-ok">OPERATOR</span></td><td class="px-4 py-3 text-red-500 font-medium">38 days ago</td><td class="px-4 py-3"><span class="text-[10px] font-semibold text-red-500">⚠ Inactive &gt;30d</span></td><td class="px-4 py-3 flex items-center gap-1"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button><button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500 font-semibold">Disable</button></td></tr>
+          <tr><td colspan="5" class="px-5 py-3 text-center text-gray-400">Loading users...</td></tr>
         </tbody>
       </table>
     </div>
@@ -407,60 +361,227 @@
 </div>
 
 <script>
-  function setTab(id, btn) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-'+id).classList.remove('hidden');
-    btn.classList.add('active');
+  // ── Modal Management ────────────────────────────────────────────────────
+  function openModal(modalId, mode, data = null) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    if (modalId === 'vehicleModal') {
+      if (mode === 'add') {
+        document.getElementById('vehicleModalTitle').textContent = 'Add Vehicle';
+        document.getElementById('vehicleId').value = '';
+        document.getElementById('vehiclePlate').disabled = false;
+        document.getElementById('vehicleForm').reset();
+      } else {
+        document.getElementById('vehicleModalTitle').textContent = 'Edit Vehicle';
+        document.getElementById('vehicleId').value = data.plate_number || '';
+        document.getElementById('vehiclePlate').value = data.plate_number || '';
+        document.getElementById('vehiclePlate').disabled = true;
+        document.getElementById('vehicleCategory').value = data.vehicle_category || '';
+        document.getElementById('vehicleType').value = data.vehicle_type || '';
+        document.getElementById('vehicleStatus').value = data.registration_status || '';
+        document.getElementById('vehicleContractor').value = data.contractor_name || '';
+        document.getElementById('vehicleDepartment').value = data.department || '';
+      }
+    } else if (modalId === 'shiftModal') {
+      if (mode === 'add') {
+        document.getElementById('shiftModalTitle').textContent = 'Add Shift';
+        document.getElementById('shiftId').value = '';
+        document.getElementById('shiftForm').reset();
+      } else {
+        document.getElementById('shiftModalTitle').textContent = 'Edit Shift';
+        document.getElementById('shiftId').value = data.shift_id || '';
+        document.getElementById('shiftName').value = data.shift_name || '';
+        document.getElementById('shiftStart').value = data.start_time || '';
+        document.getElementById('shiftEnd').value = data.end_time || '';
+        document.getElementById('shiftGrace').value = data.grace_period_minutes || data.grace_minutes || 30;
+        document.getElementById('shiftDays').value = data.days_of_week || '';
+      }
+    } else if (modalId === 'zoneModal') {
+      if (mode === 'add') {
+        document.getElementById('zoneModalTitle').textContent = 'Add Zone';
+        document.getElementById('zoneId').value = '';
+        document.getElementById('zoneForm').reset();
+      } else {
+        document.getElementById('zoneModalTitle').textContent = 'Edit Zone';
+        document.getElementById('zoneId').value = data.zone_id || data.id || '';
+        document.getElementById('zoneName').value = data.zone_name || '';
+        document.getElementById('zoneType').value = data.zone_type || '';
+        document.getElementById('zoneGates').value = (Array.isArray(data.associated_gates) ? data.associated_gates.join(',') : data.associated_gates) || '';
+        document.getElementById('zoneCapacity').value = data.vehicle_capacity || data.capacity_vehicles || '';
+      }
+    } else if (modalId === 'userModal') {
+      if (mode === 'add') {
+        document.getElementById('userModalTitle').textContent = 'Add User';
+        document.getElementById('userId').value = '';
+        document.getElementById('userForm').reset();
+      } else {
+        document.getElementById('userModalTitle').textContent = 'Edit User';
+        document.getElementById('userId').value = data.id || '';
+        document.getElementById('userName').value = data.full_name || '';
+        document.getElementById('userUsername').value = data.username || '';
+        document.getElementById('userRole').value = data.role || '';
+        document.getElementById('userPassword').value = '';
+      }
+    }
+
+    modal.style.display = 'flex';
   }
 
-  function toggleExpand(id, row) {
-    const ex = document.getElementById(id);
-    const arr = document.getElementById(id+'-arrow');
-    const open = ex.style.display === 'table-row';
-    ex.style.display = open ? 'none' : 'table-row';
-    if (arr) arr.textContent = open ? '›' : '‹';
+  function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
   }
 
-  // ── Data loading ────────────────────────────────────────────────────
+  // Close modals when clicking overlay
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal(overlay.id);
+    });
+  });
+
+  // ── Form Handlers ──────────────────────────────────────────────────────
+  async function handleVehicleSubmit(e) {
+    e.preventDefault();
+    const errorDiv = document.getElementById('vehicleError');
+    errorDiv.textContent = '';
+
+    const id = document.getElementById('vehicleId').value;
+    const data = {
+      plate_number: document.getElementById('vehiclePlate').value,
+      vehicle_category: document.getElementById('vehicleCategory').value,
+      vehicle_type: document.getElementById('vehicleType').value,
+      registration_status: document.getElementById('vehicleStatus').value,
+      contractor_name: document.getElementById('vehicleContractor').value || null,
+      department: document.getElementById('vehicleDepartment').value,
+    };
+
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `/api/vehicles/${id}` : '/api/vehicles';
+      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      closeModal('vehicleModal');
+      loadVehicles();
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  async function handleShiftSubmit(e) {
+    e.preventDefault();
+    const errorDiv = document.getElementById('shiftError');
+    errorDiv.textContent = '';
+
+    const id = document.getElementById('shiftId').value;
+    const data = {
+      shift_name: document.getElementById('shiftName').value,
+      start_time: document.getElementById('shiftStart').value,
+      end_time: document.getElementById('shiftEnd').value,
+      grace_minutes: parseInt(document.getElementById('shiftGrace').value),
+      days_of_week: document.getElementById('shiftDays').value,
+    };
+
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `/api/shifts/${id}` : '/api/shifts';
+      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      closeModal('shiftModal');
+      loadShifts();
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  async function handleZoneSubmit(e) {
+    e.preventDefault();
+    const errorDiv = document.getElementById('zoneError');
+    errorDiv.textContent = '';
+
+    const id = document.getElementById('zoneId').value;
+    const data = {
+      zone_name: document.getElementById('zoneName').value,
+      zone_type: document.getElementById('zoneType').value,
+      associated_gates: document.getElementById('zoneGates').value.split(',').map(g => g.trim()),
+      vehicle_capacity: parseInt(document.getElementById('zoneCapacity').value),
+    };
+
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `/api/zones/${id}` : '/api/zones';
+      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      closeModal('zoneModal');
+      loadZones();
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  async function handleUserSubmit(e) {
+    e.preventDefault();
+    const errorDiv = document.getElementById('userError');
+    errorDiv.textContent = '';
+
+    const id = document.getElementById('userId').value;
+    const data = {
+      username: document.getElementById('userUsername').value,
+      full_name: document.getElementById('userName').value,
+      role: document.getElementById('userRole').value,
+    };
+
+    const pw = document.getElementById('userPassword').value;
+    if (pw) data.password = pw;
+
+    try {
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `/api/users/${id}` : '/api/users';
+      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      closeModal('userModal');
+      loadUsers();
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  // ── Data Loading ───────────────────────────────────────────────────────
   async function loadVehicles() {
     try {
       const r = await fetch('/api/vehicles');
-      if (r.status === 401) { location.href = '/auth/login?next=/vaas-fleet.html'; return; }
+      if (r.status === 401) { location.href = '/auth/login'; return; }
       if (!r.ok) return;
       const vehicles = await r.json();
       const tbody = document.getElementById('tbody-vehicles');
-      if (!tbody) return;
+
+      document.getElementById('vehicleCount').textContent = `${vehicles.length} vehicles`;
 
       const rows = vehicles.map((v, i) => {
-        const riskBadgeClass = v.registration_status === 'ACTIVE' ? 'badge-ok'
+        const statusClass = v.registration_status === 'ACTIVE' ? 'badge-active'
           : v.registration_status === 'SUSPENDED' ? 'badge-suspended'
           : 'badge-expired';
-        const riskText = v.registration_status || 'UNKNOWN';
-        const driver = v.assigned_driver_name || 'Not assigned';
-        const driverClass = v.assigned_driver_name ? 'text-gray-700' : 'text-gray-400 italic';
-
         return `
-          <tr class="vrow border-b border-gray-50 cursor-pointer" onclick="toggleExpand('vex-${i}',this)">
-            <td class="px-5 py-3 text-gray-400 text-base" id="vex-${i}-arrow">›</td>
+          <tr class="vrow border-b border-gray-50">
+            <td class="px-5 py-3"></td>
             <td class="px-3 py-3 font-bold mono text-gray-900">${v.plate_number||'—'}</td>
-            <td class="px-3 py-3 text-gray-600">${v.make_model || 'Unknown'} · <span class="text-gray-400">${v.vehicle_category||'—'}</span></td>
-            <td class="px-3 py-3"><span class="badge-pill ${riskBadgeClass}">${riskText}</span></td>
-            <td class="px-3 py-3"><span class="badge-pill badge-ok">OK</span></td>
-            <td class="px-3 py-3 font-medium ${driverClass}">${driver}</td>
-            <td class="px-3 py-3 mono text-gray-500">—</td>
+            <td class="px-3 py-3 text-gray-600">${v.vehicle_category||'—'}</td>
+            <td class="px-3 py-3 text-gray-600">${v.vehicle_type||'—'}</td>
+            <td class="px-3 py-3"><span class="badge-pill ${statusClass}">${v.registration_status||'UNKNOWN'}</span></td>
+            <td class="px-3 py-3 text-gray-600">${v.department||'—'}</td>
             <td class="px-3 py-3 flex items-center gap-1">
-              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button>
-            </td>
-          </tr>
-          <tr id="vex-${i}" class="expand-row border-b border-gray-100">
-            <td colspan="8" class="px-8 py-3" style="background:#f8f9fb">
-              <div class="flex items-center gap-8 text-xs">
-                <div><span class="text-gray-400">Plate</span> <span class="font-semibold text-gray-700 ml-1">${v.plate_number||'—'}</span></div>
-                <div><span class="text-gray-400">Category</span> <span class="font-semibold text-gray-700 ml-1">${v.vehicle_category||'—'}</span></div>
-                <div><span class="text-gray-400">Type</span> <span class="font-semibold text-gray-700 ml-1">${v.vehicle_type||'—'}</span></div>
-                <div><span class="text-gray-400">Status</span> <span class="font-semibold text-gray-700 ml-1">${riskText}</span></div>
-              </div>
+              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('vehicleModal','edit',${JSON.stringify(v)})">Edit</button>
             </td>
           </tr>
         `;
@@ -476,17 +597,19 @@
       if (!r.ok) return;
       const shifts = await r.json();
       const tbody = document.getElementById('tbody-shifts');
-      if (!tbody) return;
+
+      document.getElementById('shiftCount').textContent = `${shifts.length} shifts`;
 
       const rows = shifts.map(s => `
         <tr class="border-b border-gray-50 hover:bg-gray-50">
           <td class="px-5 py-3 font-semibold text-gray-800">${s.shift_name||'—'}</td>
           <td class="px-4 py-3 mono">${s.start_time||'—'}</td>
           <td class="px-4 py-3 mono">${s.end_time||'—'}</td>
-          <td class="px-4 py-3 mono text-gray-600">${s.grace_minutes||0}</td>
-          <td class="px-4 py-3 mono font-semibold text-gray-700">—</td>
-          <td class="px-4 py-3 mono font-semibold text-gray-700">—</td>
-          <td class="px-4 py-3"><button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600">Edit</button></td>
+          <td class="px-4 py-3 mono text-gray-600">${s.grace_period_minutes||s.grace_minutes||0}</td>
+          <td class="px-4 py-3 mono text-gray-600">${s.days_of_week||'—'}</td>
+          <td class="px-4 py-3 flex items-center gap-1">
+            <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('shiftModal','edit',${JSON.stringify(s)})">Edit</button>
+          </td>
         </tr>
       `).join('');
 
@@ -500,36 +623,28 @@
       if (!r.ok) return;
       const zones = await r.json();
       const grid = document.getElementById('zones-grid');
-      if (!grid) return;
 
       const cards = zones.map(z => {
-        const pct = Math.round((z.occupancy || 0) * 100);
+        const pct = Math.round(z.utilisation_pct || (z.occupancy || 0) * 100);
         const color = pct >= 85 ? '#ef4444' : pct >= 65 ? '#f4bd0f' : '#76bd33';
-        const colorClass = pct >= 85 ? 'red' : pct >= 65 ? 'amber' : 'green';
-        const msg = pct >= 85 ? 'Near capacity — restrict entry'
-          : pct >= 65 ? 'Approaching capacity'
-          : 'Normal utilisation';
+        const msg = pct >= 85 ? 'Near capacity' : pct >= 65 ? 'Approaching' : 'Normal';
+        const cap = z.vehicle_capacity || z.capacity_vehicles || 50;
 
         return `
           <div class="card p-4">
             <div class="flex items-start justify-between mb-2">
               <div>
                 <div class="text-xs font-bold text-gray-900">${z.zone_name||'—'}</div>
-                <div class="text-[10px] text-gray-400 mt-0.5">${z.associated_gates?.join(' · ') || 'GATE_A'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5">${z.zone_type||'—'}</div>
               </div>
-              <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase" style="background:#eef1fb;color:#1B3F95">${z.zone_type||'ZONE'}</span>
+              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500" onclick="openModal('zoneModal','edit',${JSON.stringify(z)})">Edit</button>
             </div>
             <div class="flex items-end justify-between mt-3">
-              <div>
-                <div class="text-2xl font-bold mono text-gray-900">${z.current_occupancy || 0}</div>
-                <div class="text-[10px] text-gray-400">of ${z.vehicle_capacity || 50} capacity</div>
-              </div>
-              <div class="text-right">
-                <div class="text-lg font-bold mono" style="color:${color}">${pct}%</div>
-              </div>
+              <div><div class="text-2xl font-bold mono">${z.current_occupancy||0}</div><div class="text-[10px] text-gray-400">of ${cap}</div></div>
+              <div class="text-lg font-bold mono" style="color:${color}">${pct}%</div>
             </div>
             <div class="cap-bar"><div class="cap-fill" style="width:${pct}%;background:${color}"></div></div>
-            <div class="text-[10px] mt-1.5" style="color:${colorClass === 'red' ? '#dc2626' : colorClass === 'amber' ? '#d97706' : '#16a34a'}">${msg}</div>
+            <div class="text-[10px] mt-1.5" style="color:${color}">${msg}</div>
           </div>
         `;
       }).join('');
@@ -544,28 +659,59 @@
       if (!r.ok) return;
       const users = await r.json();
       const tbody = document.getElementById('tbody-users');
-      if (!tbody) return;
 
-      const rows = users.map(u => `
-        <tr class="border-b border-gray-50 hover:bg-gray-50">
-          <td class="px-5 py-3 font-semibold text-gray-900">${u.full_name || u.username}</td>
-          <td class="px-4 py-3 mono text-gray-600">${u.username}</td>
-          <td class="px-4 py-3"><span class="badge-pill ${u.role === 'ADMIN' ? 'badge-expired' : u.role === 'MANAGER' ? 'badge-active' : 'badge-ok'}">${u.role}</span></td>
-          <td class="px-4 py-3 text-gray-600">—</td>
-          <td class="px-4 py-3"><span class="text-[10px] font-semibold" style="color:${u.is_active ? '#76bd33' : '#999'}">● ${u.is_active ? 'Active' : 'Inactive'}</span></td>
-          <td class="px-4 py-3 flex items-center gap-1">
-            <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500">Reset PW</button>
-            <button class="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500">Delete</button>
-          </td>
-        </tr>
-      `).join('');
+      document.getElementById('userCount').textContent = `${users.length} users`;
+
+      const rows = users.map(u => {
+        const roleClass = u.role === 'ADMIN' ? 'badge-expired' : u.role === 'MANAGER' ? 'badge-active' : 'badge-ok';
+        return `
+          <tr class="border-b border-gray-50 hover:bg-gray-50">
+            <td class="px-5 py-3 font-semibold text-gray-900">${u.full_name || u.username}</td>
+            <td class="px-4 py-3 mono text-gray-600">${u.username}</td>
+            <td class="px-4 py-3"><span class="badge-pill ${roleClass}">${u.role}</span></td>
+            <td class="px-4 py-3 text-gray-600">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
+            <td class="px-4 py-3 flex items-center gap-1">
+              <button class="text-[10px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600" onclick="openModal('userModal','edit',${JSON.stringify(u)})">Edit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
       tbody.innerHTML = rows;
     } catch(e) { console.warn('Users load failed', e); }
   }
 
-  // ── Bootstrap ────────────────────────────────────────────────────────
+  // ── Tab Switching ────────────────────────────────────────────────────────
+  function setTab(id, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+id).classList.remove('hidden');
+    btn.classList.add('active');
+  }
+
+  async function loadUserInfo() {
+    try {
+      const r = await fetch('/api/user');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) return;
+      const u = await r.json();
+      document.getElementById('nav-role').textContent = u.role;
+      document.getElementById('nav-user').textContent = u.full_name || u.username;
+    } catch (e) { console.warn('User fetch failed', e); }
+  }
+
+  // ── Bootstrap & Auto-refresh ────────────────────────────────────────────
+  loadUserInfo();
   loadVehicles();
   loadShifts();
   loadZones();
   loadUsers();
+
+  setInterval(loadVehicles, 30000);
+  setInterval(loadShifts, 30000);
+  setInterval(loadZones, 30000);
+  setInterval(loadUsers, 30000);
+</script>
+
+</body>
+</html>

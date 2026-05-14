@@ -40,8 +40,10 @@
         <div class="h-4 w-px bg-gray-200"></div>
         <span class="text-xs mono text-gray-400">v1.0.0-rc4</span>
         <div class="h-4 w-px bg-gray-200"></div>
-        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">ADMIN</span>
-        <span class="text-sm text-gray-700 font-medium">R. Weerasinghe</span>
+        <span id="nav-role" class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">—</span>
+        <span id="nav-user" class="text-sm text-gray-700 font-medium">—</span>
+        <div class="h-4 w-px bg-gray-200"></div>
+        <a href="/auth/logout" class="text-xs px-2 py-0.5 rounded text-gray-600 hover:bg-gray-200 no-underline">Logout</a>
       </div>
     </div>
   </nav>
@@ -185,6 +187,85 @@
           </div>
         </div>
       </a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  async function loadUser() {
+    try {
+      const r = await fetch('/api/user');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) return;
+      const u = await r.json();
+      document.getElementById('nav-role').textContent = u.role;
+      document.getElementById('nav-user').textContent = u.full_name || u.username;
+    } catch(e) {}
+  }
+
+  async function loadStats() {
+    try {
+      const r = await fetch('/api/stats');
+      if (!r.ok) return;
+      const d = await r.json();
+      document.getElementById('kpi-events').textContent    = (d.events_today || 0).toLocaleString();
+      document.getElementById('kpi-vehicles').textContent  = (d.active_vehicles || 0).toLocaleString();
+      document.getElementById('kpi-exceptions').textContent = (d.pending_exceptions || 0).toLocaleString();
+
+      const chainOk = d.chain_integrity;
+      const chainEl = document.getElementById('kpi-chain');
+      chainEl.textContent = chainOk ? 'INTACT' : 'BROKEN';
+      chainEl.style.color = chainOk ? '#76bd33' : '#ef4444';
+      document.getElementById('kpi-chain-sub').textContent = chainOk
+        ? 'All hashes verified'
+        : (d.chain_msg || 'Tamper detected');
+
+      const chainCard = document.getElementById('chain-card');
+      if (!chainOk) {
+        chainCard.style.background = 'rgba(239,68,68,.12)';
+        chainCard.style.borderColor = 'rgba(239,68,68,.3)';
+      }
+
+      // Forensic card status dot
+      const fDot = document.getElementById('forensic-dot');
+      const fTxt = document.getElementById('forensic-status');
+      fDot.style.background = chainOk ? '#4ade80' : '#ef4444';
+      fTxt.textContent = chainOk
+        ? 'Chain verified — no tampering detected'
+        : 'Tamper detected — investigation required';
+
+      // Gate Ops card exception counter
+      const excEl = document.getElementById('gateops-exc');
+      const excCount = d.pending_exceptions || 0;
+      excEl.textContent = excCount + (excCount === 1 ? ' exception pending' : ' exceptions pending');
+      const dotEl = document.getElementById('gateops-dot');
+      dotEl.style.background = excCount > 0 ? '#f4bd0f' : '#76bd33';
+    } catch(e) { console.warn('Stats load failed', e); }
+  }
+
+  async function loadFleetCounts() {
+    try {
+      const r = await fetch('/api/fleet/counts');
+      if (!r.ok) return;
+      const d = await r.json();
+      document.getElementById('fleet-vehicles').textContent = d.vehicles + ' vehicles';
+      document.getElementById('fleet-shifts').textContent   = d.shifts   + ' shifts';
+      document.getElementById('fleet-zones').textContent    = d.zones    + ' zones';
+      document.getElementById('fleet-users').textContent    = d.users    + ' users';
+    } catch(e) { console.warn('Fleet counts load failed', e); }
+  }
+
+  loadUser();
+  loadStats();
+  loadFleetCounts();
+  setInterval(loadStats, 30000);
+  setInterval(loadFleetCounts, 60000);
+</script>
+
+</body>
+</html>
+      </a>
 
     </div>
 
@@ -264,8 +345,20 @@
     } catch (e) {}
   }
 
+  async function loadUserInfo() {
+    try {
+      const r = await fetch('/api/user');
+      if (r.status === 401) { location.href = '/auth/login'; return; }
+      if (!r.ok) return;
+      const u = await r.json();
+      document.getElementById('nav-role').textContent = u.role;
+      document.getElementById('nav-user').textContent = u.full_name || u.username;
+    } catch (e) { console.warn('User fetch failed', e); }
+  }
+
   loadStats();
   loadFleetCounts();
+  loadUserInfo();
   setInterval(loadStats, 30000);
 </script>
 </body>
