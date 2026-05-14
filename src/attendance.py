@@ -42,6 +42,7 @@ from src.audit import finalise_row_hash
 from src.barrier import BarrierController
 from src.config import (
     EXCEPTION_TIMEOUT_SECONDS,
+    LOW_CONF_GATE_THRESHOLD,
     OVERSTAY_THRESHOLD_MINUTES,
 )
 from src.database import transaction
@@ -124,11 +125,13 @@ class AttendanceEngine:
         barrier: BarrierController,
         sse_callback=None,
         exception_timeout: int = EXCEPTION_TIMEOUT_SECONDS,
+        confidence_threshold: float = LOW_CONF_GATE_THRESHOLD,
     ) -> None:
-        self._conn    = conn
-        self._barrier = barrier
-        self._sse     = sse_callback
-        self._timeout = exception_timeout
+        self._conn          = conn
+        self._barrier       = barrier
+        self._sse           = sse_callback
+        self._timeout       = exception_timeout
+        self._conf_threshold = confidence_threshold
         self._pending_timers: dict[int, threading.Timer] = {}
 
     # ------------------------------------------------------------------
@@ -177,6 +180,10 @@ class AttendanceEngine:
         if matched_plate is None:
             # Unregistered / unknown plate -> VISITOR exception
             return self._handle_visitor(raw_plate, confidence, gate_id, direction, ts_str, crop_b64)
+
+        # 1b. Low-confidence read of a known plate — queue for operator confirmation
+        if confidence < self._conf_threshold:
+            return self._handle_visitor(matched_plate, confidence, gate_id, direction, ts_str, crop_b64)
 
         # 2. Fetch vehicle registration status
         vehicle = self._conn.execute(

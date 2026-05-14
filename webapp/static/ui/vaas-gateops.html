@@ -57,7 +57,7 @@
         <span style="font-size:.625rem;color:#76bd33;font-weight:600">LIVE</span>
       </div>
       <div style="height:12px;width:1px;background:#1a2235"></div>
-      <span id="nav-role" style="font-size:.625rem;padding:2px 8px;border-radius:3px;font-weight:600;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)">OPERATOR</span>
+      <span id="nav-role" style="font-size:.625rem;padding:2px 8px;border-radius:3px;font-weight:600;background:rgba(118,189,51,.15);color:#76bd33;border:1px solid rgba(118,189,51,.3)">—</span>
       <span id="nav-user" style="font-size:.75rem;color:#4a5c7a">—</span>
     </div>
   </div>
@@ -631,7 +631,15 @@
       const u = await r.json();
       const roleEl = document.getElementById('nav-role');
       const userEl = document.getElementById('nav-user');
-      if (roleEl) roleEl.textContent = u.role;
+      if (roleEl) {
+        roleEl.textContent = u.role;
+        const bg = {ADMIN:'rgba(239,68,68,.15)', MANAGER:'rgba(244,189,15,.15)', OPERATOR:'rgba(118,189,51,.15)'};
+        const fg = {ADMIN:'#ef4444',             MANAGER:'#f4bd0f',             OPERATOR:'#76bd33'};
+        const br = {ADMIN:'rgba(239,68,68,.3)',  MANAGER:'rgba(244,189,15,.3)', OPERATOR:'rgba(118,189,51,.3)'};
+        roleEl.style.background  = bg[u.role] || bg.OPERATOR;
+        roleEl.style.color       = fg[u.role] || fg.OPERATOR;
+        roleEl.style.borderColor = br[u.role] || br.OPERATOR;
+      }
       if (userEl) userEl.textContent = u.full_name || u.username;
     } catch(e) {}
   }
