@@ -27,14 +27,17 @@ Audit          GET  /api/audit/chain
 """
 from __future__ import annotations
 
+import io
 import json
 from datetime import date, datetime, timedelta, timezone
 
 import bcrypt
-from flask import Blueprint, current_app, g, jsonify, request, session
+from flask import Blueprint, Response, current_app, g, jsonify, make_response, request, session
 
 from src.analytics import (
     admin_audit_report,
+    csv_string,
+    export_pdf,
     gate_rejection_audit,
     ohs_compliance_report,
     subcontractor_billing_audit,
@@ -1356,3 +1359,86 @@ def audit_rejections():
     gate_id   = request.args.get("gate_id")  or None
     rows = gate_rejection_audit(g.db, date_from, date_to, gate_id=gate_id)
     return jsonify(rows)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FR-07  Allowance report export (CSV / PDF)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/reports/allowance")
+@requires_role("MANAGER", "ADMIN")
+def report_allowance():
+    date_from = request.args.get("date_from", _days_ago(30))
+    date_to   = request.args.get("date_to",   _today())
+    fmt       = request.args.get("format", "csv").lower()
+    rows = personal_vehicle_allowance_report(g.db, date_from, date_to)
+    date_range_str = f"{date_from} – {date_to}"
+    if fmt == "pdf":
+        buf = io.BytesIO()
+        export_pdf(rows, buf, title="Personal Vehicle Allowance Report",
+                   date_range_str=date_range_str)
+        buf.seek(0)
+        resp = make_response(buf.read())
+        resp.headers["Content-Type"] = "application/pdf"
+        resp.headers["Content-Disposition"] = (
+            f'attachment; filename="allowance_{date_from}_{date_to}.pdf"'
+        )
+        return resp
+    # default: CSV
+    content = csv_string(rows)
+    resp = make_response(content)
+    resp.headers["Content-Type"] = "text/csv"
+    resp.headers["Content-Disposition"] = (
+        f'attachment; filename="allowance_{date_from}_{date_to}.csv"'
+    )
+    return resp
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FR-08  OHS compliance report export (CSV / PDF)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/reports/ohs")
+@requires_role("MANAGER", "ADMIN")
+def report_ohs():
+    fmt  = request.args.get("format", "csv").lower()
+    rows = ohs_compliance_report(g.db)
+    today = _today()
+    if fmt == "pdf":
+        buf = io.BytesIO()
+        export_pdf(rows, buf, title="OHS Compliance Report",
+                   date_range_str=f"Snapshot: {today}")
+        buf.seek(0)
+        resp = make_response(buf.read())
+        resp.headers["Content-Type"] = "application/pdf"
+        resp.headers["Content-Disposition"] = (
+            f'attachment; filename="ohs_compliance_{today}.pdf"'
+        )
+        return resp
+    content = csv_string(rows)
+    resp = make_response(content)
+    resp.headers["Content-Type"] = "text/csv"
+    resp.headers["Content-Disposition"] = (
+        f'attachment; filename="ohs_compliance_{today}.csv"'
+    )
+    return resp
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FR-09  Gate rejection audit export (CSV)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_bp.route("/reports/rejections")
+@requires_role("MANAGER", "ADMIN")
+def report_rejections():
+    date_from = request.args.get("date_from", _days_ago(30))
+    date_to   = request.args.get("date_to",   _today())
+    gate_id   = request.args.get("gate_id")  or None
+    rows = gate_rejection_audit(g.db, date_from, date_to, gate_id=gate_id)
+    content = csv_string(rows)
+    resp = make_response(content)
+    resp.headers["Content-Type"] = "text/csv"
+    resp.headers["Content-Disposition"] = (
+        f'attachment; filename="gate_rejections_{date_from}_{date_to}.csv"'
+    )
+    return resp

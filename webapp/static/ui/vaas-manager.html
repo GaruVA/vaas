@@ -125,7 +125,11 @@
         <div class="text-sm font-bold text-gray-900">Fuel Allowance Intelligence</div>
         <div id="fuel-allowance-sub" class="text-xs text-gray-400 mt-0.5">FR-07 · Eligible vs ineligible days · Compliance distribution</div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
+          <button onclick="exportAllowance('csv')" class="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border hover:shadow-sm transition-shadow" style="color:#1B3F95;border-color:#c7d4f0;background:#f0f4ff">↓ CSV</button>
+          <button onclick="exportAllowance('pdf')" class="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border hover:shadow-sm transition-shadow" style="color:#fff;border-color:#1B3F95;background:#1B3F95">↓ PDF</button>
+        </div>
         <div class="text-right">
           <div class="text-[10px] text-gray-400 uppercase tracking-widest">Fleet Avg Compliance</div>
           <div id="fleet-avg-compliance" class="text-xl font-bold mono" style="color:#1B3F95">—%</div>
@@ -195,7 +199,13 @@
 
     <!-- OHS COMPLIANCE INTELLIGENCE -->
     <div class="card p-5">
-      <div class="text-sm font-bold text-gray-900 mb-1">OHS Compliance Intelligence</div>
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-sm font-bold text-gray-900">OHS Compliance Intelligence</div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="exportOHS('csv')" class="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border hover:shadow-sm transition-shadow" style="color:#1B3F95;border-color:#c7d4f0;background:#f0f4ff">↓ CSV</button>
+          <button onclick="exportOHS('pdf')" class="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border hover:shadow-sm transition-shadow" style="color:#fff;border-color:#1B3F95;background:#1B3F95">↓ PDF</button>
+        </div>
+      </div>
       <div class="text-xs text-gray-400 mb-4">FR-08 · ISO 45001 Fleet Status · <span id="ohs-total-label">—</span> registered vehicles</div>
 
       <!-- Fleet score headline -->
@@ -275,6 +285,42 @@
         <span class="font-bold mono text-gray-400">—</span>
       </div>
     </div>
+  </div>
+
+  <!-- ═══ GATE REJECTION AUDIT (FR-09) ═══ -->
+  <div class="card">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div>
+        <div class="text-sm font-bold text-gray-900">Gate Rejection Audit</div>
+        <div class="text-xs text-gray-400 mt-0.5">FR-09 · Post-incident reconstruction · Reason codes · Confidence scores</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="exportRejections('csv')" class="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border hover:shadow-sm transition-shadow" style="color:#1B3F95;border-color:#c7d4f0;background:#f0f4ff">↓ CSV</button>
+        <select id="rejection-gate-filter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none" style="font-family:'Inter',sans-serif" onchange="loadRejections()">
+          <option value="">All Gates</option>
+        </select>
+        <input type="date" id="rejection-date-from" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none" onchange="loadRejections()">
+        <input type="date" id="rejection-date-to" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none" onchange="loadRejections()">
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Timestamp</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Plate</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Gate</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Reason</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Confidence</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Reg Status</th>
+          </tr>
+        </thead>
+        <tbody id="rejection-tbody">
+          <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Loading rejection audit…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="rejection-footer" class="px-5 py-3 text-[10px] text-gray-400 border-t border-gray-100"></div>
   </div>
 
 </div>
@@ -664,9 +710,108 @@
     } catch(e) { console.warn('Dashboard load failed', e); }
   }
 
+  // ── Export helpers (FR-07, FR-08, FR-09) ─────────────────────────────────
+  function _exportDateRange() {
+    const today = new Date().toISOString().slice(0, 10);
+    const from  = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    return { date_from: from, date_to: today };
+  }
+
+  function exportAllowance(fmt) {
+    const { date_from, date_to } = _exportDateRange();
+    window.open(`/api/reports/allowance?format=${fmt}&date_from=${date_from}&date_to=${date_to}`, '_blank');
+  }
+
+  function exportOHS(fmt) {
+    window.open(`/api/reports/ohs?format=${fmt}`, '_blank');
+  }
+
+  function exportRejections() {
+    const df = document.getElementById('rejection-date-from')?.value || _exportDateRange().date_from;
+    const dt = document.getElementById('rejection-date-to')?.value   || _exportDateRange().date_to;
+    const g  = document.getElementById('rejection-gate-filter')?.value || '';
+    let url = `/api/reports/rejections?date_from=${df}&date_to=${dt}`;
+    if (g) url += `&gate_id=${encodeURIComponent(g)}`;
+    window.open(url, '_blank');
+  }
+
+  // ── Gate Rejection Audit (FR-09) ──────────────────────────────────────────
+  const _REASON_LABELS = {
+    UNREGISTERED:   'Unregistered',
+    SUSPENDED:      'Suspended',
+    EXPIRED:        'Expired',
+    BLACKLISTED:    'Blacklisted',
+    DUPLICATE:      'Duplicate entry',
+    LOW_CONFIDENCE: 'Low OCR confidence',
+  };
+
+  async function loadRejections() {
+    const { date_from: defFrom, date_to: defTo } = _exportDateRange();
+    const dfEl = document.getElementById('rejection-date-from');
+    const dtEl = document.getElementById('rejection-date-to');
+    if (dfEl && !dfEl.value) dfEl.value = defFrom;
+    if (dtEl && !dtEl.value) dtEl.value = defTo;
+    const df = dfEl?.value || defFrom;
+    const dt = dtEl?.value || defTo;
+    const gf = document.getElementById('rejection-gate-filter')?.value || '';
+
+    let url = `/api/audit/rejections?date_from=${df}&date_to=${dt}`;
+    if (gf) url += `&gate_id=${encodeURIComponent(gf)}`;
+
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { throw new Error(r.status); }
+      const rows = await r.json();
+
+      // Populate gate filter once from first load
+      const gateEl = document.getElementById('rejection-gate-filter');
+      if (gateEl && gateEl.options.length === 1) {
+        const gates = [...new Set(rows.map(x => x.gate_id).filter(Boolean))].sort();
+        gates.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g; opt.textContent = g;
+          gateEl.appendChild(opt);
+        });
+      }
+
+      const tbody = document.getElementById('rejection-tbody');
+      if (!tbody) return;
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No rejections in selected period</td></tr>`;
+        setText('rejection-footer', '');
+        return;
+      }
+
+      const statusColor = { ACTIVE: '#76bd33', SUSPENDED: '#f97316', EXPIRED: '#ef4444' };
+      tbody.innerHTML = rows.map(row => {
+        const conf    = row.confidence_score != null ? (row.confidence_score * 100).toFixed(1) + '%' : '—';
+        const confCol = row.confidence_score != null && row.confidence_score < 0.7 ? '#ef4444' : '#374151';
+        const reason  = _REASON_LABELS[row.reason] || (row.reason || '—');
+        const regSt   = row.registration_status || 'UNKNOWN';
+        const stCol   = statusColor[regSt] || '#94a3b8';
+        const ts      = row.timestamp ? row.timestamp.replace('T', ' ').slice(0, 19) : '—';
+        return `<tr class="risk-row border-b border-gray-50">
+          <td class="px-4 py-2.5 mono text-gray-500">${ts}</td>
+          <td class="px-4 py-2.5 mono font-semibold text-gray-900">${row.plate_number || '—'}</td>
+          <td class="px-4 py-2.5 text-gray-600">${row.gate_id || '—'}</td>
+          <td class="px-4 py-2.5"><span class="flag-badge flag-danger">${reason}</span></td>
+          <td class="px-4 py-2.5 mono font-semibold" style="color:${confCol}">${conf}</td>
+          <td class="px-4 py-2.5"><span class="flag-badge" style="color:${stCol};background:${stCol}18;border:1px solid ${stCol}40">${regSt}</span></td>
+        </tr>`;
+      }).join('');
+
+      setText('rejection-footer', `${rows.length} rejection${rows.length !== 1 ? 's' : ''} · ${df} to ${dt} · Ordered newest first`);
+    } catch(e) {
+      const tbody = document.getElementById('rejection-tbody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-red-400">Failed to load rejections</td></tr>`;
+    }
+  }
+
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   loadUserInfo();
   loadDashboard();
+  loadRejections();
   setInterval(loadDashboard, 60000);
 </script>
 </body>
