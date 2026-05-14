@@ -76,11 +76,11 @@
           </div>
         </div>
         <div class="text-right">
-          <div class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Projected Annual</div>
+          <div class="text-[10px] text-gray-400 uppercase tracking-widest mb-1">vs Last Month</div>
           <div class="flex items-center gap-1 justify-end">
-            <span id="leakage-annual-hero" class="trend-up font-bold text-sm">LKR —</span>
+            <span id="leakage-vs-lastmonth" class="trend-up font-bold text-sm">—</span>
           </div>
-          <div id="leakage-exceptions-sub" class="text-[10px] text-gray-400 mt-0.5">— exceptions flagged</div>
+          <div id="leakage-vs-lastmonth-sub" class="text-[10px] text-gray-400 mt-0.5">—</div>
         </div>
       </div>
       <div class="flex items-center gap-4 text-xs text-gray-500 mt-3 pt-3" style="border-top:1px solid #f0f2f6">
@@ -311,25 +311,15 @@
     if (el) el.innerHTML = html;
   }
 
-  // Derive compliance % from OHS row (overstay_events / total_access_events)
-  function deriveCompliancePct(row) {
-    const total = row.total_access_events || 0;
-    const overstay = row.overstay_events || 0;
-    if (total === 0) return row.risk_flag === 'OK' ? 100 : 0;
-    return Math.max(0, Math.round((1 - overstay / total) * 100));
-  }
-
   // Color for compliance % bands
   function complianceColor(pct) {
-    return pct < 65 ? '#ef4444' : pct < 70 ? '#ef4444' : '#f4bd0f';
+    return pct < 70 ? '#ef4444' : '#f4bd0f';
   }
 
-  // Trend arrow from risk flag
-  function trendFromFlag(flag) {
-    if (flag === 'HIGH_RISK' || flag === 'HIGH_OVERSTAY')
-      return `<span class="trend-dn text-xs font-semibold">↓ Declining</span>`;
-    if (flag === 'MEDIUM_RISK')
-      return `<span class="trend-st text-xs font-semibold">→ Stable</span>`;
+  // Trend arrow derived from compliance %
+  function trendFromPct(pct) {
+    if (pct < 65) return `<span class="trend-dn text-xs font-semibold">↓ Declining</span>`;
+    if (pct < 75) return `<span class="trend-st text-xs font-semibold">→ Stable</span>`;
     return `<span class="trend-up text-xs font-semibold">↑ Improving</span>`;
   }
 
@@ -380,7 +370,7 @@
       const pctHTML = pct < 65
         ? `<span class="mono font-bold text-red-500">${pct}%</span>`
         : `<span class="mono font-bold" style="color:#a07000">${pct}%</span>`;
-      const ineligible = v.overstay_events || 0;
+      const ineligible = v.ineligible_days || 0;
       const riskLKR    = ineligible * DAILY_RATE;
       const riskHTML   = pct < 65
         ? `<span class="mono font-bold text-red-500">${riskLKR.toLocaleString()}</span>`
@@ -395,7 +385,7 @@
         </td>
         <td class="px-3 py-2.5 mono font-semibold text-gray-700">${ineligible} days</td>
         <td class="px-3 py-2.5">${riskHTML}</td>
-        <td class="px-3 py-2.5">${trendFromFlag(v.risk_flag)}</td>
+        <td class="px-3 py-2.5">${trendFromPct(pct)}</td>
       </tr>`;
     }).join('');
   }
@@ -470,12 +460,12 @@
       if (!r.ok) return;
       const d = await r.json();
 
-      const ohs      = d.ohs || {};
-      const billing  = d.billing || [];
-      const watchlist = d.fuel_watchlist || [];
+      const ohs            = d.ohs || {};
+      const billing        = d.billing || [];
+      const fuelCompliance = d.fuel_compliance || [];
 
       // ── Prevented Leakage hero card ────────────────────────────────────────
-      const totalIneligible = watchlist.reduce((s, w) => s + (w.overstay_count || 0), 0);
+      const totalIneligible = fuelCompliance.reduce((s, v) => s + (v.ineligible_days || 0), 0);
       const leakageLKR      = totalIneligible * DAILY_RATE;
 
       // Period label from date range
@@ -495,39 +485,67 @@
         `Period: ${df || '—'} to ${dt || '—'}`
       );
 
-      // Projected annual
+      // Projected annual (footer)
       let daysInPeriod = 30;
       if (df && dt) {
         daysInPeriod = Math.max(1, Math.round((new Date(dt) - new Date(df)) / 86400000));
       }
       const annualLKR = daysInPeriod > 0 ? leakageLKR / daysInPeriod * 365 : 0;
-      const annualFmt = fmtLKRShort(annualLKR);
-      setText('leakage-annual',      annualFmt);
-      setText('leakage-annual-hero', annualFmt);
-      setText('leakage-count',       totalIneligible);
-      setText('leakage-exceptions-sub', `${d.exceptions_total || 0} exceptions flagged`);
+      setText('leakage-annual', fmtLKRShort(annualLKR));
+      setText('leakage-count',  totalIneligible);
 
-      // ── Active in Yard (from zone occupancy sum) ───────────────────────────
-      const activeInYard = (d.zone_occupancy || []).reduce((s, z) => s + (z.current_occupancy || 0), 0);
-      const ohsTotal     = (ohs.ok || 0) + (ohs.medium_risk || 0) + (ohs.high_risk || 0) +
-                           (ohs.suspended || 0) + (ohs.unassigned || 0);
-      const occPct       = ohsTotal > 0 ? Math.round(activeInYard / ohsTotal * 100) : 0;
+      // vs Last Month comparison
+      const prevLKR  = d.prev_leakage_lkr || 0;
+      const diffLKR  = leakageLKR - prevLKR;
+      const vsEl     = document.getElementById('leakage-vs-lastmonth');
+      if (vsEl) {
+        if (diffLKR > 0) {
+          vsEl.className   = 'trend-up font-bold text-sm';
+          vsEl.textContent = `↑ ${fmtLKR(diffLKR)}`;
+        } else if (diffLKR < 0) {
+          vsEl.className   = 'trend-dn font-bold text-sm';
+          vsEl.textContent = `↓ ${fmtLKR(Math.abs(diffLKR))}`;
+        } else {
+          vsEl.className   = 'trend-st font-bold text-sm';
+          vsEl.textContent = '→ No change';
+        }
+      }
+      const prevPct = prevLKR > 0 ? Math.round(Math.abs(diffLKR) / prevLKR * 100) : 0;
+      setText('leakage-vs-lastmonth-sub',
+        diffLKR > 0 ? `+${prevPct}% more detections` :
+        diffLKR < 0 ? `-${prevPct}% fewer detections` : 'Same as last month'
+      );
 
-      setText('mgr-active-vehicles',    activeInYard);
-      setText('mgr-registered-vehicles', `of ${ohsTotal} registered`);
+      // ── Active in Yard ──────────────────────────────────────────────────────
+      const activeInYard       = (d.zone_occupancy || []).reduce((s, z) => s + (z.current_occupancy || 0), 0);
+      const registeredVehicles = d.registered_vehicles_count || 0;
+      const ohsTotal           = (ohs.ok || 0) + (ohs.medium_risk || 0) + (ohs.high_risk || 0) +
+                                 (ohs.suspended || 0) + (ohs.unassigned || 0);
+      const occPct             = registeredVehicles > 0 ? Math.round(activeInYard / registeredVehicles * 100) : 0;
+
+      setText('mgr-active-vehicles',     activeInYard);
+      setText('mgr-registered-vehicles', `of ${registeredVehicles} registered`);
       setText('occ-pct-label', occPct + '%');
       setPct('occ-bar', occPct);
 
       // ── Gate events + chain ────────────────────────────────────────────────
-      setText('mgr-events-today', (d.total_events || 0).toLocaleString());
-      setText('mgr-events-sub',   (d.authorised_events || 0).toLocaleString() + ' authorised');
+      const evToday = d.events_today     || 0;
+      const evYest  = d.events_yesterday || 0;
+      const evDiff  = evToday - evYest;
+      setText('mgr-events-today', evToday.toLocaleString());
+      setText('mgr-events-sub',
+        evDiff >= 0
+          ? `↑ ${Math.abs(evDiff).toLocaleString()} vs yesterday`
+          : `↓ ${Math.abs(evDiff).toLocaleString()} vs yesterday`
+      );
       setText('mgr-chain-status', 'Chain INTACT');
       const chainDot = document.getElementById('mgr-chain-dot');
       if (chainDot) { chainDot.style.background = '#76bd33'; chainDot.style.color = '#76bd33'; }
 
-      // ── Fleet avg compliance from OHS OK ratio ─────────────────────────────
-      const compTracked = (ohs.ok || 0) + (ohs.medium_risk || 0) + (ohs.high_risk || 0) + (ohs.unassigned || 0);
-      const fleetAvgPct = compTracked > 0 ? Math.round((ohs.ok || 0) / compTracked * 100) : 0;
+      // ── Fleet avg compliance (mean of per-driver fuel allowance %) ─────────
+      const fleetAvgPct = fuelCompliance.length > 0
+        ? Math.round(fuelCompliance.reduce((s, v) => s + v.compliance_pct, 0) / fuelCompliance.length)
+        : 0;
       setText('fleet-avg-compliance', fleetAvgPct + '%');
 
       // Fuel allowance sub-label
@@ -536,11 +554,11 @@
           `FR-07 · Eligible vs ineligible days · Compliance distribution · ${df.slice(0,7)} to ${dt.slice(0,7)}`);
       }
 
-      // ── Compliance Bands ───────────────────────────────────────────────────
-      const compHigh = ohs.ok || 0;
-      const compMid  = ohs.medium_risk || 0;
-      const compLow  = (ohs.high_risk || 0) + (ohs.unassigned || 0);
-      const compSum  = compHigh + compMid + compLow || 1;
+      // ── Compliance Bands (per-driver fuel allowance data) ─────────────────
+      const compHigh = fuelCompliance.filter(v => v.compliance_pct >= 90).length;
+      const compMid  = fuelCompliance.filter(v => v.compliance_pct >= 70 && v.compliance_pct < 90).length;
+      const compLow  = fuelCompliance.filter(v => v.compliance_pct < 70).length;
+      const compSum  = fuelCompliance.length || 1;
       const highPct  = Math.round(compHigh / compSum * 100);
       const midPct   = Math.round(compMid  / compSum * 100);
       const lowPct   = Math.round(compLow  / compSum * 100);
@@ -551,22 +569,22 @@
         <div class="space-y-3">
           <div>
             <div class="flex items-center justify-between text-xs mb-1">
-              <span class="text-gray-600">High ≥ 85%</span>
-              <span class="font-bold mono text-gray-800">${compHigh} vehicles <span class="font-normal text-gray-400">(${highPct}%)</span></span>
+              <span class="text-gray-600">High ≥ 90%</span>
+              <span class="font-bold mono text-gray-800">${compHigh} drivers <span class="font-normal text-gray-400">(${highPct}%)</span></span>
             </div>
             <div class="mini-bar" style="height:8px"><div class="mini-bar-inner" style="width:${highPct}%;background:#76bd33;height:8px"></div></div>
           </div>
           <div>
             <div class="flex items-center justify-between text-xs mb-1">
-              <span class="text-gray-600">Medium 70–84%</span>
-              <span class="font-bold mono text-gray-800">${compMid} vehicles <span class="font-normal text-gray-400">(${midPct}%)</span></span>
+              <span class="text-gray-600">Medium 70–89%</span>
+              <span class="font-bold mono text-gray-800">${compMid} drivers <span class="font-normal text-gray-400">(${midPct}%)</span></span>
             </div>
             <div class="mini-bar" style="height:8px"><div class="mini-bar-inner" style="width:${midPct}%;background:#f4bd0f;height:8px"></div></div>
           </div>
           <div>
             <div class="flex items-center justify-between text-xs mb-1">
               <span class="font-semibold" style="color:#ef4444">Below 70% ⚠</span>
-              <span class="font-bold mono" style="color:#ef4444">${compLow} vehicles <span class="font-normal text-gray-400">(${lowPct}%)</span></span>
+              <span class="font-bold mono" style="color:#ef4444">${compLow} drivers <span class="font-normal text-gray-400">(${lowPct}%)</span></span>
             </div>
             <div class="mini-bar" style="height:8px"><div class="mini-bar-inner" style="width:${lowPct}%;background:#ef4444;height:8px"></div></div>
           </div>
@@ -576,17 +594,14 @@
           <span class="text-orange-600 ml-1">total estimated overpayment risk</span>
         </div>`);
 
-      // ── Watchlist table (from ohs.watchlist — driver-level OHS rows) ────────
-      // ohs_compliance_report returns: plate_number, driver_name, risk_flag,
-      // overstay_events, total_access_events, registration_status, etc.
-      const ohsWatchlist = ohs.watchlist || [];
-      _watchlistRows = ohsWatchlist.map(v => {
-        const compPct = deriveCompliancePct(v);
-        const displayName = (v.driver_name && v.driver_name !== 'UNASSIGNED')
-          ? v.driver_name
-          : `${v.plate_number} (unassigned)`;
-        return { ...v, _compliancePct: compPct, _displayName: displayName };
-      }).filter(v => v._compliancePct < 70 || v.risk_flag === 'HIGH_RISK' || v.risk_flag === 'UNASSIGNED');
+      // ── Watchlist table (per-driver fuel allowance compliance) ────────────
+      _watchlistRows = fuelCompliance
+        .filter(v => v.compliance_pct < 90)
+        .map(v => ({
+          ...v,
+          _compliancePct: v.compliance_pct,
+          _displayName:   v.driver_name || `${v.plate_number} (unassigned)`,
+        }));
 
       renderWatchlistRows(_watchlistRows);
 
