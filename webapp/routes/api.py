@@ -1148,7 +1148,12 @@ def manager_dashboard():
 @api_bp.route("/audit/chain")
 @requires_role("ADMIN")
 def audit_chain():
-    """Chain integrity verification + recent access_log entries for the timeline."""
+    """Chain integrity + forensic detail: tamper attribution, byte-diff, taint count."""
+    import hashlib as _hashlib
+    import json as _json2
+    from datetime import timedelta as _td
+    from src.config import GENESIS_PREV_HASH
+
     try:
         result = verify_chain(g.db)
         integrity = {
@@ -1162,16 +1167,110 @@ def audit_chain():
         integrity = {"ok": False, "reason": str(exc),
                      "rows_checked": 0, "verified_at": None, "first_bad_id": None}
 
-    # Last 100 access_log rows for the timeline view
     rows = g.db.execute(
         "SELECT id, plate_number, timestamp, gate_id, direction, "
         "       status, row_hash "
         "FROM access_log ORDER BY id DESC LIMIT 100"
     ).fetchall()
+    entries = [dict(r) for r in rows]
+
+    tamper_detail = None
+    attribution   = None
+    tainted_count = 0
+    tamper_class  = None
+
+    first_bad_id = integrity.get("first_bad_id")
+    if first_bad_id:
+        tc = g.db.execute(
+            "SELECT COUNT(*) FROM access_log WHERE id > ?", (first_bad_id,)
+        ).fetchone()
+        tainted_count = tc[0] if tc else 0
+
+        bad = g.db.execute(
+            "SELECT id, plate_number, timestamp, gate_id, direction, row_hash "
+            "FROM access_log WHERE id = ?", (first_bad_id,)
+        ).fetchone()
+
+        if bad:
+            bad_id, plate, ts, gate, direction, stored_hash = (
+                bad[0], bad[1], bad[2], bad[3], bad[4], bad[5]
+            )
+            prev_r = g.db.execute(
+                "SELECT row_hash FROM access_log WHERE id < ? ORDER BY id DESC LIMIT 1",
+                (bad_id,),
+            ).fetchone()
+            prev_hash = prev_r[0] if prev_r else GENESIS_PREV_HASH
+
+            payload = _json2.dumps(
+                {"id": bad_id, "plate_number": plate, "timestamp": ts,
+                 "gate_id": gate, "direction": direction, "prev_hash": prev_hash},
+                sort_keys=True, separators=(",", ":"),
+            )
+            expected_hash = _hashlib.sha256(payload.encode()).hexdigest()
+
+            groups = []
+            for i in range(8):
+                ex = expected_hash[i * 8:(i + 1) * 8]
+                st = (stored_hash or "")[i * 8:(i + 1) * 8]
+                groups.append({"expected": ex, "stored": st, "differs": ex != st})
+
+            diff_positions = [i for i, g2 in enumerate(groups) if g2["differs"]]
+            tamper_detail = {
+                "record_id":       f"{gate}-{bad_id}",
+                "plate_number":    plate,
+                "timestamp":       ts,
+                "gate_id":         gate,
+                "direction":       direction,
+                "prev_hash_prefix": (prev_hash[:8] + "…") if prev_hash else "—",
+                "expected_hash":   expected_hash,
+                "stored_hash":     stored_hash or "",
+                "groups":          groups,
+                "diff_count":      len(diff_positions),
+                "diff_positions":  diff_positions,
+            }
+
+            # Find closest admin_audit_log entry within ±30 min of bad row timestamp
+            try:
+                bad_dt  = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                win_lo  = (bad_dt - _td(minutes=30)).isoformat()
+                win_hi  = (bad_dt + _td(minutes=30)).isoformat()
+            except Exception:
+                win_lo = win_hi = ts
+
+            attr = g.db.execute(
+                "SELECT id, username, action, entity_type, entity_id, delta_json, timestamp "
+                "FROM admin_audit_log "
+                "WHERE timestamp BETWEEN ? AND ? "
+                "ORDER BY ABS(julianday(timestamp) - julianday(?)) LIMIT 1",
+                (win_lo, win_hi, ts),
+            ).fetchone()
+
+            if attr:
+                tamper_class = "APP-LEVEL"
+                try:
+                    delta_data = _json2.loads(attr[5]) if attr[5] else {}
+                except Exception:
+                    delta_data = {}
+                attribution = {
+                    "id":          attr[0],
+                    "username":    attr[1],
+                    "action":      attr[2],
+                    "entity_type": attr[3],
+                    "entity_id":   attr[4],
+                    "delta_json":  attr[5],
+                    "delta_data":  delta_data,
+                    "timestamp":   attr[6],
+                }
+            else:
+                tamper_class = "DB-DIRECT"
 
     return jsonify({
-        "integrity": integrity,
-        "entries":   [dict(r) for r in rows],
+        "integrity":     integrity,
+        "entries":       entries,
+        "tainted_count": tainted_count,
+        "attribution":   attribution,
+        "tamper_detail": tamper_detail,
+        "tamper_class":  tamper_class,
     })
 
 
