@@ -299,7 +299,7 @@ def exceptions_pending():
                   va.user_id                                 AS driver_user_id,
                   (SELECT COUNT(*) FROM access_log x
                    WHERE x.plate_number = a.plate_number
-                     AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')
+                     AND x.status IN ('VISITOR','DOUBLE_ENTRY','UNMATCHED_EXIT','OVERSTAY')
                      AND DATE(x.timestamp) >= :d7)           AS anomaly_count,
                   (SELECT COUNT(*) FROM access_log x
                    WHERE x.plate_number = a.plate_number
@@ -325,9 +325,9 @@ def exceptions_pending():
         # OHS status derived from assignment + anomaly history
         if not row.get("driver_user_id"):
             row["ohs_status"] = "UNASSIGNED"
-        elif row["anomaly_count"] >= 5:
+        elif row["anomaly_count"] >= 7:
             row["ohs_status"] = "HIGH_OVERSTAY"
-        elif row["anomaly_count"] >= 2:
+        elif row["anomaly_count"] >= 3:
             row["ohs_status"] = "MEDIUM_RISK"
         else:
             row["ohs_status"] = "OK"
