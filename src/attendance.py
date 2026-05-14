@@ -382,13 +382,68 @@ class AttendanceEngine:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _classify_visitor_anomaly(
+        self, raw_plate: str, gate_id: str, direction: str, ts_str: str
+    ) -> "GateStatus":
+        """Return the appropriate status for an unregistered-plate event.
+
+        Detects two patterns that the registered-plate path already handles
+        but visitor plates previously bypassed:
+
+        1. Direction inconsistency — ENTRY after ENTRY (double-entry) or
+           EXIT without a prior ENTRY on record (unmatched exit).
+        2. Rapid cross-gate retry — the same plate triggered an exception
+           or was rejected at *any* gate within the last 5 minutes.
+           A debouncer only covers a single gate; this closes the gap.
+        """
+        last_row = self._conn.execute(
+            "SELECT direction FROM access_log "
+            "WHERE plate_number = ? ORDER BY id DESC LIMIT 1",
+            (raw_plate,),
+        ).fetchone()
+        last_dir = last_row[0] if last_row else None
+
+        if direction == "ENTRY" and last_dir == "ENTRY":
+            logger.warning("[%s] Visitor double-entry: %s", gate_id, raw_plate)
+            return GateStatus.DOUBLE_ENTRY
+
+        if direction == "EXIT" and last_dir is not None and last_dir != "ENTRY":
+            logger.warning("[%s] Visitor unmatched-exit: %s (last=%s)",
+                           gate_id, raw_plate, last_dir)
+            return GateStatus.UNMATCHED_EXIT
+
+        # Rapid cross-gate retry: recent exception or rejection at any gate
+        recent = self._conn.execute(
+            "SELECT 1 FROM access_log "
+            "WHERE plate_number = ? "
+            "  AND status IN ('VISITOR','VISITOR_TIMEOUT_REJECT','VISITOR_REJECTED') "
+            "  AND datetime(timestamp) >= datetime(?, '-5 minutes') "
+            "LIMIT 1",
+            (raw_plate, ts_str),
+        ).fetchone()
+        if not recent:
+            recent = self._conn.execute(
+                "SELECT 1 FROM gate_rejections "
+                "WHERE plate_number = ? "
+                "  AND datetime(timestamp) >= datetime(?, '-5 minutes') "
+                "LIMIT 1",
+                (raw_plate, ts_str),
+            ).fetchone()
+        if recent:
+            logger.warning("[%s] Rapid cross-gate retry after recent exception: %s",
+                           gate_id, raw_plate)
+            return GateStatus.DOUBLE_ENTRY
+
+        return GateStatus.VISITOR
+
     def _handle_visitor(
         self, raw_plate, confidence, gate_id, direction, ts_str, crop_b64
     ) -> GateEventResult:
         """Insert VISITOR row and schedule auto-reject timeout."""
+        visitor_status = self._classify_visitor_anomaly(raw_plate, gate_id, direction, ts_str)
         row_id = self._insert_access_log(
             raw_plate, ts_str, gate_id, direction,
-            GateStatus.VISITOR.value, None, confidence,
+            visitor_status.value, None, confidence,
             None, None, None, crop_b64,
         )
         if self._sse:
@@ -411,7 +466,7 @@ class AttendanceEngine:
 
         return GateEventResult(
             outcome=GateOutcome.EXCEPTION_PENDING_DISPOSITION,
-            status=GateStatus.VISITOR,
+            status=visitor_status,
             plate_number=raw_plate,
             access_log_id=row_id,
         )

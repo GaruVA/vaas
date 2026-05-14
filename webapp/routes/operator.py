@@ -276,7 +276,9 @@ def dashboard():
         "          AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')) AS anomaly_count "
         "FROM access_log a "
         "LEFT JOIN registered_vehicles v ON a.plate_number = v.plate_number "
-        "WHERE a.status = 'VISITOR' ORDER BY a.id DESC"
+        "WHERE (a.status = 'VISITOR') "
+        "   OR (a.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT') AND v.plate_number IS NULL) "
+        "ORDER BY a.id DESC"
     ).fetchall()
 
     # Micro-timeline: last 3 gate events per pending plate
