@@ -430,6 +430,7 @@ def fleet_counts():
 @requires_role("ADMIN", "MANAGER")
 def list_vehicles():
     seven_days_ago = _days_ago(7)
+    thirty_days_ago = _days_ago(30)
     rows = g.db.execute(
         """SELECT rv.*,
                   va.user_id   AS assigned_user_id,
@@ -439,6 +440,10 @@ def list_vehicles():
                    WHERE x.plate_number = rv.plate_number
                      AND x.status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT')
                      AND DATE(x.timestamp) >= :d7) AS anomaly_count,
+                  (SELECT COUNT(*) FROM access_log x
+                   WHERE x.plate_number = rv.plate_number
+                     AND x.status = 'OVERSTAY'
+                     AND DATE(x.timestamp) >= :d30) AS overstay_count,
                   (SELECT timestamp FROM access_log x
                    WHERE x.plate_number = rv.plate_number
                    ORDER BY x.id DESC LIMIT 1) AS last_event_ts,
@@ -453,21 +458,21 @@ def list_vehicles():
                 ON rv.plate_number = va.plate_number AND va.is_active = 1
            LEFT JOIN users u ON va.user_id = u.id
            ORDER BY rv.plate_number""",
-        {"d7": seven_days_ago},
+        {"d7": seven_days_ago, "d30": thirty_days_ago},
     ).fetchall()
 
     result = []
     for r in rows:
         row = dict(r)
-        anom = row.get("anomaly_count", 0) or 0
+        overstay = row.get("overstay_count", 0) or 0
         status = row.get("registration_status", "")
         if status == "SUSPENDED":
             row["ohs_status"] = "SUSPENDED"
         elif not row.get("assigned_user_id"):
             row["ohs_status"] = "UNASSIGNED"
-        elif anom >= 5:
+        elif overstay >= 3:
             row["ohs_status"] = "HIGH_OVERSTAY"
-        elif anom >= 2:
+        elif overstay > 0:
             row["ohs_status"] = "MEDIUM_RISK"
         else:
             row["ohs_status"] = "OK"
