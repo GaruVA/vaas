@@ -24,10 +24,7 @@ from src.config import CHAR_CLASSIFIER, CHAR_CONF_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
-# 37-class label list ordered to match model training: hyphen first, then 0-9, then A-Z.
-# Model class 0 = '-', 1 = '0', ..., 10 = '9', 11 = 'A', ..., 36 = 'Z'
 _LABELS: list[str] = ["-"] + [str(i) for i in range(10)] + list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 
 class CharClassifier:
     """Wraps the 37-class YOLOv8 character classifier.
@@ -78,6 +75,6 @@ class CharClassifier:
             x1, _, x2, _ = box.xyxy[0]
             centre_x = float((x1 + x2) / 2)
             chars.append((centre_x, label))
-        # Sort by x-centre to maintain left-to-right reading order
+
         chars.sort(key=lambda t: t[0])
         return "".join(c for _, c in chars)

@@ -2,9 +2,9 @@
 
 Usage
 -----
-    python scripts/find_arduino.py           # scan + write result to .env
-    python scripts/find_arduino.py --dry-run # scan only, print result, no file change
-    python scripts/find_arduino.py --quiet   # scan + write, suppress non-error output
+    python scripts/find_arduino.py
+    python scripts/find_arduino.py --dry-run
+    python scripts/find_arduino.py --quiet
 
 Exit codes
 ----------
@@ -41,29 +41,26 @@ import re
 import sys
 from pathlib import Path
 
-# ── Project root on sys.path so src.* imports work if ever needed ─────────
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-# ── Arduino detection keywords (description + hwid, case-insensitive) ─────
 _ARDUINO_KEYWORDS = [
     "arduino",
     "ch340",
     "ch341",
-    "cp210",       # matches CP2102, CP2104, CP210x
+    "cp210",
     "ftdi",
     "ft232",
     "pl2303",
     "prolific",
-    "1a86",        # CH340 USB Vendor ID (raw hwid match)
-    "2341",        # Arduino LLC Vendor ID
-    "10c4",        # Silicon Labs CP210x Vendor ID
-    "0403",        # FTDI Vendor ID
-    "067b",        # Prolific Vendor ID
+    "1a86",
+    "2341",
+    "10c4",
+    "0403",
+    "067b",
 ]
 
 _ENV_KEY = "VAAS_ARDUINO_PORT"
-
 
 def _is_arduino(port_info) -> bool:
     """Return True if *port_info* looks like an Arduino serial adapter."""
@@ -71,7 +68,6 @@ def _is_arduino(port_info) -> bool:
         (port_info.description or "") + " " + (port_info.hwid or "")
     ).lower()
     return any(kw in haystack for kw in _ARDUINO_KEYWORDS)
-
 
 def scan_ports() -> list:
     """Return list of ListPortInfo that match Arduino heuristics."""
@@ -82,7 +78,6 @@ def scan_ports() -> list:
         sys.exit(1)
 
     return [p for p in list_ports.comports() if _is_arduino(p)]
-
 
 def _update_env(env_path: Path, port: str, quiet: bool) -> None:
     """Write *port* into the VAAS_ARDUINO_PORT line of *env_path*.
@@ -105,14 +100,13 @@ def _update_env(env_path: Path, port: str, quiet: bool) -> None:
     if pattern.search(text):
         new_text = pattern.sub(r"\g<1>" + port, text)
     else:
-        # Key absent — append it
+
         separator = "\n" if text.endswith("\n") else "\n\n"
         new_text = text + separator + f"{_ENV_KEY}={port}\n"
 
     env_path.write_text(new_text, encoding="utf-8")
     if not quiet:
         print(f"  .env updated: {_ENV_KEY}={port}")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -152,7 +146,7 @@ def main() -> int:
             print(f"{marker}{p.device}  [{p.description}]  hwid={p.hwid}")
 
     chosen = candidates[0]
-    port = chosen.device  # e.g. "COM4"
+    port = chosen.device
 
     if not quiet:
         print(f"  Detected: {port}  [{chosen.description}]  hwid={chosen.hwid}")
@@ -163,7 +157,6 @@ def main() -> int:
 
     _update_env(env_path, port, quiet)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

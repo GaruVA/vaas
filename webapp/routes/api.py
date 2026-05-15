@@ -63,11 +63,6 @@ from webapp.auth import requires_role
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
 def _audit(action: str, entity_type: str, entity_id: str,
            details: dict | None = None) -> None:
     """Write a row to admin_audit_log (never raises)."""
@@ -88,20 +83,15 @@ def _audit(action: str, entity_type: str, entity_id: str,
     except Exception:
         pass
 
-
 def _today() -> str:
     return date.today().isoformat()
-
 
 def _days_ago(n: int) -> str:
     return (date.today() - timedelta(days=n)).isoformat()
 
-
 def _err(msg: str, code: int = 400):
     return jsonify({"error": msg}), code
 
-
-# Display label mapping for access_log statuses → UI badge text
 _STATUS_DISPLAY: dict[str, str] = {
     "AUTHORISED":                   "CLEARED",
     "VISITOR":                      "EXCEPTION",
@@ -113,7 +103,6 @@ _STATUS_DISPLAY: dict[str, str] = {
     "BLOCKED":                      "BLOCKED",
     "VISITOR_PENDING_REGISTRATION": "PENDING REG",
 }
-
 
 def _current_shift() -> dict:
     """Return the current operational shift name, label, and minutes remaining."""
@@ -134,11 +123,6 @@ def _current_shift() -> dict:
             end = now.replace(hour=7, minute=0, second=0, microsecond=0)
     minutes_remaining = max(0, int((end - now).total_seconds() / 60))
     return {"name": name, "label": label, "minutes_remaining": minutes_remaining}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Session User Info
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/user")
 def get_current_user():
@@ -162,11 +146,6 @@ def get_current_user():
         "role": row["role"],
     })
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-01 / FR-02  Stats hub
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/stats")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def stats():
@@ -186,7 +165,6 @@ def stats():
         "SELECT COUNT(*) FROM access_log WHERE status = 'VISITOR'"
     ).fetchone()[0]
 
-    # Chain integrity — lightweight check (last 200 rows only for speed)
     try:
         result = verify_chain(db)
         chain_ok = result.ok
@@ -202,11 +180,6 @@ def stats():
         "chain_integrity":    chain_ok,
         "chain_msg":          chain_msg,
     })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-01  Recent gate events
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/events/recent")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
@@ -229,24 +202,16 @@ def events_recent():
         result.append(row)
     return jsonify(result)
 
-
-# Legacy alias kept for backwards compat
 @api_bp.route("/recent")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def recent():
     return events_recent()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Shift status
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/shift")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def current_shift_route():
     """Return active shift name, label, and minutes remaining (UTC-based)."""
     return jsonify(_current_shift())
-
 
 @api_bp.route("/gates/status")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
@@ -281,11 +246,6 @@ def gates_status():
         }
 
     return jsonify(result)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-02  Exception queue + disposition
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/exceptions/pending")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
@@ -325,7 +285,6 @@ def exceptions_pending():
     for r in rows:
         row = dict(r)
 
-        # OHS status derived from assignment + anomaly history
         if not row.get("driver_user_id"):
             row["ohs_status"] = "UNASSIGNED"
         elif row["anomaly_count"] >= 7:
@@ -335,12 +294,10 @@ def exceptions_pending():
         else:
             row["ohs_status"] = "OK"
 
-        # 30-day compliance percentage
         total = row.get("total_events_30d") or 0
         auth  = row.get("auth_events_30d")  or 0
         row["compliance_pct"] = round(auth / total * 100) if total else 100
 
-        # Last 3 gate events for this plate (mini-timeline)
         recent = g.db.execute(
             "SELECT id, timestamp, gate_id, direction, status "
             "FROM access_log WHERE plate_number=? ORDER BY id DESC LIMIT 3",
@@ -355,13 +312,10 @@ def exceptions_pending():
 
     return jsonify(result)
 
-
-# Legacy alias
 @api_bp.route("/pending")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def pending():
     return exceptions_pending()
-
 
 @api_bp.route("/exceptions/<int:access_log_id>/dispose", methods=["POST"])
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
@@ -403,11 +357,6 @@ def dispose_exception(access_log_id: int):
 
     return jsonify({"status": "ok", "disposition": disposition})
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Fleet counts (lightweight — for home page card)
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/fleet/counts")
 @requires_role("ADMIN", "MANAGER")
 def fleet_counts():
@@ -420,11 +369,6 @@ def fleet_counts():
     users  = g.db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     return jsonify({"vehicles": vehicles, "shifts": shifts,
                     "zones": zones, "users": users})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-05  Vehicles
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/vehicles", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
@@ -479,7 +423,6 @@ def list_vehicles():
         result.append(row)
     return jsonify(result)
 
-
 @api_bp.route("/vehicles/<plate>/impact", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def vehicle_impact(plate: str):
@@ -491,7 +434,6 @@ def vehicle_impact(plate: str):
     if not veh:
         return _err("Vehicle not found", 404)
 
-    # Active driver assignment
     driver = g.db.execute(
         "SELECT va.user_id, COALESCE(u.full_name, u.username) AS driver_name "
         "FROM vehicle_assignments va JOIN users u ON va.user_id = u.id "
@@ -499,7 +441,6 @@ def vehicle_impact(plate: str):
         (plate,),
     ).fetchone()
 
-    # Active project assignments
     try:
         proj_rows = g.db.execute(
             "SELECT pva.project_code FROM project_vehicle_assignments pva "
@@ -511,7 +452,6 @@ def vehicle_impact(plate: str):
     except Exception:
         proj_codes = []
 
-    # 7-day anomaly count
     anomaly_count = g.db.execute(
         "SELECT COUNT(*) FROM access_log "
         "WHERE plate_number=? AND status IN ('DOUBLE_ENTRY','UNMATCHED_EXIT') "
@@ -527,7 +467,6 @@ def vehicle_impact(plate: str):
         "project_codes":  proj_codes,
         "anomaly_count":  anomaly_count,
     })
-
 
 @api_bp.route("/vehicles", methods=["POST"])
 @requires_role("ADMIN")
@@ -574,7 +513,6 @@ def create_vehicle():
     _audit("CREATE", "vehicle", plate, data)
     return jsonify({"status": "created", "plate_number": plate}), 201
 
-
 @api_bp.route("/vehicles/<plate>", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def get_vehicle(plate: str):
@@ -593,7 +531,6 @@ def get_vehicle(plate: str):
     if not row:
         return _err("Vehicle not found", 404)
     return jsonify(dict(row))
-
 
 @api_bp.route("/vehicles/<plate>", methods=["PUT"])
 @requires_role("ADMIN")
@@ -632,7 +569,6 @@ def update_vehicle(plate: str):
     _audit("UPDATE", "vehicle", plate, data)
     return jsonify({"status": "updated", "plate_number": plate})
 
-
 @api_bp.route("/vehicles/<plate>", methods=["DELETE"])
 @requires_role("ADMIN")
 def delete_vehicle(plate: str):
@@ -644,17 +580,11 @@ def delete_vehicle(plate: str):
     _audit("UPDATE", "vehicle", plate, {"registration_status": "SUSPENDED"})
     return jsonify({"status": "suspended", "plate_number": plate})
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-03  Shifts
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/shifts", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def list_shifts():
     rows = g.db.execute("SELECT * FROM shifts ORDER BY shift_id").fetchall()
     return jsonify([dict(r) for r in rows])
-
 
 @api_bp.route("/shifts", methods=["POST"])
 @requires_role("ADMIN")
@@ -680,7 +610,6 @@ def create_shift():
     _audit("CREATE", "shift", str(shift_id), data)
     return jsonify({"status": "created", "shift_id": shift_id}), 201
 
-
 @api_bp.route("/shifts/<int:shift_id>", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def get_shift(shift_id: int):
@@ -690,7 +619,6 @@ def get_shift(shift_id: int):
     if not row:
         return _err("Shift not found", 404)
     return jsonify(dict(row))
-
 
 @api_bp.route("/shifts/<int:shift_id>", methods=["PUT"])
 @requires_role("ADMIN")
@@ -720,7 +648,6 @@ def update_shift(shift_id: int):
     _audit("UPDATE", "shift", str(shift_id), data)
     return jsonify({"status": "updated", "shift_id": shift_id})
 
-
 @api_bp.route("/shifts/<int:shift_id>", methods=["DELETE"])
 @requires_role("ADMIN")
 def delete_shift(shift_id: int):
@@ -728,16 +655,11 @@ def delete_shift(shift_id: int):
     _audit("DELETE", "shift", str(shift_id))
     return jsonify({"status": "deleted", "shift_id": shift_id})
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-04  Zones
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/zones", methods=["GET"])
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def get_zones():
     rows = zone_occupancy_snapshot(g.db)
-    # Supplement snapshot with associated_gates (needed by fleet edit modal)
+
     gates_map = {
         r["zone_id"]: r["associated_gates"]
         for r in g.db.execute(
@@ -750,10 +672,9 @@ def get_zones():
             row["associated_gates"] = json.loads(raw) if isinstance(raw, str) else (raw or [])
         except Exception:
             row["associated_gates"] = []
-        # Alias for frontend compatibility
+
         row["vehicle_capacity"] = row.get("capacity_vehicles", 50)
     return jsonify(rows)
-
 
 @api_bp.route("/zones", methods=["POST"])
 @requires_role("ADMIN")
@@ -773,7 +694,6 @@ def post_zone():
     _audit("CREATE", "zone", zone_id, data)
     return jsonify({"status": "created", "zone_id": zone_id}), 201
 
-
 @api_bp.route("/zones/<zone_id>", methods=["PUT"])
 @requires_role("ADMIN")
 def update_zone(zone_id: str):
@@ -792,18 +712,12 @@ def update_zone(zone_id: str):
     _audit("UPDATE", "zone", zone_id, data)
     return jsonify({"status": "updated", "zone_id": zone_id})
 
-
 @api_bp.route("/zones/<zone_id>", methods=["DELETE"])
 @requires_role("ADMIN")
 def delete_zone(zone_id: str):
     g.db.execute("DELETE FROM cdl_zones WHERE zone_id=?", (zone_id.upper(),))
     _audit("DELETE", "zone", zone_id)
     return jsonify({"status": "deleted", "zone_id": zone_id})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-05  Users (RBAC)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/users", methods=["GET"])
 @requires_role("ADMIN")
@@ -813,7 +727,6 @@ def list_users():
         "FROM users ORDER BY username"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
-
 
 @api_bp.route("/users", methods=["POST"])
 @requires_role("ADMIN")
@@ -839,7 +752,6 @@ def create_user():
     _audit("CREATE", "user", str(user_id), {"username": username, "role": role})
     return jsonify({"status": "created", "user_id": user_id}), 201
 
-
 @api_bp.route("/users/<int:user_id>", methods=["GET"])
 @requires_role("ADMIN")
 def get_user(user_id: int):
@@ -850,7 +762,6 @@ def get_user(user_id: int):
     if not row:
         return _err("User not found", 404)
     return jsonify(dict(row))
-
 
 @api_bp.route("/users/<int:user_id>", methods=["PUT"])
 @requires_role("ADMIN")
@@ -876,7 +787,6 @@ def update_user(user_id: int):
     _audit("UPDATE", "user", str(user_id), {k: v for k, v in data.items() if k != "password"})
     return jsonify({"status": "updated", "user_id": user_id})
 
-
 @api_bp.route("/users/<int:user_id>", methods=["DELETE"])
 @requires_role("ADMIN")
 def delete_user(user_id: int):
@@ -886,16 +796,10 @@ def delete_user(user_id: int):
     _audit("DELETE", "user", str(user_id))
     return jsonify({"status": "deleted", "user_id": user_id})
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-12  Subcontractor companies
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/companies", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def get_companies():
     return jsonify(list_companies(g.db))
-
 
 @api_bp.route("/companies", methods=["POST"])
 @requires_role("ADMIN")
@@ -917,17 +821,11 @@ def post_company():
     _audit("CREATE", "company", company_id, data)
     return jsonify({"status": "created", "company_id": company_id}), 201
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-11  Projects
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/projects", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def get_projects():
     status = request.args.get("status")
     return jsonify(list_projects(g.db, status=status))
-
 
 @api_bp.route("/projects", methods=["POST"])
 @requires_role("ADMIN")
@@ -950,7 +848,6 @@ def post_project():
     _audit("CREATE", "project", code, data)
     return jsonify({"status": "created", "project_code": code}), 201
 
-
 @api_bp.route("/projects/<code>", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def get_project_detail(code: str):
@@ -958,7 +855,6 @@ def get_project_detail(code: str):
     if not proj:
         return _err("Project not found", 404)
     return jsonify(proj)
-
 
 @api_bp.route("/projects/<code>", methods=["PUT"])
 @requires_role("ADMIN")
@@ -977,7 +873,6 @@ def update_project(code: str):
     _audit("UPDATE", "project", code, data)
     return jsonify({"status": "updated", "project_code": code})
 
-
 @api_bp.route("/projects/<code>/close", methods=["POST"])
 @requires_role("ADMIN")
 def close_project_route(code: str):
@@ -990,13 +885,11 @@ def close_project_route(code: str):
     _audit("CLOSE", "project", code, {"closure_date": closure_date})
     return jsonify({"status": "closed", "project_code": code})
 
-
 @api_bp.route("/projects/<code>/vehicles", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def project_vehicles_list(code: str):
     rows = list_project_vehicles(g.db, code.upper())
     return jsonify(rows)
-
 
 @api_bp.route("/projects/<code>/vehicles", methods=["POST"])
 @requires_role("ADMIN")
@@ -1018,7 +911,6 @@ def project_vehicles_assign(code: str):
            {"plate_number": plate, "role": role})
     return jsonify({"status": "assigned"}), 201
 
-
 @api_bp.route("/projects/<code>/vehicles/<plate>", methods=["DELETE"])
 @requires_role("ADMIN")
 def project_vehicles_unassign(code: str, plate: str):
@@ -1026,22 +918,15 @@ def project_vehicles_unassign(code: str, plate: str):
     _audit("UNASSIGN_VEHICLE", "project", code, {"plate_number": plate})
     return jsonify({"status": "unassigned"})
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-06 / FR-07 / FR-08 / FR-12 / FR-13  Manager dashboard
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/manager/dashboard")
 @requires_role("MANAGER", "ADMIN")
 def manager_dashboard():
     """Single endpoint delivering all BI data for vaas-manager.html."""
     db = g.db
 
-    # Date window — default last 30 days
     date_to   = request.args.get("date_to",   _today())
     date_from = request.args.get("date_from",  _days_ago(30))
 
-    # ── Attendance / leakage hero card ────────────────────────────────────────
     total_events = db.execute(
         "SELECT COUNT(*) FROM access_log "
         "WHERE DATE(timestamp) BETWEEN ? AND ?",
@@ -1066,7 +951,6 @@ def manager_dashboard():
         (authorised_events / total_events * 100) if total_events else 0, 1
     )
 
-    # ── OHS compliance (FR-07) ────────────────────────────────────────────────
     ohs_rows = ohs_compliance_report(db)
     ohs_summary = {
         "ok":          sum(1 for r in ohs_rows if r["risk_flag"] == "OK"),
@@ -1077,14 +961,12 @@ def manager_dashboard():
         "watchlist":   [r for r in ohs_rows if r["risk_flag"] not in ("OK",)][:10],
     }
 
-    # ── Zone occupancy (FR-04 / FR-08) ───────────────────────────────────────
     zone_occupancy = zone_occupancy_snapshot(db)
 
-    # ── Subcontractor billing aggregate (FR-12) ───────────────────────────────
     billing_rows = subcontractor_billing_audit(
         db, date_from=date_from, date_to=date_to
     )
-    # Aggregate per company
+
     company_billing: dict = {}
     for row in billing_rows:
         cid = row["company_id"]
@@ -1109,12 +991,10 @@ def manager_dashboard():
             "project_count": len(v["projects"]),
         })
 
-    # ── Registered vehicles count ─────────────────────────────────────────────
     registered_vehicles_count = db.execute(
         "SELECT COUNT(*) FROM registered_vehicles WHERE registration_status = 'ACTIVE'"
     ).fetchone()[0]
 
-    # ── Events today and yesterday ────────────────────────────────────────────
     today_str     = _today()
     yesterday_str = _days_ago(1)
     events_today_count = db.execute(
@@ -1124,7 +1004,6 @@ def manager_dashboard():
         "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = ?", (yesterday_str,)
     ).fetchone()[0]
 
-    # ── Fuel compliance per driver (FR-13) ────────────────────────────────────
     fc_rows = db.execute(
         """SELECT
                u.id AS user_id,
@@ -1157,7 +1036,6 @@ def manager_dashboard():
             "compliance_pct":  round(eligible / total * 100) if total else 0,
         })
 
-    # ── Prev period leakage (vs last month) ───────────────────────────────────
     prev_leakage_lkr = 0
     try:
         prev_to   = (date.fromisoformat(date_from) - timedelta(days=1)).isoformat()
@@ -1197,11 +1075,6 @@ def manager_dashboard():
         "fuel_compliance":           fuel_compliance,
         "prev_leakage_lkr":          prev_leakage_lkr,
     })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-10  Forensic audit — hash chain + admin log
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/audit/chain")
 @requires_role("ADMIN")
@@ -1287,7 +1160,6 @@ def audit_chain():
                 "diff_positions":  diff_positions,
             }
 
-            # Find closest admin_audit_log entry within ±30 min of bad row timestamp
             try:
                 bad_dt  = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                 win_lo  = (bad_dt - _td(minutes=30)).isoformat()
@@ -1331,7 +1203,6 @@ def audit_chain():
         "tamper_class":  tamper_class,
     })
 
-
 @api_bp.route("/audit/log")
 @requires_role("ADMIN")
 def audit_log():
@@ -1347,11 +1218,6 @@ def audit_log():
     )
     return jsonify(rows)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-09  Gate rejection audit
-# ─────────────────────────────────────────────────────────────────────────────
-
 @api_bp.route("/audit/rejections")
 @requires_role("MANAGER", "ADMIN")
 def audit_rejections():
@@ -1360,11 +1226,6 @@ def audit_rejections():
     gate_id   = request.args.get("gate_id")  or None
     rows = gate_rejection_audit(g.db, date_from, date_to, gate_id=gate_id)
     return jsonify(rows)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-07  Allowance report export (CSV / PDF)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/reports/allowance")
 @requires_role("MANAGER", "ADMIN")
@@ -1385,7 +1246,7 @@ def report_allowance():
             f'attachment; filename="allowance_{date_from}_{date_to}.pdf"'
         )
         return resp
-    # default: CSV
+
     content = csv_string(rows)
     resp = make_response(content)
     resp.headers["Content-Type"] = "text/csv"
@@ -1393,11 +1254,6 @@ def report_allowance():
         f'attachment; filename="allowance_{date_from}_{date_to}.csv"'
     )
     return resp
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-08  OHS compliance report export (CSV / PDF)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/reports/ohs")
 @requires_role("MANAGER", "ADMIN")
@@ -1423,11 +1279,6 @@ def report_ohs():
         f'attachment; filename="ohs_compliance_{today}.csv"'
     )
     return resp
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FR-09  Gate rejection audit export (CSV)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @api_bp.route("/reports/rejections")
 @requires_role("MANAGER", "ADMIN")

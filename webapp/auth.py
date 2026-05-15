@@ -14,7 +14,6 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 ROLE_RANK = {"OPERATOR": 1, "MANAGER": 2, "ADMIN": 3}
 
-
 def requires_role(*allowed: str):
     def decorator(fn):
         @wraps(fn)
@@ -29,7 +28,6 @@ def requires_role(*allowed: str):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
-
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -52,7 +50,6 @@ def login():
             return redirect(nxt)
         flash("Invalid credentials", "danger")
     return render_template("auth/login.html")
-
 
 @auth_bp.route("/logout")
 def logout():

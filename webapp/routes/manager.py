@@ -21,7 +21,6 @@ from webapp.auth import requires_role
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/manager")
 
-
 def _parse_date(s: str | None, default: date) -> date:
     if not s:
         return default
@@ -29,7 +28,6 @@ def _parse_date(s: str | None, default: date) -> date:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except ValueError:
         return default
-
 
 @manager_bp.route("/")
 @requires_role("MANAGER", "ADMIN")
@@ -39,7 +37,6 @@ def home():
     week_ago  = (today - timedelta(days=7)).isoformat()
     month_ago = today - timedelta(days=30)
 
-    # ---- Core KPIs -------------------------------------------------------
     zones          = zone_occupancy_snapshot(db)
     active_in_yard = sum(z["current_occupancy"] for z in zones)
 
@@ -65,10 +62,8 @@ def home():
         (week_ago,),
     ).fetchall()
 
-    # ---- Fuel Allowance Intelligence (last 30 days) ----------------------
     DAILY_ALLOWANCE_LKR = 2678
 
-    # Per driver+plate: eligible on-time entry days vs total access days
     allow_q = db.execute(
         "SELECT u.id, COALESCE(u.full_name, u.username) AS driver_name, "
         "       va.plate_number, "
@@ -114,7 +109,6 @@ def home():
         key=lambda x: x["compliance_pct"],
     )[:5]
 
-    # ---- OHS Compliance Intelligence ------------------------------------
     ohs_rows       = ohs_compliance_report(db)
     ohs_total      = len(ohs_rows)
     ohs_ok         = sum(1 for r in ohs_rows if r["risk_flag"] == "OK")
@@ -125,7 +119,6 @@ def home():
     ohs_compliance_pct = round(ohs_ok / ohs_total * 100) if ohs_total else 100
     ohs_risk_rows  = [r for r in ohs_rows if r["risk_flag"] != "OK"][:5]
 
-    # ---- Subcontractor Billing Intelligence (last 30 days) --------------
     billing_rows          = subcontractor_billing_audit(
         db, None, month_ago.isoformat(), today.isoformat()
     )
@@ -140,20 +133,20 @@ def home():
 
     return render_template(
         "manager/home.html",
-        # Core KPIs
+
         active_in_yard        = active_in_yard,
         events_today          = events_today,
         anomaly_count_7d      = anomaly_count_7d,
         chain                 = chain,
         anomaly_rows          = anomaly_rows,
-        # Fuel allowance intelligence
+
         prevented_leakage     = prevented_leakage,
         total_drivers         = total_drivers,
         band_high             = band_high,
         band_mid              = band_mid,
         band_low              = band_low,
         watchlist             = watchlist,
-        # OHS intelligence
+
         ohs_total             = ohs_total,
         ohs_ok                = ohs_ok,
         ohs_unassigned        = ohs_unassigned,
@@ -162,7 +155,7 @@ def home():
         ohs_suspended         = ohs_suspended,
         ohs_compliance_pct    = ohs_compliance_pct,
         ohs_risk_rows         = ohs_risk_rows,
-        # Billing intelligence
+
         billing_total         = billing_total,
         billing_flagged       = billing_flagged,
         billing_verified      = billing_verified,
@@ -171,15 +164,11 @@ def home():
         billing_preview       = billing_preview,
     )
 
-
 @manager_bp.route("/reports/ohs")
 @requires_role("MANAGER", "ADMIN")
 def ohs():
     rows = ohs_compliance_report(g.db)
     return render_template("manager/ohs.html", rows=rows)
-
-
-
 
 def _rows_for(report_type: str):
     today = date.today()
@@ -201,7 +190,6 @@ def _rows_for(report_type: str):
         return subcontractor_billing_audit(db, company_id, df.isoformat(), dt.isoformat()), "Subcontractor Billing Audit"
     return [], "Report"
 
-
 @manager_bp.route("/reports/personal-allowance")
 @requires_role("MANAGER", "ADMIN")
 def personal_allowance():
@@ -210,7 +198,6 @@ def personal_allowance():
     dt = _parse_date(request.args.get("to"),   today + timedelta(days=1))
     rows = personal_vehicle_allowance_report(g.db, df.isoformat(), dt.isoformat())
     return render_template("manager/personal_allowance.html", rows=rows, df=df, dt=dt)
-
 
 @manager_bp.route("/reports/gate-rejection-audit")
 @requires_role("MANAGER", "ADMIN")
@@ -222,7 +209,6 @@ def gate_rejection_audit_view():
     rows = gate_rejection_audit(g.db, df.isoformat(), dt.isoformat(), gate_id=gate_id)
     return render_template("manager/gate_rejection_audit.html",
                            rows=rows, df=df, dt=dt, gate_id=gate_id)
-
 
 @manager_bp.route("/reports/admin-audit")
 @requires_role("ADMIN")
@@ -238,13 +224,11 @@ def admin_audit_view():
                            rows=rows, df=df, dt=dt,
                            username=username, entity_type=entity_type)
 
-
 @manager_bp.route("/reports/zone-occupancy")
 @requires_role("MANAGER", "ADMIN")
 def zone_occupancy_view():
     rows = zone_occupancy_snapshot(g.db)
     return render_template("manager/zone_occupancy.html", rows=rows)
-
 
 @manager_bp.route("/reports/subcontractor")
 @requires_role("MANAGER", "ADMIN")
@@ -256,7 +240,6 @@ def subcontractor_billing_view():
     rows = subcontractor_billing_audit(g.db, company_id, df.isoformat(), dt.isoformat())
     return render_template("manager/subcontractor_billing.html",
                            rows=rows, df=df, dt=dt, company_id=company_id)
-
 
 @manager_bp.route("/reports/anomalies")
 @requires_role("MANAGER", "ADMIN")
@@ -289,7 +272,6 @@ def anomaly_report():
     return render_template("manager/anomaly_report.html",
                            rows=rows, df=df, dt=dt,
                            gate_id=gate_id, status_filter=status_filter)
-
 
 @manager_bp.route("/audit")
 @requires_role("MANAGER", "ADMIN")

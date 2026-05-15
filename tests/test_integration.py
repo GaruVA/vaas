@@ -29,31 +29,20 @@ from src.pipeline import run_pipeline
 
 import src.attendance as _att_mod
 
-# ---------------------------------------------------------------------------
-# Constants matching seeded_db (see tests/conftest.py)
-# ---------------------------------------------------------------------------
-_GATE        = "MAIN_GATE"          # permitted gate for DAY shift
-_PLATE_GOOD  = "WP-CAB-1234"       # STAFF/ACTIVE/DAY shift
-_PLATE_CONF  = "WP-CA8-1234"       # raw confusion: 8<->B -> corrects to WP-CAB-1234
-_PLATE_UNREG = "ZZ-ZZZ-9999"       # not in registered_vehicles
+_GATE        = "MAIN_GATE"
+_PLATE_GOOD  = "WP-CAB-1234"
+_PLATE_CONF  = "WP-CA8-1234"
+_PLATE_UNREG = "ZZ-ZZZ-9999"
 
-# On-time within DAY shift (07:00-15:00, grace=15 min)
 _TS_ONTIME = datetime(2026, 1, 5, 7, 10, 0, tzinfo=timezone.utc)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 @dataclass
 class _Det:
     crop: np.ndarray
     confidence: float = 0.91
 
-
 def _blank_frame() -> np.ndarray:
     return np.zeros((480, 640, 3), dtype=np.uint8)
-
 
 def _make_camera(frames: list[np.ndarray]):
     it = iter(frames)
@@ -65,23 +54,19 @@ def _make_camera(frames: list[np.ndarray]):
 
     return _Cam()
 
-
 def _make_detector(emit: bool = True):
     class _D:
         def detect(self, frame):
             return [_Det(crop=frame)] if emit else []
     return _D()
 
-
 def _make_classifier(plate: str):
     class _C:
         def classify(self, crop): return plate
     return _C()
 
-
 def _patch_now(monkeypatch, dt: datetime) -> None:
     monkeypatch.setattr(_att_mod, "_now", lambda: dt)
-
 
 def _run(seeded_db, plate, gate=_GATE, direction="ENTRY", frames=1, emit=True,
          *, barrier=None):
@@ -93,11 +78,6 @@ def _run(seeded_db, plate, gate=_GATE, direction="ENTRY", frames=1, emit=True,
                  eng, gate_id=gate, direction=direction)
     return eng, barrier
 
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
 @pytest.mark.integration
 def test_int_01_entry_creates_log_row(seeded_db, monkeypatch):
     """Pipeline ENTRY for a valid vehicle writes one access_log row."""
@@ -107,7 +87,6 @@ def test_int_01_entry_creates_log_row(seeded_db, monkeypatch):
         "SELECT * FROM access_log WHERE plate_number=?", (_PLATE_GOOD,)
     ).fetchall()
     assert len(rows) == 1
-
 
 @pytest.mark.integration
 def test_int_02_row_hash_not_pending(seeded_db, monkeypatch):
@@ -119,7 +98,6 @@ def test_int_02_row_hash_not_pending(seeded_db, monkeypatch):
     for r in rows:
         assert r["row_hash"] != "PENDING", "row_hash must be finalised"
 
-
 @pytest.mark.integration
 def test_int_03_no_detection_no_log_row(seeded_db, monkeypatch):
     """When detector returns no plates, no access_log row is inserted."""
@@ -129,7 +107,6 @@ def test_int_03_no_detection_no_log_row(seeded_db, monkeypatch):
     after = seeded_db.execute("SELECT COUNT(*) FROM access_log").fetchone()[0]
     assert after == before
 
-
 @pytest.mark.integration
 def test_int_04_lpm_correction_applied(seeded_db, monkeypatch):
     """Engine corrects WP-CA8-1234 (8<->B confusion) to WP-CAB-1234."""
@@ -137,9 +114,8 @@ def test_int_04_lpm_correction_applied(seeded_db, monkeypatch):
     _run(seeded_db, _PLATE_CONF)
     rows = seeded_db.execute("SELECT plate_number FROM access_log").fetchall()
     plates = {r["plate_number"] for r in rows}
-    # After LPM-MLED the corrected plate is stored, not the raw confused one
-    assert _PLATE_GOOD in plates, f"Expected {_PLATE_GOOD!r} in {plates}"
 
+    assert _PLATE_GOOD in plates, f"Expected {_PLATE_GOOD!r} in {plates}"
 
 @pytest.mark.integration
 def test_int_05_unregistered_plate_visitor_flow(seeded_db, monkeypatch):
@@ -151,7 +127,6 @@ def test_int_05_unregistered_plate_visitor_flow(seeded_db, monkeypatch):
     ).fetchone()
     assert row is not None
     assert row["status"] == GateStatus.VISITOR.value
-
 
 @pytest.mark.integration
 def test_int_06_suspended_plate_writes_rejection(seeded_db, monkeypatch):
@@ -168,17 +143,15 @@ def test_int_06_suspended_plate_writes_rejection(seeded_db, monkeypatch):
     assert rej is not None
     assert rej["reason"] == "SUSPENDED"
 
-
 @pytest.mark.integration
 def test_int_07_barrier_opens_for_valid_entry(seeded_db, monkeypatch):
     """Barrier opens at least once for a valid on-time ENTRY."""
     _patch_now(monkeypatch, _TS_ONTIME)
     barrier = BarrierController("MOCK")
     _run(seeded_db, _PLATE_GOOD, barrier=barrier)
-    # command_log() returns list of (gate_id, action) tuples
+
     opens = [c for c in barrier.command_log() if c[1] == "OPEN"]
     assert len(opens) >= 1, f"Expected at least one OPEN; got {barrier.command_log()}"
-
 
 @pytest.mark.integration
 def test_int_08_barrier_stays_closed_on_rejection(seeded_db, monkeypatch):
@@ -192,7 +165,6 @@ def test_int_08_barrier_stays_closed_on_rejection(seeded_db, monkeypatch):
     _run(seeded_db, _PLATE_GOOD, barrier=barrier)
     opens = [c for c in barrier.command_log() if c[1] == "OPEN"]
     assert len(opens) == 0, f"Barrier must not open for SUSPENDED; got {barrier.command_log()}"
-
 
 @pytest.mark.integration
 def test_int_09_stop_event_halts_pipeline(seeded_db, monkeypatch):
@@ -219,7 +191,6 @@ def test_int_09_stop_event_halts_pipeline(seeded_db, monkeypatch):
     assert stop.is_set()
     assert call_count[0] >= 3
 
-
 @pytest.mark.integration
 def test_int_10_frame_callback_called_per_frame(seeded_db, monkeypatch):
     """frame_callback is invoked once for every frame read from the camera."""
@@ -233,7 +204,6 @@ def test_int_10_frame_callback_called_per_frame(seeded_db, monkeypatch):
     assert len(received) == 3
     assert all(isinstance(f, np.ndarray) for f in received)
 
-
 @pytest.mark.integration
 def test_int_11_camera_released_after_pipeline(seeded_db, monkeypatch):
     """camera.release() is always called when the pipeline finishes."""
@@ -243,7 +213,6 @@ def test_int_11_camera_released_after_pipeline(seeded_db, monkeypatch):
     run_pipeline(cam, _make_detector(emit=False), _make_classifier(""),
                  eng, gate_id=_GATE, direction="ENTRY")
     assert cam.released is True
-
 
 @pytest.mark.integration
 def test_int_12_chain_integrity_after_multiple_events(seeded_db, monkeypatch):

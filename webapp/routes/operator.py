@@ -39,28 +39,22 @@ from src.pipeline import DEFAULT_COOLDOWN_SECONDS, PlateDebouncer, draw_overlays
 logger = logging.getLogger(__name__)
 operator_bp = Blueprint("operator", __name__, url_prefix="/operator")
 
-# ── Per-gate latest annotated frame (thread-safe via lock) ─────────────────
 _FRAME_LOCK = threading.Lock()
 _LATEST_FRAMES: dict[str, np.ndarray] = {}
 
-# ── Per-gate camera-worker stop events ─────────────────────────────────────
 _WORKER_STOP: dict[str, threading.Event] = {}
 
-# ── Shared model singletons (loaded once, reused by all camera workers) ─────
-# Both GATE_A and GATE_B workers use the same detector and classifier instances.
-# YOLO models are thread-safe for concurrent inference after loading.
 _MODEL_LOCK = threading.Lock()
 _SHARED_DETECTOR = None
 _SHARED_CLASSIFIER = None
-
 
 def _get_models():
     """Return (detector, classifier), loading from disk only on the first call."""
     global _SHARED_DETECTOR, _SHARED_CLASSIFIER
     if _SHARED_DETECTOR is not None:
-        return _SHARED_DETECTOR, _SHARED_CLASSIFIER          # fast path — already loaded
+        return _SHARED_DETECTOR, _SHARED_CLASSIFIER
     with _MODEL_LOCK:
-        if _SHARED_DETECTOR is None:                         # re-check after acquiring lock
+        if _SHARED_DETECTOR is None:
             from src.detection import PlateDetector
             from src.classifier import CharClassifier
             logger.info("Loading shared ALPR models (first worker to start)…")
@@ -69,19 +63,14 @@ def _get_models():
             logger.info("Shared ALPR models ready.")
     return _SHARED_DETECTOR, _SHARED_CLASSIFIER
 
-
 def publish_overlay_frame(gate_id: str, frame: np.ndarray) -> None:
     with _FRAME_LOCK:
         _LATEST_FRAMES[gate_id] = frame
-
 
 def _latest_frame(gate_id: str) -> Optional[np.ndarray]:
     with _FRAME_LOCK:
         f = _LATEST_FRAMES.get(gate_id)
         return f.copy() if f is not None else None
-
-
-# ── Live camera worker ──────────────────────────────────────────────────────
 
 def _camera_worker(gate_id: str, camera_index: int, direction: str,
                    stop_event: threading.Event, app) -> None:
@@ -92,18 +81,14 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
     logger.info("[%s] Camera worker starting (index=%d, direction=%s, cooldown=%ds)",
                 gate_id, camera_index, direction, DEFAULT_COOLDOWN_SECONDS)
 
-    # Use the shared model singleton — avoids loading the same weights twice.
     try:
         detector, classifier = _get_models()
     except Exception as exc:
         logger.error("[%s] Model load failed: %s", gate_id, exc)
         return
 
-    # One debouncer per gate — prevents the same plate string being submitted
-    # to the attendance engine multiple times within the cooldown window.
     debouncer = PlateDebouncer(cooldown_seconds=DEFAULT_COOLDOWN_SECONDS)
 
-    # Open camera with retries
     cam: Optional[USBCamera] = None
     for attempt in range(5):
         try:
@@ -134,7 +119,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
 
             t0 = time.perf_counter()
 
-            # ── Stages 1-4: detect → CLAHE → classify → engine (with debounce) ─
             try:
                 results = process_frame(
                     frame, detector, classifier, engine,
@@ -144,11 +128,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                 logger.error("[%s] process_frame error: %s", gate_id, exc)
                 results = []
 
-            # ── Snooze debouncer for EXCEPTION plates ────────────────────
-            # An unregistered vehicle sitting in front of the camera would
-            # re-trigger an exception every 3 s without this.  Snooze for
-            # the full EXCEPTION_TIMEOUT_SECONDS so the plate is suppressed
-            # until the auto-reject window expires (or the operator acts).
             from src.attendance import GateOutcome
             for r in results:
                 if (not r.debounced and r.gate_event is not None
@@ -157,7 +136,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                     logger.debug("[%s] Debouncer snoozed %s for %ds (EXCEPTION)",
                                  gate_id, r.raw_plate, EXCEPTION_TIMEOUT_SECONDS)
 
-            # ── Build overlay labels (grey for debounced, green for new) ────
             detections = [r.plate_detection for r in results]
             debounced_idx = {i for i, r in enumerate(results) if r.debounced}
             labels = []
@@ -171,7 +149,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                                       debounced_indices=debounced_idx)
             publish_overlay_frame(gate_id, annotated)
 
-            # ── Log and broadcast non-debounced events ───────────────────
             broker = app.config.get("VAAS_BROKER")
             for r in results:
                 if not r.debounced and r.gate_event is not None:
@@ -184,8 +161,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                                 gate_id, r.raw_plate, outcome_val,
                                 r.timings_ms.get("total", 0))
 
-                    # Visitor exceptions are broadcast by AttendanceEngine via
-                    # sse_callback; skip them here to avoid duplicate events.
                     if "EXCEPTION" in outcome_val:
                         continue
 
@@ -208,7 +183,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
                         logger.debug("[%s] SSE gate_event published: %s %s",
                                      gate_id, status_val, r.raw_plate)
 
-            # ── Throttle to ~10 fps ──────────────────────────────────────
             elapsed = time.perf_counter() - t0
             sleep_for = max(0.0, 0.1 - elapsed)
             if sleep_for:
@@ -216,7 +190,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
 
     cam.release()
     logger.info("[%s] Camera worker stopped", gate_id)
-
 
 def start_camera_worker(gate_id: str, camera_index: int,
                         direction: str, app) -> threading.Thread:
@@ -237,14 +210,10 @@ def start_camera_worker(gate_id: str, camera_index: int,
     t.start()
     return t
 
-
 def stop_camera_worker(gate_id: str) -> None:
     ev = _WORKER_STOP.get(gate_id)
     if ev is not None:
         ev.set()
-
-
-# ── Flask routes ────────────────────────────────────────────────────────────
 
 def _requires_login(fn):
     from functools import wraps
@@ -256,7 +225,6 @@ def _requires_login(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-
 @operator_bp.route("/dashboard")
 @_requires_login
 def dashboard():
@@ -266,7 +234,6 @@ def dashboard():
         "FROM access_log ORDER BY id DESC LIMIT 20"
     ).fetchall()
 
-    # Enriched pending query: join vehicle registration data + anomaly count
     pending = g.db.execute(
         "SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.confidence_score, "
         "       COALESCE(v.registration_status, 'UNKNOWN') AS reg_status, "
@@ -281,7 +248,6 @@ def dashboard():
         "ORDER BY a.id DESC"
     ).fetchall()
 
-    # Micro-timeline: last 3 gate events per pending plate
     recent_by_plate = {}
     for exc in pending:
         plate = exc["plate_number"]
@@ -304,7 +270,6 @@ def dashboard():
                            events_today=events_today,
                            ohs_by_plate=ohs_by_plate)
 
-
 @operator_bp.route("/sse")
 @_requires_login
 def sse():
@@ -321,10 +286,7 @@ def sse():
             yield ": connected\n\n"
             while True:
                 try:
-                    # 2s timeout (was 15s): GeneratorExit is only raised at a yield
-                    # point, so a long blocking get() keeps the Waitress thread
-                    # reserved for up to <timeout> seconds after the client drops.
-                    # 2s means threads are recycled within one tick of the event loop.
+
                     evt = q.get(timeout=2)
                 except queue.Empty:
                     yield ": ping\n\n"
@@ -340,7 +302,6 @@ def sse():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
 
 @operator_bp.route("/exception/<int:access_log_id>/dispose", methods=["POST"])
 @_requires_login
@@ -359,8 +320,6 @@ def dispose(access_log_id: int):
         operator_user_id=session.get("user_id"),
     )
 
-    # Broadcast the disposition to all connected SSE clients so every open
-    # dashboard tab removes the exception row and updates the status badge.
     _DISPOSITION_STATUS = {
         "ADMIT":    "VISITOR_ADMITTED",
         "REJECT":   "VISITOR_REJECTED",
@@ -390,7 +349,6 @@ def dispose(access_log_id: int):
 
     return jsonify({"status": "ok"})
 
-
 @operator_bp.route("/stream/<gate_id>.mjpg")
 @_requires_login
 def stream(gate_id: str):
@@ -414,7 +372,7 @@ def stream(gate_id: str):
                 frame = _latest_frame(gate_id)
 
                 if frame is None:
-                    # Placeholder until the camera worker delivers its first real frame
+
                     frame = np.zeros((360, 640, 3), dtype=np.uint8)
                     cv2.putText(frame,
                                 f"{gate_id} — waiting for camera ({CAMERA_INDEX_GATE_A if gate_id == 'GATE_A' else CAMERA_INDEX_GATE_B})",
@@ -443,10 +401,7 @@ def stream(gate_id: str):
                 if sleep_for:
                     time.sleep(sleep_for)
         except GeneratorExit:
-            # Client navigated away or closed the browser tab.  Python raises
-            # GeneratorExit at the generator's last yield point, so we get here
-            # quickly (within one FRAME_INTERVAL ~100ms) and the Waitress thread
-            # is released back to the pool immediately.
+
             logger.debug("[%s] MJPEG client disconnected — releasing Waitress thread", gate_id)
         finally:
             logger.debug("[%s] MJPEG stream closed", gate_id)

@@ -12,7 +12,7 @@ class ArduinoController:
     def connect(self):
         try:
             self.connection = serial.Serial(self.port, self.baudrate, timeout=1)
-            time.sleep(2)  # Wait for Arduino to reset upon connection
+            time.sleep(2)
             logging.info(f"Successfully connected to Arduino on {self.port}")
         except Exception as e:
             logging.error(f"Failed to connect to Arduino on {self.port}: {e}")

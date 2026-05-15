@@ -1,2 +1,2 @@
-# YOLO-dependent — excluded from non-YOLO count
-from ultralytics import YOLO  # noqa
+
+from ultralytics import YOLO

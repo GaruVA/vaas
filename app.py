@@ -27,7 +27,5 @@ if __name__ == "__main__":
     print(_MSG, file=sys.stderr)
     sys.exit(1)
 
-# ── Kept only so `flask --app app` still works during unit-testing ──────────
-# Production code must use serve.py.
-from webapp import create_app          # noqa: E402
+from webapp import create_app
 app = create_app()

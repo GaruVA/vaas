@@ -26,7 +26,6 @@ from pathlib import Path
 
 import numpy as np
 
-# Ensure src/ is importable from project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.attendance import AttendanceEngine
@@ -41,23 +40,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("run_demo")
 
-
-# ---------------------------------------------------------------------------
-# Mock stubs (bypass YOLO)
-# ---------------------------------------------------------------------------
-
 @dataclass
 class _FakeDet:
     crop: np.ndarray
     confidence: float = 0.92
-
 
 class _MockDetector:
     """Returns one detection per frame using the frame itself as the crop."""
 
     def detect(self, frame: np.ndarray) -> list[_FakeDet]:
         return [_FakeDet(crop=frame)]
-
 
 class _MockClassifier:
     """Cycles through a list of plate strings."""
@@ -70,7 +62,6 @@ class _MockClassifier:
         plate = self._plates[self._idx % len(self._plates)]
         self._idx += 1
         return plate
-
 
 class _SyntheticCamera:
     """Produces *max_frames* synthetic BGR frames then stops."""
@@ -87,11 +78,6 @@ class _SyntheticCamera:
     def release(self) -> None:
         pass
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _build_demo_db(target_path: Path) -> None:
     """Seed a minimal demo database in /tmp then copy to target."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -103,7 +89,6 @@ def _build_demo_db(target_path: Path) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
         migrate_db(conn)
 
-        # Seed minimal data
         conn.execute("""
             INSERT OR IGNORE INTO shifts (shift_id, shift_name, start_time, end_time,
                 days_of_week, permitted_gates, grace_period_minutes)
@@ -126,11 +111,6 @@ def _build_demo_db(target_path: Path) -> None:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(tmp_db), str(target_path))
     logger.info("Demo DB created at %s", target_path)
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="VAAS MOCK pipeline demo")
@@ -182,7 +162,6 @@ def main() -> None:
         stop_event=stop_event,
     )
 
-    # Report results
     rows = conn.execute(
         "SELECT plate_number, timestamp, status, row_hash FROM access_log ORDER BY id"
     ).fetchall()
@@ -196,7 +175,6 @@ def main() -> None:
         print(f"  {status}  {r['plate_number']:<18} {r['timestamp'][:19]}  "
               f"{r['status']:<18} hash={hash_disp}")
 
-    # Verify chain
     result = verify_chain(conn)
     integrity_label = "✓ INTACT" if result.ok else "✗ TAMPERED"
     print(f"\nChain integrity: {integrity_label}  "
@@ -204,7 +182,6 @@ def main() -> None:
     if not result.ok:
         print(f"  First bad row id={result.first_bad_id}: {result.reason}")
     conn.close()
-
 
 if __name__ == "__main__":
     main()

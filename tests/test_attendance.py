@@ -11,18 +11,13 @@ import pytest
 from src.attendance import AttendanceEngine, GateOutcome, GateStatus
 from src.barrier import BarrierController
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-DAY_START  = datetime(2026, 1, 5, 7, 0, 0, tzinfo=timezone.utc)   # Monday 07:00
+DAY_START  = datetime(2026, 1, 5, 7, 0, 0, tzinfo=timezone.utc)
 SHIFT_END  = datetime(2026, 1, 5, 15, 0, 0, tzinfo=timezone.utc)
 GRACE_MIN  = 15
-
 
 def _engine(db, timeout=30, sse=None):
     return AttendanceEngine(db, BarrierController("MOCK"),
                             sse_callback=sse, exception_timeout=timeout)
-
 
 def _evt(eng, direction="ENTRY", plate="WP-CAB-1234", ts=None, gate="MAIN_GATE", conf=0.95):
     return eng.process_gate_event(
@@ -30,35 +25,22 @@ def _evt(eng, direction="ENTRY", plate="WP-CAB-1234", ts=None, gate="MAIN_GATE",
         direction=direction, plate_crop_jpeg_bytes=b"", timestamp=ts or DAY_START,
     )
 
-
-# ---------------------------------------------------------------------------
-# 1-4: ENTRY status classification
-# ---------------------------------------------------------------------------
-
 def test_01_on_time_entry_exact(seeded_db):
     result = _evt(_engine(seeded_db), ts=DAY_START)
     assert result.status == GateStatus.ON_TIME_ENTRY
     assert result.outcome == GateOutcome.BARRIER_OPENED
 
-
 def test_02_on_time_entry_within_grace(seeded_db):
     result = _evt(_engine(seeded_db), ts=DAY_START + timedelta(minutes=GRACE_MIN - 1))
     assert result.status == GateStatus.ON_TIME_ENTRY
-
 
 def test_03_late_arrival_after_grace(seeded_db):
     result = _evt(_engine(seeded_db), ts=DAY_START + timedelta(minutes=GRACE_MIN + 1))
     assert result.status == GateStatus.LATE_ARRIVAL
 
-
 def test_04_early_arrival(seeded_db):
     result = _evt(_engine(seeded_db), ts=DAY_START - timedelta(minutes=30))
     assert result.status == GateStatus.EARLY_ARRIVAL
-
-
-# ---------------------------------------------------------------------------
-# 5-7: EXIT status classification
-# ---------------------------------------------------------------------------
 
 def test_05_on_time_exit_within_grace(seeded_db):
     eng = _engine(seeded_db)
@@ -66,13 +48,11 @@ def test_05_on_time_exit_within_grace(seeded_db):
     result = _evt(eng, direction="EXIT", ts=SHIFT_END + timedelta(minutes=5))
     assert result.status == GateStatus.ON_TIME_EXIT
 
-
 def test_06_early_departure(seeded_db):
     eng = _engine(seeded_db)
     _evt(eng, direction="ENTRY", ts=DAY_START)
     result = _evt(eng, direction="EXIT", ts=SHIFT_END - timedelta(hours=2))
     assert result.status == GateStatus.EARLY_DEPARTURE
-
 
 def test_07_overstay(seeded_db):
     eng = _engine(seeded_db)
@@ -80,40 +60,29 @@ def test_07_overstay(seeded_db):
     result = _evt(eng, direction="EXIT", ts=SHIFT_END + timedelta(minutes=GRACE_MIN + 1))
     assert result.status == GateStatus.OVERSTAY
 
-
-# ---------------------------------------------------------------------------
-# 8-9: Midnight boundary
-# ---------------------------------------------------------------------------
-
 def test_08_night_shift_entry_at_2359(seeded_db):
     seeded_db.execute(
         "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
         ("WP-CD-7788", "NIGHT"),
     )
     eng = _engine(seeded_db)
-    ts = datetime(2026, 1, 5, 23, 5, 0, tzinfo=timezone.utc)  # 5 min after NIGHT start
+    ts = datetime(2026, 1, 5, 23, 5, 0, tzinfo=timezone.utc)
     result = eng.process_gate_event("WP-CD-7788", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
     assert result.outcome == GateOutcome.BARRIER_OPENED
     assert result.status == GateStatus.ON_TIME_ENTRY
 
-
 def test_09_night_shift_entry_at_0001(seeded_db):
-    # SG-1111 is not assigned to any shift in conftest -- assign only to NIGHT
+
     seeded_db.execute(
         "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
         ("SG-1111", "NIGHT"),
     )
     eng = _engine(seeded_db)
-    ts = datetime(2026, 1, 6, 0, 1, 0, tzinfo=timezone.utc)  # 00:01 Tuesday
-    # NIGHT shift: 23:00 Mon -> 07:00 Tue; 00:01 is 61 min past start -> LATE
+    ts = datetime(2026, 1, 6, 0, 1, 0, tzinfo=timezone.utc)
+
     result = eng.process_gate_event("SG-1111", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
     assert result.outcome == GateOutcome.BARRIER_OPENED
     assert result.status == GateStatus.LATE_ARRIVAL
-
-
-# ---------------------------------------------------------------------------
-# 10-14: Visitor / unregistered
-# ---------------------------------------------------------------------------
 
 def test_10_unknown_plate_visitor_exception(seeded_db):
     eng = _engine(seeded_db, timeout=60)
@@ -124,7 +93,6 @@ def test_10_unknown_plate_visitor_exception(seeded_db):
     if result.access_log_id in eng._pending_timers:
         eng._pending_timers[result.access_log_id].cancel()
 
-
 def test_11_visitor_auto_reject_after_timeout(seeded_db):
     eng = _engine(seeded_db, timeout=1)
     result = eng.process_gate_event("ZZ-9999", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
@@ -132,7 +100,6 @@ def test_11_visitor_auto_reject_after_timeout(seeded_db):
     time.sleep(1.5)
     row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
     assert row[0] == GateStatus.VISITOR_TIMEOUT_REJECT.value
-
 
 def test_12_dispose_admit_opens_barrier(seeded_db):
     barrier = BarrierController("MOCK")
@@ -144,7 +111,6 @@ def test_12_dispose_admit_opens_barrier(seeded_db):
     assert row[0] == GateStatus.VISITOR_ADMITTED.value
     assert any(cmd == "OPEN" for _, cmd in barrier.command_log())
 
-
 def test_13_dispose_reject(seeded_db):
     eng = _engine(seeded_db, timeout=60)
     result = eng.process_gate_event("ZZ-7777", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
@@ -153,7 +119,6 @@ def test_13_dispose_reject(seeded_db):
     row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
     assert row[0] == GateStatus.VISITOR_REJECTED.value
 
-
 def test_14_dispose_register(seeded_db):
     eng = _engine(seeded_db, timeout=60)
     result = eng.process_gate_event("ZZ-6666", 0.5, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
@@ -161,11 +126,6 @@ def test_14_dispose_register(seeded_db):
     eng.dispose_exception(log_id, "REGISTER", operator_user_id=1)
     row = seeded_db.execute("SELECT status FROM access_log WHERE id=?", (log_id,)).fetchone()
     assert row[0] == GateStatus.VISITOR_PENDING_REGISTRATION.value
-
-
-# ---------------------------------------------------------------------------
-# 15-16: Suspended / expired
-# ---------------------------------------------------------------------------
 
 def test_15_suspended_vehicle_rejected(seeded_db):
     seeded_db.execute(
@@ -180,7 +140,6 @@ def test_15_suspended_vehicle_rejected(seeded_db):
     ).fetchone()
     assert row is not None
 
-
 def test_16_expired_vehicle_rejected(seeded_db):
     seeded_db.execute(
         "UPDATE registered_vehicles SET registration_status='EXPIRED' WHERE plate_number='WP-EF-2233'"
@@ -188,11 +147,6 @@ def test_16_expired_vehicle_rejected(seeded_db):
     result = _evt(_engine(seeded_db), plate="WP-EF-2233")
     assert result.outcome == GateOutcome.BARRIER_CLOSED_REJECTED
     assert result.status == GateStatus.EXPIRED
-
-
-# ---------------------------------------------------------------------------
-# 17: Dwell time
-# ---------------------------------------------------------------------------
 
 def test_17_dwell_time_computed(seeded_db):
     eng = _engine(seeded_db)
@@ -203,21 +157,11 @@ def test_17_dwell_time_computed(seeded_db):
     ).fetchone()
     assert row[0] == pytest.approx(7200.0, abs=1.0)
 
-
-# ---------------------------------------------------------------------------
-# 18: No shift assigned
-# ---------------------------------------------------------------------------
-
 def test_18_no_shift_vehicle_admitted(seeded_db):
     eng = _engine(seeded_db)
     result = eng.process_gate_event("NW-9900", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     assert result.outcome == GateOutcome.BARRIER_OPENED
     assert result.status == GateStatus.VISITOR_ADMITTED
-
-
-# ---------------------------------------------------------------------------
-# 19: Hash chain
-# ---------------------------------------------------------------------------
 
 def test_19_access_log_row_hash_not_pending(seeded_db):
     result = _evt(_engine(seeded_db))
@@ -227,16 +171,10 @@ def test_19_access_log_row_hash_not_pending(seeded_db):
     assert row[0] != "PENDING"
     assert len(row[0]) == 64
 
-
-# ---------------------------------------------------------------------------
-# 20-21: Barrier open/closed
-# ---------------------------------------------------------------------------
-
 def test_20_active_entry_opens_barrier(seeded_db):
     barrier = BarrierController("MOCK")
     _evt(AttendanceEngine(seeded_db, barrier))
     assert barrier.command_log()[-1][1] == "OPEN"
-
 
 def test_21_suspended_entry_does_not_open_barrier(seeded_db):
     seeded_db.execute(
@@ -247,11 +185,6 @@ def test_21_suspended_entry_does_not_open_barrier(seeded_db):
     eng.process_gate_event("WP-GA-7890", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     assert all(cmd != "OPEN" for _, cmd in barrier.command_log())
 
-
-# ---------------------------------------------------------------------------
-# 22-23: Stored fields
-# ---------------------------------------------------------------------------
-
 def test_22_confidence_score_stored(seeded_db):
     eng = _engine(seeded_db)
     result = eng.process_gate_event("WP-CAB-1234", 0.87, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
@@ -259,7 +192,6 @@ def test_22_confidence_score_stored(seeded_db):
         "SELECT confidence_score FROM access_log WHERE id=?", (result.access_log_id,)
     ).fetchone()
     assert row[0] == pytest.approx(0.87, abs=0.001)
-
 
 def test_23_plate_crop_b64_stored(seeded_db):
     import base64
@@ -270,11 +202,6 @@ def test_23_plate_crop_b64_stored(seeded_db):
         "SELECT plate_crop_b64 FROM access_log WHERE id=?", (result.access_log_id,)
     ).fetchone()
     assert row[0] == base64.b64encode(fake_jpeg).decode()
-
-
-# ---------------------------------------------------------------------------
-# 24-25: Overstay race condition
-# ---------------------------------------------------------------------------
 
 def test_24_overstay_flag_idempotent_concurrent(seeded_db):
     eng = _engine(seeded_db)
@@ -298,7 +225,6 @@ def test_24_overstay_flag_idempotent_concurrent(seeded_db):
     ).fetchone()[0]
     assert count == 1
 
-
 def test_25_flag_overstay_second_call_no_op(seeded_db):
     eng = _engine(seeded_db)
     result = _evt(eng)
@@ -313,28 +239,17 @@ def test_25_flag_overstay_second_call_no_op(seeded_db):
     ).fetchone()[0]
     assert count == 1
 
-
-# ---------------------------------------------------------------------------
-# 26-27: Grace period from DB (not hardcoded)
-# ---------------------------------------------------------------------------
-
 def test_26_grace_period_not_hardcoded(seeded_db):
     import src.attendance as att_mod, inspect
     source = inspect.getsource(att_mod)
     assert "grace_period_minutes = 15" not in source
 
-
 def test_27_changing_grace_period_changes_boundary(seeded_db):
     seeded_db.execute("UPDATE shifts SET grace_period_minutes = 5 WHERE shift_id = 'DAY'")
     eng = _engine(seeded_db)
-    # 10 min after start: within 15-min grace but outside 5-min grace -> LATE
+
     result = _evt(eng, ts=DAY_START + timedelta(minutes=10))
     assert result.status == GateStatus.LATE_ARRIVAL
-
-
-# ---------------------------------------------------------------------------
-# 28: SSE callback
-# ---------------------------------------------------------------------------
 
 def test_28_visitor_triggers_sse_callback(seeded_db):
     events = []
@@ -348,28 +263,20 @@ def test_28_visitor_triggers_sse_callback(seeded_db):
     assert events[0][0] == "exception"
     assert "id" in events[0][1]
 
-
-# ---------------------------------------------------------------------------
-# 29-32: Plate format validation
-# ---------------------------------------------------------------------------
-
 def test_29_invalid_format_no_dash_discarded(db):
     eng = AttendanceEngine(db, BarrierController("MOCK"))
     result = eng.process_gate_event("ABCDE1", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     assert result.access_log_id is None
-
 
 def test_30_invalid_format_mixed_prefix_discarded(db):
     eng = AttendanceEngine(db, BarrierController("MOCK"))
     result = eng.process_gate_event("A1-1234", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     assert result.access_log_id is None
 
-
 def test_31_invalid_format_wrong_digit_count_discarded(db):
     eng = AttendanceEngine(db, BarrierController("MOCK"))
     result = eng.process_gate_event("ABC-12", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=DAY_START)
     assert result.access_log_id is None
-
 
 def test_32_valid_format_xx_0000_passes_filter(db):
     eng = AttendanceEngine(db, BarrierController("MOCK"))

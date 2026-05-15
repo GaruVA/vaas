@@ -46,23 +46,16 @@ from src.database import connect, migrate_db
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
-RNG = random.Random(42)          # deterministic — same data every reseed
+RNG = random.Random(42)
 TODAY = date(2026, 5, 14)
-START = date(2026, 3, 10)        # ~45 working days before today
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+START = date(2026, 3, 10)
 
 def _hash_pw(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=BCRYPT_COST)).decode()
 
-
 def _ts(d: date, hour: int, minute: int, second: int = 0) -> str:
     return datetime(d.year, d.month, d.day, hour, minute, second,
                     tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 def _working_days(start: date, end: date):
     """Yield every Mon–Fri between start and end (inclusive)."""
@@ -72,13 +65,8 @@ def _working_days(start: date, end: date):
             yield cur
         cur += timedelta(days=1)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Static data definitions
-# ─────────────────────────────────────────────────────────────────────────────
-
 USERS = [
-    # username, password, role, full_name
+
     ("admin",           "admin123",    "ADMIN",    "K. Perera (IT Admin)"),
     ("manager",         "manager123",  "MANAGER",  "S. Fernando (Security Manager)"),
     ("operator",        "operator123", "OPERATOR", "A. Jayawardena (Gate Operator)"),
@@ -93,14 +81,14 @@ USERS = [
 ]
 
 SHIFTS = [
-    # shift_id (INTEGER PK), name, start, end, grace_minutes
+
     (1, "Day Shift",     "07:00", "15:00", 15),
     (2, "Evening Shift", "15:00", "23:00", 15),
     (3, "Night Shift",   "23:00", "07:00", 15),
 ]
 
 ZONES = [
-    # zone_id, name, type, capacity
+
     ("DRYDOCK_1",    "Dry Dock 1",           "DRYDOCK",  30),
     ("DRYDOCK_2",    "Dry Dock 2",           "DRYDOCK",  30),
     ("BERTH_NORTH",  "Berth North",          "BERTH",    20),
@@ -109,19 +97,18 @@ ZONES = [
 ]
 
 COMPANIES = [
-    # company_id, name, contact, phone
+
     ("SCO-001", "Ceylon Marine Services",  "Nimal Perera", "+94-11-2345678"),
     ("SCO-002", "Lanka Welding (Pvt) Ltd", "Ravi Kumar",   "+94-11-3456789"),
     ("SCO-003", "Onomichi Tech Support",   "Kenji Tanaka", "+81-848-12345"),
 ]
 
 PROJECTS = [
-    # code, vessel, zone, start, end, status, pm
+
     ("PRJ-2026-001", "MV Sayuri",      "DRYDOCK_1", "2026-01-01", None, "ACTIVE", "Suresh Fernando"),
     ("PRJ-2026-002", "MV Lanka Pride", "DRYDOCK_2", "2026-02-01", None, "ACTIVE", "Anil Jayawardena"),
 ]
 
-# plate, category, type, reg_status, contractor_name, dept, company_id
 VEHICLES = [
     ("WP-CAB-1234", "STAFF",       "CAR",      "ACTIVE",    "Nimal Silva",             None,    None),
     ("WP-KA-5678",  "STAFF",       "CAR",      "ACTIVE",    "Ranjit Kumar",            None,    None),
@@ -143,7 +130,6 @@ VEHICLES = [
     ("WP-ZZ-9988",  "STAFF",       "CAR",      "EXPIRED",   "Ex-Contractor",           None,    None),
 ]
 
-# Driver → vehicle assignments: (username, plate)
 DRIVER_ASSIGNMENTS = [
     ("nsilva",       "WP-CAB-1234"),
     ("rkumar",       "WP-KA-5678"),
@@ -155,7 +141,6 @@ DRIVER_ASSIGNMENTS = [
     ("pfernando",    "WP-MN-4455"),
 ]
 
-# Project-vehicle assignments: (project_code, plate, role, company_id)
 PROJECT_VEHICLES = [
     ("PRJ-2026-001", "WP-CAB-1234", "EMPLOYEE",      None),
     ("PRJ-2026-001", "WP-AB-3344",  "SUPERVISOR",    None),
@@ -168,28 +153,15 @@ PROJECT_VEHICLES = [
     ("PRJ-2026-002", "KL-3300",     "SUBCONTRACTOR", "SCO-001"),
 ]
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Attendance profiles  (used to generate realistic access_log data)
-# ─────────────────────────────────────────────────────────────────────────────
-# attendance_pct  — probability of showing up on any working day
-# ontime_pct      — P(entry is ON_TIME / EARLY given they show up)
-# early_pct       — portion of on-time that are EARLY_ARRIVAL (rest ON_TIME_ENTRY)
-# overstay_pct    — P(exit is OVERSTAY given they exit)
-# project         — project code for attribution
-# zone            — zone_id for attribution
-# gate            — preferred gate
-# shift           — shift assignment
-
 PROFILES = {
-    # High compliance — STAFF
+
     "WP-CAB-1234": dict(attendance=0.95, ontime=0.95, early=0.10, overstay=0.02,
                         project="PRJ-2026-001", zone="DRYDOCK_1",  gate="MAIN_GATE",    shift=1),
     "WP-KA-5678":  dict(attendance=0.92, ontime=0.93, early=0.08, overstay=0.02,
                         project="PRJ-2026-002", zone="DRYDOCK_2",  gate="MAIN_GATE",    shift=1),
     "WP-MN-4455":  dict(attendance=0.90, ontime=0.91, early=0.12, overstay=0.01,
                         project="PRJ-2026-002", zone="DRYDOCK_2",  gate="MAIN_GATE",    shift=1),
-    # Medium compliance — STAFF
+
     "WP-GA-7890":  dict(attendance=0.85, ontime=0.76, early=0.05, overstay=0.06,
                         project=None,           zone="WORKSHOP_ENG",gate="WORKSHOP_GATE",shift=1),
     "WP-AB-3344":  dict(attendance=0.82, ontime=0.72, early=0.04, overstay=0.08,
@@ -198,27 +170,22 @@ PROFILES = {
                         project=None,           zone="ADMIN_BLOCK", gate="MAIN_GATE",    shift=1),
     "WP-QR-8899":  dict(attendance=0.78, ontime=0.74, early=0.05, overstay=0.07,
                         project=None,           zone="WORKSHOP_ENG",gate="WORKSHOP_GATE",shift=1),
-    # Low compliance — CONTRACTOR
+
     "KL-9012":     dict(attendance=0.72, ontime=0.50, early=0.03, overstay=0.22,
                         project="PRJ-2026-001", zone="DRYDOCK_1",  gate="MAIN_GATE",    shift=1),
     "KL-5566":     dict(attendance=0.65, ontime=0.44, early=0.02, overstay=0.18,
                         project="PRJ-2026-002", zone="DRYDOCK_2",  gate="MAIN_GATE",    shift=1),
-    # Subcontractor billing vehicles (less frequent, longer dwell)
+
     "KL-7712":     dict(attendance=0.55, ontime=0.60, early=0.02, overstay=0.25,
                         project="PRJ-2026-001", zone="DRYDOCK_1",  gate="MAIN_GATE",    shift=1),
     "KL-3300":     dict(attendance=0.50, ontime=0.65, early=0.03, overstay=0.15,
                         project="PRJ-2026-002", zone="DRYDOCK_2",  gate="MAIN_GATE",    shift=1),
-    # Unassigned management/fleet (lower frequency, no driver)
+
     "CAB-3456":    dict(attendance=0.40, ontime=0.62, early=0.05, overstay=0.05,
                         project=None,           zone="ADMIN_BLOCK", gate="MAIN_GATE",    shift=1),
     "CP-1122":     dict(attendance=0.60, ontime=0.70, early=0.05, overstay=0.08,
                         project="PRJ-2026-001", zone="DRYDOCK_1",  gate="MAIN_GATE",    shift=1),
 }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Event-time generators
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _entry_time(profile: dict) -> tuple[int, int]:
     """Return (hour, minute) for an ENTRY event given compliance profile."""
@@ -226,43 +193,40 @@ def _entry_time(profile: dict) -> tuple[int, int]:
     ontime = profile["ontime"]
     early  = profile["early"]
     if r < ontime * early:
-        # EARLY_ARRIVAL: 06:15–06:44
+
         return 6, RNG.randint(15, 44)
     elif r < ontime:
-        # ON_TIME_ENTRY: 06:45–07:15
+
         return 7 if RNG.random() < 0.7 else 6, RNG.randint(0, 15) if RNG.random() < 0.7 else RNG.randint(45, 59)
     else:
-        # LATE_ARRIVAL: 07:30–10:00
+
         late_mins = RNG.randint(30, 180)
         h = 7 + late_mins // 60
         m = late_mins % 60
         return h, m
 
-
 def _exit_time(entry_h: int, entry_m: int, profile: dict) -> tuple[int, int]:
     """Return (hour, minute) for EXIT given entry time and profile."""
     if RNG.random() < profile["overstay"]:
-        # OVERSTAY: stays until 17:00–19:30
+
         return RNG.randint(17, 19), RNG.randint(0, 30)
-    # Normal exit: 7.5–9 hours after entry
+
     dwell_mins = RNG.randint(450, 540)
     total = entry_h * 60 + entry_m + dwell_mins
     return total // 60, total % 60
 
-
 def _entry_status(hour: int, minute: int) -> str:
     total = hour * 60 + minute
-    # DAY shift 07:00, grace 15 min → window 06:45–07:15
+
     if total < 6 * 60 + 45:
         return "EARLY_ARRIVAL"
     if total <= 7 * 60 + 15:
         return "ON_TIME_ENTRY"
     return "LATE_ARRIVAL"
 
-
 def _exit_status(entry_h: int, entry_m: int, exit_h: int, exit_m: int) -> str:
     dwell = (exit_h * 60 + exit_m) - (entry_h * 60 + entry_m)
-    if dwell > 600:           # >10 h
+    if dwell > 600:
         return "OVERSTAY"
     if exit_h * 60 + exit_m < 14 * 60 + 30:
         return "EARLY_DEPARTURE"
@@ -270,21 +234,13 @@ def _exit_status(entry_h: int, entry_m: int, exit_h: int, exit_m: int) -> str:
         return "ON_TIME_EXIT"
     return "OVERSTAY"
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Main populate function
-# ─────────────────────────────────────────────────────────────────────────────
-
 def _populate(conn) -> None:
-    # vehicle_shifts.shift_id is declared TEXT but references the INTEGER PK on
-    # shifts — SQLite's strict FK type matching rejects the cross-type reference.
-    # Disable FK checks for the duration of the seed; re-enable at the end.
+
     conn.execute("PRAGMA foreign_keys = OFF")
 
     gates_json = json.dumps(["MAIN_GATE", "WORKSHOP_GATE"])
     weekdays   = json.dumps(["MON", "TUE", "WED", "THU", "FRI"])
 
-    # ── Wipe all existing data ────────────────────────────────────────────────
     wipe_order = [
         "access_log", "gate_rejections", "admin_audit_log",
         "vehicle_assignments", "vehicle_shifts",
@@ -300,7 +256,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("All tables wiped")
 
-    # ── Users ─────────────────────────────────────────────────────────────────
     user_ids: dict[str, int] = {}
     for username, pw, role, full_name in USERS:
         cur = conn.execute(
@@ -311,7 +266,6 @@ def _populate(conn) -> None:
         logger.info("User  %s / %s  [%s]", username, pw, role)
     conn.commit()
 
-    # ── Shifts ────────────────────────────────────────────────────────────────
     for sid, sname, start, end, grace in SHIFTS:
         conn.execute(
             """INSERT INTO shifts
@@ -323,7 +277,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Shifts seeded (%d)", len(SHIFTS))
 
-    # ── Zones ─────────────────────────────────────────────────────────────────
     for zid, zname, ztype, cap in ZONES:
         conn.execute(
             """INSERT INTO cdl_zones
@@ -334,7 +287,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Zones seeded (%d)", len(ZONES))
 
-    # ── Subcontractor companies ───────────────────────────────────────────────
     for cid, cname, contact, phone in COMPANIES:
         conn.execute(
             """INSERT INTO subcontractor_companies
@@ -345,7 +297,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Companies seeded (%d)", len(COMPANIES))
 
-    # ── Projects ──────────────────────────────────────────────────────────────
     for pcode, vessel, zone, start, end, status, pm in PROJECTS:
         conn.execute(
             """INSERT INTO projects
@@ -356,7 +307,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Projects seeded (%d)", len(PROJECTS))
 
-    # ── Registered vehicles ───────────────────────────────────────────────────
     for plate, cat, vtype, reg_status, contractor, dept, company in VEHICLES:
         conn.execute(
             """INSERT INTO registered_vehicles
@@ -368,7 +318,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Vehicles seeded (%d)", len(VEHICLES))
 
-    # ── Shift assignments (all profile vehicles → DAY) ────────────────────────
     for plate in PROFILES:
         conn.execute(
             "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
@@ -376,7 +325,6 @@ def _populate(conn) -> None:
         )
     conn.commit()
 
-    # ── Project-vehicle assignments ───────────────────────────────────────────
     for pcode, plate, role, company in PROJECT_VEHICLES:
         conn.execute(
             """INSERT INTO project_vehicle_assignments
@@ -386,7 +334,6 @@ def _populate(conn) -> None:
         )
     conn.commit()
 
-    # ── Driver → vehicle assignments ──────────────────────────────────────────
     for username, plate in DRIVER_ASSIGNMENTS:
         conn.execute(
             "INSERT INTO vehicle_assignments (user_id, plate_number) VALUES (?,?)",
@@ -395,8 +342,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Driver assignments seeded (%d)", len(DRIVER_ASSIGNMENTS))
 
-    # ── Access log (60 working days, hash chain) ──────────────────────────────
-    # Build all events in memory, sort by timestamp, then insert in order.
     events: list[dict] = []
 
     working_days = list(_working_days(START, TODAY - timedelta(days=1)))
@@ -433,7 +378,6 @@ def _populate(conn) -> None:
                 zone=p["zone"], project=p["project"], gate=p["gate"],
             ))
 
-        # Occasional VISITOR events (unregistered plate attempts)
         if RNG.random() < 0.25:
             fake_plate = f"UN-{RNG.randint(1000,9999)}"
             events.append(dict(
@@ -444,7 +388,6 @@ def _populate(conn) -> None:
                 dwell=None, zone=None, project=None, gate="MAIN_GATE",
             ))
 
-    # Sort strictly by timestamp string (ISO format sorts correctly)
     events.sort(key=lambda e: e["ts"])
 
     logger.info("Inserting %d access_log events…", len(events))
@@ -465,7 +408,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Access log seeded (%d rows)", len(events))
 
-    # ── Today's live ENTRY events (no EXIT) → zone occupancy non-zero ─────────
     live_today = [
         ("WP-CAB-1234", "MAIN_GATE",     "DRYDOCK_1",   "PRJ-2026-001"),
         ("KL-9012",     "MAIN_GATE",     "DRYDOCK_1",   "PRJ-2026-001"),
@@ -490,7 +432,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Today live entries seeded (%d)", len(live_today))
 
-    # ── Gate rejections ───────────────────────────────────────────────────────
     rejection_days = RNG.sample(working_days[-40:], 22)
     rejection_plates = (
         [("WP-ST-0011", "SUSPENDED")] * 7 +
@@ -516,7 +457,6 @@ def _populate(conn) -> None:
     conn.commit()
     logger.info("Gate rejections seeded (%d)", len(rejection_plates))
 
-    # ── Admin audit log ───────────────────────────────────────────────────────
     audit_entries = [
         ("admin",   "CREATE",   "user",    "4",  {"username": "nsilva",       "role": "OPERATOR"}),
         ("admin",   "CREATE",   "user",    "5",  {"username": "rkumar",       "role": "OPERATOR"}),
@@ -555,11 +495,6 @@ def _populate(conn) -> None:
     logger.info("Admin audit log seeded (%d entries)", len(audit_entries))
 
     conn.execute("PRAGMA foreign_keys = ON")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Entry points
-# ─────────────────────────────────────────────────────────────────────────────
 
 def seed(db_path: Path | None = None, in_place: bool = False) -> None:
     """Seed the database.
@@ -606,7 +541,6 @@ def seed(db_path: Path | None = None, in_place: bool = False) -> None:
 
     logger.info("Seed complete.")
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the VAAS demo database")
     parser.add_argument("--db-path", type=Path, default=None)
@@ -614,7 +548,6 @@ def main() -> None:
                         help="Write directly into the target DB (safe while app is running)")
     args = parser.parse_args()
     seed(args.db_path, in_place=args.in_place)
-
 
 if __name__ == "__main__":
     main()

@@ -18,11 +18,6 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-# PyTorch 2.6+ changed weights_only default to True.  Ultralytics checkpoint
-# files embed many torch internal classes that aren't in the default allowlist.
-# Rather than enumerate every class, we patch torch.load so that calls without
-# an explicit weights_only argument (i.e. the YOLO loader) fall back to False.
-# This is safe here because plate_detector.pt is a trusted local asset.
 _orig_torch_load = torch.load
 
 def _torch_load_compat(f, *args, **kwargs):
@@ -35,14 +30,12 @@ from src.config import PLATE_DETECTOR, PLATE_CONF_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class PlateDetection:
     """A single detected licence plate bounding box."""
     xyxy: tuple[float, float, float, float]
     confidence: float
     crop: np.ndarray
-
 
 class PlateDetector:
     """Wraps YOLOv8n plate detector.

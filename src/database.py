@@ -21,11 +21,6 @@ from src.config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Schema DDL -- separated from PRAGMA so executescript does not conflict
-# with an already-open WAL connection.
-# ---------------------------------------------------------------------------
-
 _DDL_SQL = """
 CREATE TABLE IF NOT EXISTS registered_vehicles (
     plate_number        TEXT PRIMARY KEY,
@@ -175,10 +170,6 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_user     ON admin_audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_entity   ON admin_audit_log(entity_type, entity_id);
 """
 
-# ---------------------------------------------------------------------------
-# Constants extracted from schema CHECK constraints
-# ---------------------------------------------------------------------------
-
 VEHICLE_CATEGORIES = ("STAFF", "CONTRACTOR", "MANAGEMENT", "FLEET", "VISITOR", "EMERGENCY", "MAINTENANCE")
 VEHICLE_TYPES = ("CAR", "VAN", "TRUCK", "MOTORCYCLE", "UTILITY")
 VEHICLE_STATUSES = ("ACTIVE", "SUSPENDED", "EXPIRED")
@@ -190,25 +181,15 @@ COMPANY_STATUSES = ("APPROVED", "SUSPENDED", "EXPIRED")
 ASSIGNMENT_ROLES = ("EMPLOYEE", "SUBCONTRACTOR", "SUPERVISOR", "VISITOR")
 ADMIN_ACTIONS = ("CREATE", "UPDATE", "DELETE", "ASSIGN")
 
-# ---------------------------------------------------------------------------
-# Migrations -- keyed by int, applied idempotently.
-# Keys are sequential; append at the end for future additions.
-# ---------------------------------------------------------------------------
-
 _MIGRATIONS: dict[int, str] = {
-    # Add CDL columns to access_log for pre-CDL databases
+
     1: "ALTER TABLE access_log ADD COLUMN zone_id TEXT",
     2: "ALTER TABLE access_log ADD COLUMN project_code TEXT",
-    # Add employee_no to users for older schemas
+
     3: "ALTER TABLE users ADD COLUMN employee_no TEXT",
-    # Add plate_crop_b64 to gate_rejections for older schemas
+
     4: "ALTER TABLE gate_rejections ADD COLUMN plate_crop_b64 TEXT",
 }
-
-
-# ---------------------------------------------------------------------------
-# Connection factory
-# ---------------------------------------------------------------------------
 
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     """Open a SQLite connection, preferring WAL journal mode.
@@ -228,28 +209,22 @@ def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     if path != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
-    conn.isolation_level = None   # autocommit
+    conn.isolation_level = None
     conn.row_factory = sqlite3.Row
     try:
         conn.execute("PRAGMA journal_mode = WAL")
     except sqlite3.OperationalError:
-        # FS does not support WAL shm files -- use in-process journal
+
         conn.execute("PRAGMA journal_mode = MEMORY")
         logger.warning("WAL journal unavailable; using MEMORY journal mode")
     conn.execute("PRAGMA synchronous  = NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-
-# ---------------------------------------------------------------------------
-# Schema initialisation
-# ---------------------------------------------------------------------------
-
 def init_db(conn: sqlite3.Connection) -> None:
     """Apply the base schema from scratch.  Safe on a fresh database."""
     conn.executescript(_DDL_SQL)
     logger.debug("VAAS schema initialised")
-
 
 def migrate_db(conn: sqlite3.Connection) -> None:
     """Apply base schema then run incremental migrations idempotently.
@@ -265,10 +240,9 @@ def migrate_db(conn: sqlite3.Connection) -> None:
     This makes the function safe on both fresh databases (base DDL already
     names columns correctly) and legacy databases (ALTER TABLE is needed).
     """
-    # Ensure base schema is present
+
     conn.executescript(_DDL_SQL)
 
-    # Apply incremental migrations
     for key in sorted(_MIGRATIONS):
         sql = _MIGRATIONS[key]
         try:
@@ -280,15 +254,10 @@ def migrate_db(conn: sqlite3.Connection) -> None:
                 or "no such column" in msg
                 or "no such table" in msg
             ):
-                pass  # idempotent -- already applied or not applicable
+                pass
             else:
                 raise
     logger.debug("VAAS migrations complete")
-
-
-# ---------------------------------------------------------------------------
-# Transaction context manager
-# ---------------------------------------------------------------------------
 
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Generator[sqlite3.Cursor, None, None]:

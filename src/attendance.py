@@ -51,27 +51,12 @@ from src.lpm_mled import lpm_mled_correct
 
 logger = logging.getLogger(__name__)
 
-# Accepted plate formats (Sri Lanka vehicle registration):
-#   XXX-0000   e.g. ABC-1234
-#   XX-0000    e.g. AB-1234
-#   XX-XXX-0000 e.g. AB-CDE-1234
-#   XX-XX-0000  e.g. AB-CD-1234
 _VALID_PLATE_RE = re.compile(
     r"^(?:[A-Z]{3}-\d{4}|[A-Z]{2}-\d{4}|[A-Z]{2}-[A-Z]{3}-\d{4}|[A-Z]{2}-[A-Z]{2}-\d{4})$"
 )
 
-
-# ---------------------------------------------------------------------------
-# Internal clock (monkeypatched in tests)
-# ---------------------------------------------------------------------------
-
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-# ---------------------------------------------------------------------------
-# Status enum
-# ---------------------------------------------------------------------------
 
 class GateStatus(str, Enum):
     ON_TIME_ENTRY                  = "ON_TIME_ENTRY"
@@ -90,29 +75,18 @@ class GateStatus(str, Enum):
     DOUBLE_ENTRY                   = "DOUBLE_ENTRY"
     UNMATCHED_EXIT                 = "UNMATCHED_EXIT"
 
-
-# ---------------------------------------------------------------------------
-# Result dataclasses
-# ---------------------------------------------------------------------------
-
 class GateOutcome(str, Enum):
     BARRIER_OPENED              = "BARRIER_OPENED"
     BARRIER_CLOSED_REJECTED     = "BARRIER_CLOSED_REJECTED"
     EXCEPTION_PENDING_DISPOSITION = "EXCEPTION_PENDING_DISPOSITION"
 
-
 @dataclass
 class GateEventResult:
     outcome:       GateOutcome
     status:        GateStatus
-    plate_number:  str | None          # matched plate (None for unregistered)
+    plate_number:  str | None
     access_log_id: int | None
     message:       str = ""
-
-
-# ---------------------------------------------------------------------------
-# Attendance engine
-# ---------------------------------------------------------------------------
 
 class AttendanceEngine:
     """Processes gate events and determines attendance status.
@@ -143,10 +117,6 @@ class AttendanceEngine:
         self._timeout       = exception_timeout
         self._conf_threshold = confidence_threshold
         self._pending_timers: dict[int, threading.Timer] = {}
-
-    # ------------------------------------------------------------------
-    # Public: process a gate event
-    # ------------------------------------------------------------------
 
     def process_gate_event(
         self,
@@ -179,7 +149,6 @@ class AttendanceEngine:
         ts_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         crop_b64 = base64.b64encode(plate_crop_jpeg_bytes).decode() if plate_crop_jpeg_bytes else None
 
-        # 0. Discard obviously invalid reads before any DB work
         raw_plate = raw_plate.strip().upper()
         if len(raw_plate) < 4:
             logger.debug("[%s] Discarding sub-4-char read '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
@@ -191,8 +160,6 @@ class AttendanceEngine:
                 message="Read too short — discarded",
             )
 
-        # 1. LPM-MLED lookup — runs before format check so 1-char OCR errors
-        #    (e.g. WP-CA8-1234 → WP-CAB-1234) are corrected on registered plates.
         candidates = [
             r[0] for r in self._conn.execute(
                 "SELECT plate_number FROM registered_vehicles"
@@ -201,9 +168,7 @@ class AttendanceEngine:
         matched_plate = lpm_mled_correct(raw_plate, candidates)
 
         if matched_plate is None:
-            # No registered-plate match — apply format check before treating as visitor.
-            # LPM already had its chance, so anything left is either a genuine visitor
-            # plate (valid format) or pure OCR garbage (invalid format → discard).
+
             if not _VALID_PLATE_RE.match(raw_plate):
                 logger.debug("[%s] Discarding invalid-format plate '%s' (conf=%.2f)", gate_id, raw_plate, confidence)
                 return GateEventResult(
@@ -213,14 +178,12 @@ class AttendanceEngine:
                     access_log_id=None,
                     message="Invalid plate format — discarded",
                 )
-            # Unregistered / unknown plate -> VISITOR exception
+
             return self._handle_visitor(raw_plate, confidence, gate_id, direction, ts_str, crop_b64)
 
-        # 1b. Low-confidence read of a known plate — queue for operator confirmation
         if confidence < self._conf_threshold:
             return self._handle_visitor(matched_plate, confidence, gate_id, direction, ts_str, crop_b64)
 
-        # 2. Fetch vehicle registration status
         vehicle = self._conn.execute(
             "SELECT registration_status FROM registered_vehicles WHERE plate_number = ?",
             (matched_plate,),
@@ -248,10 +211,6 @@ class AttendanceEngine:
                 message="Vehicle registration expired",
             )
 
-        # 3. Direction-consistency check (ACTIVE vehicles only)
-        # Detects double-entry and exits with no recorded entry.
-        # In both cases the barrier still opens — we never deny a legitimate
-        # employee — but we write a distinct status so the audit log flags it.
         last_dir_row = self._conn.execute(
             "SELECT direction FROM access_log "
             "WHERE plate_number = ? ORDER BY id DESC LIMIT 1",
@@ -270,7 +229,7 @@ class AttendanceEngine:
                            gate_id, matched_plate, last_dir)
 
         if anomaly_status is not None:
-            # Resolve shift_id for the log row (best-effort; None is fine)
+
             try:
                 _sr = self._conn.execute(
                     """SELECT s.shift_id FROM shifts s
@@ -297,7 +256,6 @@ class AttendanceEngine:
                 message=anomaly_status.value,
             )
 
-        # 4. ACTIVE vehicle: compute attendance status
         shift_row = self._conn.execute(
             """SELECT s.shift_id, s.start_time, s.end_time, s.grace_period_minutes
                FROM shifts s
@@ -309,7 +267,6 @@ class AttendanceEngine:
 
         attendance_status = self._classify_status(direction, now, shift_row)
 
-        # 5. Compute dwell time for EXIT
         dwell = None
         if direction == "EXIT":
             entry_row = self._conn.execute(
@@ -325,10 +282,8 @@ class AttendanceEngine:
                 except (ValueError, TypeError):
                     pass
 
-        # 6. Resolve zone + project
         zone_id, project_code = self._resolve_attribution(matched_plate, gate_id, now)
 
-        # 7. Insert access_log row + finalise hash
         shift_id = shift_row[0] if shift_row else None
         row_id = self._insert_access_log(
             matched_plate, ts_str, gate_id, direction,
@@ -336,7 +291,6 @@ class AttendanceEngine:
             dwell, zone_id, project_code, crop_b64,
         )
 
-        # 8. Open barrier
         self._barrier.open(gate_id)
 
         return GateEventResult(
@@ -345,10 +299,6 @@ class AttendanceEngine:
             plate_number=matched_plate,
             access_log_id=row_id,
         )
-
-    # ------------------------------------------------------------------
-    # Public: dispose visitor exception
-    # ------------------------------------------------------------------
 
     def dispose_exception(
         self,
@@ -362,7 +312,7 @@ class AttendanceEngine:
         REJECT  -> status VISITOR_REJECTED, write gate_rejections row.
         REGISTER -> status VISITOR_PENDING_REGISTRATION.
         """
-        # Cancel any pending auto-reject timer
+
         timer = self._pending_timers.pop(access_log_id, None)
         if timer:
             timer.cancel()
@@ -401,10 +351,6 @@ class AttendanceEngine:
             access_log_id, disposition, operator_user_id,
         )
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _classify_visitor_anomaly(
         self, raw_plate: str, gate_id: str, direction: str, ts_str: str
     ) -> "GateStatus":
@@ -435,7 +381,6 @@ class AttendanceEngine:
                            gate_id, raw_plate, last_dir)
             return GateStatus.UNMATCHED_EXIT
 
-        # Rapid cross-gate retry: recent exception or rejection at any gate
         recent = self._conn.execute(
             "SELECT 1 FROM access_log "
             "WHERE plate_number = ? "
@@ -477,7 +422,7 @@ class AttendanceEngine:
                 "confidence": confidence,
                 "timestamp":  ts_str,
             })
-        # Schedule auto-reject
+
         timer = threading.Timer(
             self._timeout,
             self._auto_reject,
@@ -519,7 +464,7 @@ class AttendanceEngine:
     ) -> GateStatus:
         """Return attendance status for an ACTIVE vehicle."""
         if shift_row is None:
-            # No shift assigned -> treat as VISITOR admission (e.g. contractor)
+
             if direction == "ENTRY":
                 return GateStatus.VISITOR_ADMITTED
             return GateStatus.ON_TIME_EXIT
@@ -532,7 +477,6 @@ class AttendanceEngine:
         end_h,   end_m   = (int(x) for x in end_str.split(":"))
         grace = timedelta(minutes=grace_minutes)
 
-        # Build the shift window anchored to the event date
         event_date = now.date()
         start_dt = datetime(
             event_date.year, event_date.month, event_date.day,
@@ -543,14 +487,10 @@ class AttendanceEngine:
             end_h, end_m, tzinfo=timezone.utc,
         )
 
-        # Midnight-crossing shift: start >= end means the shift ends the NEXT day.
         crosses_midnight = (start_h * 60 + start_m) >= (end_h * 60 + end_m)
         if crosses_midnight:
             end_dt += timedelta(days=1)
 
-            # If the event falls before today's start_dt, it may belong to the
-            # PREVIOUS day's instance of this shift (e.g. 00:01 belongs to the
-            # shift that started at 23:00 the day before).
             if now < start_dt:
                 start_dt -= timedelta(days=1)
                 end_dt   -= timedelta(days=1)
@@ -563,7 +503,7 @@ class AttendanceEngine:
             else:
                 return GateStatus.LATE_ARRIVAL
 
-        else:  # EXIT
+        else:
             if now < end_dt:
                 return GateStatus.EARLY_DEPARTURE
             elif now <= end_dt + grace:

@@ -10,7 +10,6 @@ from src.audit import verify_chain
 from src.config import DB_PATH
 from src.database import connect
 
-
 def main() -> int:
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else DB_PATH
     if not path.exists():
@@ -24,7 +23,6 @@ def main() -> int:
     print(f"  intact       = {res.intact}")
     print(f"  message      = {res.message}")
     return 0 if res.intact else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

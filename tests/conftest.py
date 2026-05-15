@@ -15,10 +15,6 @@ import pytest
 
 from src.database import init_db, migrate_db, connect as db_connect
 
-
-# ---------------------------------------------------------------------------
-# db — in-memory SQLite connection, fresh schema each test
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def db():
     """Bare in-memory SQLite connection with VAAS schema applied."""
@@ -27,10 +23,6 @@ def db():
     yield conn
     conn.close()
 
-
-# ---------------------------------------------------------------------------
-# seeded_db — in-memory DB with minimal demo data
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def seeded_db(db):
     """In-memory DB seeded with 3 shifts, demo zones, companies, projects,
@@ -41,7 +33,6 @@ def seeded_db(db):
     conn = db
     gates = json.dumps(["MAIN_GATE", "WORKSHOP_GATE"])
 
-    # Users
     pw = bcrypt.hashpw(b"testpass", bcrypt.gensalt(rounds=4)).decode()
     conn.execute(
         "INSERT INTO users (username, password_hash, role, full_name) VALUES (?,?,?,?)",
@@ -56,7 +47,6 @@ def seeded_db(db):
         ("operator", pw, "OPERATOR", "Operator User"),
     )
 
-    # Shifts
     for sid, name, start, end in [
         ("DAY",     "Day Shift",     "07:00", "15:00"),
         ("EVENING", "Evening Shift", "15:00", "23:00"),
@@ -72,7 +62,6 @@ def seeded_db(db):
              gates, 15),
         )
 
-    # CDL zones
     import json as _j
     for zid, zname, ztype, cap in [
         ("DRYDOCK_1",    "Dry Dock 1",          "DRYDOCK",  30),
@@ -88,7 +77,6 @@ def seeded_db(db):
             (zid, zname, ztype, gates, cap),
         )
 
-    # Subcontractor companies
     for cid, cname in [
         ("SCO-001", "Ceylon Marine Services"),
         ("SCO-002", "Lanka Welding (Pvt) Ltd"),
@@ -99,7 +87,6 @@ def seeded_db(db):
             (cid, cname),
         )
 
-    # Projects
     conn.execute(
         """INSERT INTO projects
            (project_code, vessel_name, zone_id, start_date, status)
@@ -113,7 +100,6 @@ def seeded_db(db):
         ("PRJ-2026-002", "MV Lanka Pride","DRYDOCK_2", "2026-02-01", "ACTIVE"),
     )
 
-    # Registered vehicles
     vehicles = [
         ("WP-CAB-1234", "STAFF",       "CAR",        "John Silva",    None,    None),
         ("WP-KA-5678",  "CONTRACTOR",  "VAN",         "ABC Builders",  None,    "SCO-001"),
@@ -138,14 +124,12 @@ def seeded_db(db):
             (plate, cat, vtype, contractor, dept, company),
         )
 
-    # Assign first 6 vehicles to DAY shift
     for plate in [v[0] for v in vehicles[:6]]:
         conn.execute(
             "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
             (plate, "DAY"),
         )
 
-    # Assign some vehicles to projects
     conn.execute(
         """INSERT INTO project_vehicle_assignments
            (project_code, plate_number, role)
@@ -159,7 +143,6 @@ def seeded_db(db):
         ("PRJ-2026-001", "WP-KA-5678", "SUBCONTRACTOR", "SCO-001"),
     )
 
-    # Assign a vehicle to operator user
     conn.execute(
         """INSERT INTO vehicle_assignments (user_id, plate_number) VALUES (?,?)""",
         (3, "WP-CAB-1234"),
@@ -168,10 +151,6 @@ def seeded_db(db):
     conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
     yield conn
 
-
-# ---------------------------------------------------------------------------
-# engine — AttendanceEngine over seeded_db
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def engine(seeded_db):
     """AttendanceEngine wired to seeded_db with a mock barrier."""
@@ -182,10 +161,6 @@ def engine(seeded_db):
     eng = AttendanceEngine(conn=seeded_db, barrier=barrier)
     return eng
 
-
-# ---------------------------------------------------------------------------
-# frozen_time — monkeypatches datetime.now in attendance module
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def frozen_time(monkeypatch):
     """Return a setter that fixes src.attendance.datetime.now to a given datetime."""
@@ -204,20 +179,12 @@ def frozen_time(monkeypatch):
 
     return _FrozenDatetime()
 
-
-# ---------------------------------------------------------------------------
-# mock_barrier — a BarrierController in MOCK mode
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def mock_barrier():
     """MOCK-mode BarrierController — records open/close calls."""
     from src.barrier import BarrierController
     return BarrierController("MOCK")
 
-
-# ---------------------------------------------------------------------------
-# make_jpeg_bytes — factory for minimal JPEG bytestrings
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def make_jpeg_bytes():
     """Return a factory that creates a tiny JPEG bytestring (numpy required)."""

@@ -23,7 +23,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-
 class MockCamera:
     """Cycles through JPEG images in *folder* indefinitely.
 
@@ -68,7 +67,6 @@ class MockCamera:
         """No-op for mock camera (no hardware to release)."""
         logger.debug("MockCamera.release() called")
 
-
 class USBCamera:
     """Wraps ``cv2.VideoCapture`` for a USB or RTSP camera.
 
@@ -87,11 +85,7 @@ class USBCamera:
         width: int = 1920,
         height: int = 1080,
     ) -> None:
-        # On Windows, VideoCapture without a backend enumerates every available
-        # backend sequentially (MSMF, DirectShow, …) which can block for many
-        # minutes on USB cameras.  CAP_DSHOW goes directly to DirectShow and
-        # opens in under a second.  For non-integer sources (RTSP URLs) fall
-        # back to the default so OpenCV picks the appropriate network backend.
+
         if isinstance(index, int) and platform.system() == "Windows":
             backend = cv2.CAP_DSHOW
         else:

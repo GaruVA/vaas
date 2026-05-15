@@ -32,11 +32,6 @@ from src.config import CDL_FUN_BLUE, CDL_YELLOW, CDL_SAFETY_GRN
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# 1. Personal vehicle allowance report
-# ---------------------------------------------------------------------------
-
 def personal_vehicle_allowance_report(
     conn,
     date_from: str,
@@ -80,11 +75,6 @@ def personal_vehicle_allowance_report(
     sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY event_date, u.username"
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 2. OHS compliance report
-# ---------------------------------------------------------------------------
 
 def ohs_compliance_report(conn) -> list[dict]:
     """Driver assignment coverage, overstay flags, and vehicle status.
@@ -135,11 +125,6 @@ def ohs_compliance_report(conn) -> list[dict]:
     ).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# 3. Gate rejection audit
-# ---------------------------------------------------------------------------
-
 def gate_rejection_audit(
     conn,
     date_from: str,
@@ -168,11 +153,6 @@ def gate_rejection_audit(
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# 4. Admin audit report
-# ---------------------------------------------------------------------------
-
 def admin_audit_report(
     conn,
     date_from: str,
@@ -196,11 +176,6 @@ def admin_audit_report(
     sql += " ORDER BY timestamp DESC"
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 5. Zone occupancy snapshot
-# ---------------------------------------------------------------------------
 
 def zone_occupancy_snapshot(conn) -> list[dict]:
     """Real-time vehicle headcount across all CDL zones."""
@@ -244,11 +219,6 @@ def zone_occupancy_snapshot(conn) -> list[dict]:
         })
     return results
 
-
-# ---------------------------------------------------------------------------
-# 6. Subcontractor billing audit
-# ---------------------------------------------------------------------------
-
 def subcontractor_billing_audit(
     conn,
     company_id: str | None = None,
@@ -285,11 +255,6 @@ def subcontractor_billing_audit(
     rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# 7. Daily attendance report
-# ---------------------------------------------------------------------------
-
 def daily_attendance_report(conn, report_date: str) -> list[dict]:
     """Attendance presence per registered vehicle for a single date.
 
@@ -312,11 +277,6 @@ def daily_attendance_report(conn, report_date: str) -> list[dict]:
         (report_date,),
     ).fetchall()
     return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 8. Weekly attendance report
-# ---------------------------------------------------------------------------
 
 def weekly_attendance_report(conn, week_start: str) -> list[dict]:
     """Distinct days present per registered vehicle for the 7-day window
@@ -342,11 +302,6 @@ def weekly_attendance_report(conn, week_start: str) -> list[dict]:
     ).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# 9. Monthly attendance report
-# ---------------------------------------------------------------------------
-
 def monthly_attendance_report(conn, year: int, month: int) -> list[dict]:
     """Distinct days present per registered vehicle for a calendar month.
 
@@ -369,11 +324,6 @@ def monthly_attendance_report(conn, year: int, month: int) -> list[dict]:
         (month_str,),
     ).fetchall()
     return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# 10. Gate throughput report
-# ---------------------------------------------------------------------------
 
 def gate_throughput_report(
     conn,
@@ -408,11 +358,6 @@ def gate_throughput_report(
     ).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# Helpers: csv_string, export_csv, export_pdf
-# ---------------------------------------------------------------------------
-
 def csv_string(rows: list[dict]) -> str:
     """Serialise a list of row dicts to a CSV string."""
     if not rows:
@@ -423,7 +368,6 @@ def csv_string(rows: list[dict]) -> str:
     writer.writerows(rows)
     return buf.getvalue()
 
-
 def export_csv(rows: list[dict], fp: str | Path | IO) -> None:
     """Write rows as CSV to a file path or file-like object."""
     content = csv_string(rows)
@@ -431,7 +375,6 @@ def export_csv(rows: list[dict], fp: str | Path | IO) -> None:
         fp.write(content)
     else:
         Path(fp).write_text(content, encoding="utf-8")
-
 
 def export_pdf(
     rows: list[dict],
@@ -475,7 +418,7 @@ def export_pdf(
     def _header_footer(canvas, doc):
         canvas.saveState()
         w, h = landscape(A4)
-        # Blue header bar
+
         canvas.setFillColor(blue)
         canvas.rect(0, h - 1.5 * cm, w, 1.5 * cm, fill=1, stroke=0)
         canvas.setFillColor(white)
@@ -484,10 +427,10 @@ def export_pdf(
         if date_range_str:
             canvas.setFont("Helvetica", 9)
             canvas.drawRightString(w - 1.5 * cm, h - 1.1 * cm, date_range_str)
-        # Yellow accent line
+
         canvas.setFillColor(yellow)
         canvas.rect(0, h - 1.6 * cm, w, 0.1 * cm, fill=1, stroke=0)
-        # Footer page number
+
         canvas.setFillColor(colors.HexColor("#555555"))
         canvas.setFont("Helvetica", 8)
         canvas.drawCentredString(w / 2, 0.75 * cm, f"Page {doc.page}")

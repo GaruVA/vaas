@@ -22,11 +22,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# A. Zones
-# ---------------------------------------------------------------------------
-
-
 def create_zone(
     conn,
     zone_id: str,
@@ -47,14 +42,12 @@ def create_zone(
     )
     logger.info("Zone created: %s (%s)", zone_id, zone_type)
 
-
 def get_zone(conn, zone_id: str) -> dict | None:
     """Return zone dict or None."""
     row = conn.execute(
         "SELECT * FROM cdl_zones WHERE zone_id = ?", (zone_id,)
     ).fetchone()
     return dict(row) if row else None
-
 
 def list_zones(conn, zone_type: str | None = None) -> list[dict]:
     """Return all zones, optionally filtered by zone_type."""
@@ -68,7 +61,6 @@ def list_zones(conn, zone_type: str | None = None) -> list[dict]:
             "SELECT * FROM cdl_zones ORDER BY zone_id"
         ).fetchall()
     return [dict(r) for r in rows]
-
 
 def get_zone_occupancy(conn, zone_id: str) -> int:
     """Count vehicles currently inside a zone (ENTRY without matching EXIT)."""
@@ -97,12 +89,6 @@ def get_zone_occupancy(conn, zone_id: str) -> int:
     ).fetchone()[0]
     return count or 0
 
-
-# ---------------------------------------------------------------------------
-# B. Subcontractor companies
-# ---------------------------------------------------------------------------
-
-
 def create_company(
     conn,
     company_id: str,
@@ -120,14 +106,12 @@ def create_company(
     )
     logger.info("Company created: %s", company_id)
 
-
 def get_company(conn, company_id: str) -> dict | None:
     """Return company dict or None."""
     row = conn.execute(
         "SELECT * FROM subcontractor_companies WHERE company_id = ?", (company_id,)
     ).fetchone()
     return dict(row) if row else None
-
 
 def list_companies(conn, approval_status: str | None = None) -> list[dict]:
     """Return all companies, optionally filtered by approval_status."""
@@ -141,12 +125,6 @@ def list_companies(conn, approval_status: str | None = None) -> list[dict]:
             "SELECT * FROM subcontractor_companies ORDER BY company_id"
         ).fetchall()
     return [dict(r) for r in rows]
-
-
-# ---------------------------------------------------------------------------
-# C. Projects
-# ---------------------------------------------------------------------------
-
 
 def create_project(
     conn,
@@ -167,14 +145,12 @@ def create_project(
     )
     logger.info("Project created: %s (vessel: %s)", project_code, vessel_name)
 
-
 def get_project(conn, project_code: str) -> dict | None:
     """Return project dict or None."""
     row = conn.execute(
         "SELECT * FROM projects WHERE project_code = ?", (project_code,)
     ).fetchone()
     return dict(row) if row else None
-
 
 def list_projects(conn, status: str | None = None) -> list[dict]:
     """Return all projects, optionally filtered by status."""
@@ -188,7 +164,6 @@ def list_projects(conn, status: str | None = None) -> list[dict]:
             "SELECT * FROM projects ORDER BY project_code"
         ).fetchall()
     return [dict(r) for r in rows]
-
 
 def close_project(conn, project_code: str, closure_date: str) -> None:
     """Set project status to CLOSED and soft-remove all active assignments.
@@ -207,7 +182,6 @@ def close_project(conn, project_code: str, closure_date: str) -> None:
         (closure_date, project_code),
     )
     logger.info("Project %s closed at %s", project_code, closure_date)
-
 
 def assign_vehicle_to_project(
     conn,
@@ -241,12 +215,6 @@ def assign_vehicle_to_project(
     )
     logger.info("Vehicle %s assigned to project %s as %s", plate_number, project_code, role)
 
-
-# ---------------------------------------------------------------------------
-# D. Assignment queries
-# ---------------------------------------------------------------------------
-
-
 def unassign_vehicle_from_project(
     conn,
     project_code: str,
@@ -261,7 +229,6 @@ def unassign_vehicle_from_project(
            WHERE project_code = ? AND plate_number = ? AND removed_at IS NULL""",
         (ts, project_code, plate_number),
     )
-
 
 def list_project_vehicles(
     conn,
@@ -284,7 +251,6 @@ def list_project_vehicles(
             (project_code,),
         ).fetchall()
     return [dict(r) for r in rows]
-
 
 def get_project_attendance_summary(
     conn,
@@ -317,12 +283,6 @@ def get_project_attendance_summary(
     ).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# E. Cross-cutting
-# ---------------------------------------------------------------------------
-
-
 def get_subcontractor_hours(
     conn,
     company_id: str,
@@ -350,7 +310,6 @@ def get_subcontractor_hours(
         (date_from, date_to, company_id),
     ).fetchall()
     return [dict(r) for r in rows]
-
 
 def resolve_event_attribution(
     conn,

@@ -28,7 +28,6 @@ from src.config import CLAHE_CLIP_LIMIT, CLAHE_TILE_SIZE
 
 logger = logging.getLogger(__name__)
 
-
 def apply_clahe(plate_crop: np.ndarray) -> np.ndarray:
     """Apply CLAHE to the L channel of a BGR plate-crop image.
 

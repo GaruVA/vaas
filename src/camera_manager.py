@@ -6,7 +6,7 @@ class CameraStream:
     def __init__(self, camera_id):
         self.camera_id = camera_id
         self.cap = cv2.VideoCapture(camera_id)
-        # Ensure high resolution for OCR
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         

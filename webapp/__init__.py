@@ -9,7 +9,6 @@ from flask import Flask, g
 
 from src.config import DB_PATH, HARDWARE_MODE as _DEFAULT_HW_MODE, SECRET_KEY
 
-
 class SSEBroker:
     """Fan-out pub/sub broker for Server-Sent Events.
 
@@ -42,8 +41,7 @@ class SSEBroker:
             try:
                 q.put_nowait(event)
             except queue.Full:
-                pass  # slow/stale client — drop the event rather than block
-
+                pass
 
 def create_app(config_overrides: dict | None = None, hardware_mode: str | None = None, start_overstay_monitor: bool = False) -> Flask:
     """Create and configure the VAAS Flask application.
@@ -63,46 +61,37 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
 
     app = Flask(__name__, template_folder="templates", static_folder="static")
 
-    # ── SSE event broker ──────────────────────────────────────────────────────
     app.config["VAAS_BROKER"] = SSEBroker()
 
-    # ── Flask session / cookie config ─────────────────────────────────────────
     app.config.update({
         "SECRET_KEY": SECRET_KEY,
-        "SESSION_COOKIE_SECURE": False,  # HTTP-only for dev; set True in production HTTPS
+        "SESSION_COOKIE_SECURE": False,
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
-        "PERMANENT_SESSION_LIFETIME": 8 * 60 * 60,  # 8 hours per BUILD_SPEC
+        "PERMANENT_SESSION_LIFETIME": 8 * 60 * 60,
         "HARDWARE_MODE": hw_mode,
         "START_OVERSTAY_MONITOR": start_overstay_monitor,
     })
 
-    # Override config if provided
     if config_overrides:
         app.config.update(config_overrides)
 
-    # ── Persistent engine DB connection ───────────────────────────────────────
-    # The camera workers run in background threads and need a long-lived
-    # connection separate from the per-request g.db connections.
     from src.database import connect as _db_connect, migrate_db as _migrate_db
     engine_conn = _db_connect(DB_PATH)
-    engine_conn.isolation_level = None   # autocommit
+    engine_conn.isolation_level = None
     engine_conn.row_factory = sqlite3.Row
     _migrate_db(engine_conn)
     app.config["VAAS_DB"] = engine_conn
     _logger.info("Engine DB connection opened and schema migrated")
 
-    # ── Barrier controller ────────────────────────────────────────────────────
     from src.barrier import BarrierController
     barrier = BarrierController(mode=hw_mode)
     app.config["VAAS_BARRIER"] = barrier
     _logger.info("BarrierController created (mode=%s)", hw_mode)
 
-    # ── Attendance engine ─────────────────────────────────────────────────────
     from src.attendance import AttendanceEngine
     broker = app.config["VAAS_BROKER"]
-    # AttendanceEngine calls sse_callback(event_type: str, data: dict).
-    # SSEBroker.publish takes a single merged dict, so wrap it here.
+
     def _sse_callback(event_type: str, data: dict) -> None:
         broker.publish({"type": event_type, **data})
     engine = AttendanceEngine(
@@ -113,13 +102,12 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     app.config["VAAS_ENGINE"] = engine
     _logger.info("AttendanceEngine created")
     
-    # Database connection (per-request via Flask's g object for thread safety)
     @app.before_request
     def ensure_db():
         """Ensure database connection is available for each request."""
         if "db" not in g:
             g.db = sqlite3.connect(str(DB_PATH))
-            g.db.isolation_level = None  # autocommit
+            g.db.isolation_level = None
             g.db.row_factory = sqlite3.Row
             g.db.execute("PRAGMA foreign_keys = ON")
     
@@ -130,7 +118,6 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
         if db is not None:
             db.close()
     
-    # Register blueprints
     from webapp.routes.admin import admin_bp
     from webapp.routes.api import api_bp
     from webapp.routes.manager import manager_bp
@@ -143,7 +130,6 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     app.register_blueprint(manager_bp)
     app.register_blueprint(operator_bp)
     
-    # ── UI routes — serve the static HTML pages at clean top-level URLs ──────
     from flask import redirect, send_from_directory, session, url_for
 
     UI_DIR = app.static_folder + "/ui"

@@ -1,2 +1,2 @@
-# YOLO-dependent — fails at import in CI by design
-from ultralytics import YOLO  # noqa
+
+from ultralytics import YOLO

@@ -11,23 +11,18 @@ Why Waitress instead of `flask run`
 """
 from __future__ import annotations
 
-# ── 1. Load .env FIRST — before any other import touches os.environ ──────────
-# Belt-and-suspenders: src/config.py also calls load_dotenv(), but serve.py
-# reads PORT/THREADS/HOST from os.environ directly, so we need dotenv here too.
 from pathlib import Path as _Path
 try:
     from dotenv import load_dotenv as _load_dotenv
     _load_dotenv(dotenv_path=_Path(__file__).parent / ".env", override=False)
 except ImportError:
-    pass  # python-dotenv missing — shell env / defaults will be used
+    pass
 
-# ── 2. Standard library ────────────────────────────────────────────────────────
 import logging
 import os
 import signal
 import sys
 
-# ── 3. Logging (configure before importing project modules) ──────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
@@ -35,7 +30,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("vaas.serve")
 
-# ── 4. Waitress availability check ────────────────────────────────────────────
 try:
     from waitress import serve as waitress_serve
 except ImportError:
@@ -46,12 +40,10 @@ except ImportError:
     )
     sys.exit(1)
 
-# ── 5. Project imports (config.py load_dotenv() is a no-op here; env already set)
 from src.config import CAMERA_INDEX_GATE_A, CAMERA_INDEX_GATE_B, HARDWARE_MODE
 from webapp import create_app
 from webapp.routes.operator import start_camera_worker, stop_camera_worker
 
-# ── 6. Runtime configuration (read from env / .env) ──────────────────────────
 HOST       = os.environ.get("VAAS_HOST",    "0.0.0.0")
 PORT       = int(os.environ.get("VAAS_PORT",    "5000"))
 THREADS    = int(os.environ.get("VAAS_THREADS", "32"))
@@ -59,7 +51,6 @@ GATE_A_DIR = os.environ.get("VAAS_GATE_A_DIR", "ENTRY")
 GATE_B_DIR = os.environ.get("VAAS_GATE_B_DIR", "EXIT")
 SECRET_KEY = os.environ.get("VAAS_SECRET_KEY", "vaas-dev-secret-change-me")
 
-# ── 7. Pre-flight validation ──────────────────────────────────────────────────
 _ERRORS   = []
 _WARNINGS = []
 
@@ -105,14 +96,12 @@ if list_cameras:
     import os as _os
     import platform as _platform
 
-    # Suppress OpenCV's per-index DSHOW warnings for indices that have no device.
-    # They go to the C-level stderr fd, so we reroute fd 2 to nul temporarily.
     _nul = open(_os.devnull, "w")
     _saved_stderr_fd = _os.dup(2)
     _os.dup2(_nul.fileno(), 2)
 
     _backend = _cv2.CAP_DSHOW if _platform.system() == "Windows" else _cv2.CAP_ANY
-    _found: list[tuple[int, int, int, str]] = []  # (index, w, h, thumb_path)
+    _found: list[tuple[int, int, int, str]] = []
 
     for _i in range(10):
         _cap = _cv2.VideoCapture(_i, _backend)
@@ -128,7 +117,6 @@ if list_cameras:
             _found.append((_i, _w, _h, _thumb))
         _cap.release()
 
-    # Restore stderr
     _os.dup2(_saved_stderr_fd, 2)
     _os.close(_saved_stderr_fd)
     _nul.close()
@@ -151,14 +139,12 @@ if check_only:
     logger.info("Environment check PASSED (HW_MODE=%s, PORT=%d).", HARDWARE_MODE, PORT)
     sys.exit(0)
 
-# ── 8. Create Flask app ────────────────────────────────────────────────────────
 logger.info("Creating VAAS Flask application (HW_MODE=%s)", HARDWARE_MODE)
 app = create_app(
     hardware_mode=HARDWARE_MODE,
     start_overstay_monitor=True,
 )
 
-# ── 9. Launch live camera workers ─────────────────────────────────────────────
 if HARDWARE_MODE == "LIVE":
     logger.info(
         "Starting camera workers: GATE_A → cam%d (%s),  GATE_B → cam%d (%s)",
@@ -172,7 +158,6 @@ if HARDWARE_MODE == "LIVE":
 else:
     logger.warning("Camera workers not started (MOCK mode).")
 
-# ── 10. Graceful shutdown handler ─────────────────────────────────────────────
 def _shutdown(sig, frame):
     logger.info("Shutdown signal — stopping workers …")
     stop_camera_worker("GATE_A")
@@ -189,7 +174,6 @@ def _shutdown(sig, frame):
 signal.signal(signal.SIGINT,  _shutdown)
 signal.signal(signal.SIGTERM, _shutdown)
 
-# ── 11. Start Waitress ────────────────────────────────────────────────────────
 logger.info("=" * 60)
 logger.info("  VAAS  •  http://localhost:%d  •  Waitress %d threads", PORT, THREADS)
 logger.info("  Hardware mode : %s", HARDWARE_MODE)
@@ -203,11 +187,9 @@ waitress_serve(
     host=HOST,
     port=PORT,
     threads=THREADS,
-    channel_timeout=300,   # keep MJPEG + SSE sockets alive for long-lived connections
-    # connection_limit: max simultaneous sockets before Waitress starts refusing new
-    # connections. 200 is a safe ceiling; each MJPEG/SSE stream occupies one slot.
+    channel_timeout=300,
+
     connection_limit=200,
-    # asyncore_use_poll is a Linux/macOS tuning knob; on Windows Waitress always uses
-    # select(), so this parameter has no effect and is omitted intentionally.
+
     ident="VAAS/1.0",
 )

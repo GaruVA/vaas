@@ -15,9 +15,6 @@ from webapp.auth import requires_role
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-
-# ── Audit helper ─────────────────────────────────────────────────────────────
-
 def _audit(conn, action: str, entity_type: str, entity_id: str,
            details: dict | None = None) -> None:
     """Write a row to admin_audit_log using the current session user."""
@@ -36,18 +33,12 @@ def _audit(conn, action: str, entity_type: str, entity_id: str,
             ),
         )
     except Exception:
-        pass   # audit must never block the main operation
-
-
-# ── Home ─────────────────────────────────────────────────────────────────────
+        pass
 
 @admin_bp.route("/")
 @requires_role("ADMIN")
 def home():
     return render_template("admin/home.html")
-
-
-# ── Vehicles ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route("/vehicles")
 @requires_role("ADMIN")
@@ -65,7 +56,6 @@ def vehicles():
         ORDER BY rv.plate_number
     """).fetchall()
     return render_template("admin/vehicles.html", rows=rows)
-
 
 @admin_bp.route("/vehicles/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -123,7 +113,6 @@ def new_vehicle():
                            categories=VEHICLE_CATEGORIES,
                            vtypes=VEHICLE_TYPES)
 
-
 @admin_bp.route("/vehicles/<plate>/edit", methods=["GET", "POST"])
 @requires_role("ADMIN")
 def edit_vehicle(plate: str):
@@ -168,7 +157,7 @@ def edit_vehicle(plate: str):
             cur.execute("DELETE FROM vehicle_shifts WHERE plate_number=?", (plate,))
             if shift_id:
                 cur.execute("INSERT INTO vehicle_shifts VALUES (?,?)", (plate, shift_id))
-            # Only update assignment if changed
+
             if user_id:
                 old_uid = current_user["user_id"] if current_user else None
                 if old_uid != int(user_id):
@@ -181,7 +170,7 @@ def edit_vehicle(plate: str):
                         (plate, int(user_id)),
                     )
             elif current_user:
-                # Explicitly cleared
+
                 cur.execute(
                     "UPDATE vehicle_assignments SET is_active=0 WHERE plate_number=?",
                     (plate,),
@@ -202,7 +191,6 @@ def edit_vehicle(plate: str):
                            vtypes=VEHICLE_TYPES,
                            editing=True)
 
-
 @admin_bp.route("/vehicles/<plate>/status", methods=["POST"])
 @requires_role("ADMIN")
 def update_status(plate: str):
@@ -219,7 +207,6 @@ def update_status(plate: str):
     flash(f"{plate} → {new_status}", "info")
     return redirect(url_for("admin.vehicles"))
 
-
 @admin_bp.route("/vehicles/<plate>/delete", methods=["POST"])
 @requires_role("ADMIN")
 def delete_vehicle(plate: str):
@@ -230,9 +217,6 @@ def delete_vehicle(plate: str):
     flash(f"Deleted {plate}", "warning")
     return redirect(url_for("admin.vehicles"))
 
-
-# ── Shifts ────────────────────────────────────────────────────────────────────
-
 @admin_bp.route("/shifts")
 @requires_role("ADMIN")
 def shifts():
@@ -240,7 +224,6 @@ def shifts():
         "SELECT * FROM shifts ORDER BY shift_id"
     ).fetchall()
     return render_template("admin/shifts.html", rows=rows)
-
 
 @admin_bp.route("/shifts/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -266,7 +249,6 @@ def new_shift():
         return redirect(url_for("admin.shifts"))
     return render_template("admin/shift_form.html")
 
-
 @admin_bp.route("/shifts/<sid>/delete", methods=["POST"])
 @requires_role("ADMIN")
 def delete_shift(sid: str):
@@ -277,9 +259,6 @@ def delete_shift(sid: str):
     flash(f"Deleted {sid}", "warning")
     return redirect(url_for("admin.shifts"))
 
-
-# ── Users ─────────────────────────────────────────────────────────────────────
-
 @admin_bp.route("/users")
 @requires_role("ADMIN")
 def users():
@@ -287,7 +266,6 @@ def users():
         "SELECT id, username, full_name, role, last_login FROM users ORDER BY username"
     ).fetchall()
     return render_template("admin/users.html", rows=rows)
-
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -311,7 +289,6 @@ def new_user():
         return redirect(url_for("admin.users"))
     return render_template("admin/user_form.html")
 
-
 @admin_bp.route("/users/<int:uid>/reset", methods=["POST"])
 @requires_role("ADMIN")
 def reset_password(uid: int):
@@ -323,9 +300,6 @@ def reset_password(uid: int):
     _audit(db, "UPDATE", "USER", str(uid), {"action": "password_reset"})
     flash("Password reset", "success")
     return redirect(url_for("admin.users"))
-
-
-# ── Zone Capacity Dashboard ───────────────────────────────────────────────────
 
 @admin_bp.route("/zones")
 @requires_role("ADMIN")
@@ -353,9 +327,6 @@ def zones():
             "utilisation_pct":   round(cur / cap * 100, 1),
         })
     return render_template("admin/zones.html", rows=rows)
-
-
-# ── Admin audit log viewer ────────────────────────────────────────────────────
 
 @admin_bp.route("/audit-log")
 @requires_role("ADMIN")

@@ -24,7 +24,6 @@ from src.config import HARDWARE_MODE, ARDUINO_PORT, ARDUINO_BAUD
 
 logger = logging.getLogger(__name__)
 
-
 class BarrierController:
     """Controls a physical gate barrier via Arduino Nano serial link.
 
@@ -49,18 +48,14 @@ class BarrierController:
         self._baud = baud
         self._serial = None
         self._lock   = threading.Lock()
-        self._log: list[tuple[str, str]] = []   # (gate_id, command) pairs for MOCK
+        self._log: list[tuple[str, str]] = []
 
         if self._mode == "LIVE":
-            import serial  # pyserial -- optional at import time
+            import serial
             self._serial = serial.Serial(self._port, self._baud, timeout=1)
             logger.info("Barrier LIVE on %s @ %d baud", self._port, self._baud)
         else:
             logger.info("Barrier MOCK mode active")
-
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
 
     def open(self, gate_id: str) -> None:
         """Send OPEN command to the barrier for *gate_id*."""
@@ -69,10 +64,6 @@ class BarrierController:
     def close(self, gate_id: str) -> None:
         """Send CLOSE command to the barrier for *gate_id*."""
         self._send(gate_id, "CLOSE")
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _send(self, gate_id: str, command: str) -> None:
         with self._lock:

@@ -27,11 +27,6 @@ from src.config import GENESIS_PREV_HASH
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Two-step hash finalisation
-# ---------------------------------------------------------------------------
-
 def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
     """Compute and commit the SHA-256 hash for an ``access_log`` row.
 
@@ -52,7 +47,6 @@ def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
     """
     cur = conn.cursor()
 
-    # Fetch the fields that go into the payload
     cur.execute(
         "SELECT plate_number, timestamp, gate_id, direction "
         "FROM access_log WHERE id = ?",
@@ -63,7 +57,6 @@ def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
         raise ValueError(f"access_log row {row_id} not found")
     plate, ts, gate, direction = row[0], row[1], row[2], row[3]
 
-    # Previous row hash (genesis constant for the first row)
     cur.execute(
         "SELECT row_hash FROM access_log WHERE id < ? ORDER BY id DESC LIMIT 1",
         (row_id,),
@@ -71,7 +64,6 @@ def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
     prev_row = cur.fetchone()
     prev_hash: str = prev_row[0] if prev_row else GENESIS_PREV_HASH
 
-    # Build deterministic JSON payload
     payload = json.dumps(
         {
             "id":           row_id,
@@ -93,11 +85,6 @@ def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
     logger.debug("Finalised hash for row %d: %s", row_id, h[:16] + "...")
     return h
 
-
-# ---------------------------------------------------------------------------
-# Chain verification
-# ---------------------------------------------------------------------------
-
 @dataclass
 class ChainVerificationResult:
     """Result returned by :func:`verify_chain`."""
@@ -107,7 +94,6 @@ class ChainVerificationResult:
     reason: str | None
     verified_at: str
     rows_checked: int
-
 
 def verify_chain(conn: sqlite3.Connection) -> ChainVerificationResult:
     """Walk the entire ``access_log`` and verify SHA-256 chain integrity.
@@ -143,12 +129,8 @@ def verify_chain(conn: sqlite3.Connection) -> ChainVerificationResult:
             row[0], row[1], row[2], row[3], row[4], row[5]
         )
 
-        # Detect gaps (deleted rows) by checking id continuity against prev
         if i > 0:
             prev_id = rows[i - 1][0]
-            # gap check is implicit: the prev_hash used in the payload
-            # was computed from the *previous stored hash*, so a deleted row
-            # will cause a mismatch at the next row automatically.
 
         payload = json.dumps(
             {
@@ -186,11 +168,6 @@ def verify_chain(conn: sqlite3.Connection) -> ChainVerificationResult:
         verified_at=verified_at,
         rows_checked=len(rows),
     )
-
-
-# ---------------------------------------------------------------------------
-# Convenience: insert + finalise in one call
-# ---------------------------------------------------------------------------
 
 def log_gate_event(
     conn: sqlite3.Connection,

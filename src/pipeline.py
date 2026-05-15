@@ -20,7 +20,6 @@ from src.clahe import apply_clahe
 
 logger = logging.getLogger(__name__)
 
-
 def run_pipeline(
     camera,
     detector,
@@ -75,14 +74,12 @@ def run_pipeline(
             logger.debug("Camera returned None — stopping pipeline")
             break
 
-        # Frame callback is called even if no plates are detected
         if frame_callback is not None:
             try:
                 frame_callback(frame)
             except Exception:
                 logger.exception("frame_callback raised an exception")
 
-        # --- Detection -------------------------------------------------------
         try:
             detections = detector.detect(frame)
         except Exception:
@@ -93,7 +90,6 @@ def run_pipeline(
             logger.debug("No plates detected in frame")
             continue
 
-        # --- Classification --------------------------------------------------
         for det in detections:
             try:
                 crop = apply_clahe(det.crop)
@@ -113,7 +109,6 @@ def run_pipeline(
                 raw_plate, gate_id, direction, confidence,
             )
 
-            # --- Gate event (engine handles LPM-MLED + DB write) -------------
             try:
                 attendance_engine.process_gate_event(
                     raw_plate=raw_plate,
@@ -130,13 +125,7 @@ def run_pipeline(
     camera.release()
     logger.info("Pipeline stopped: gate=%s direction=%s", gate_id, direction)
 
-
-# ---------------------------------------------------------------------------
-# Debouncer: prevent rapid re-submission of the same plate
-# ---------------------------------------------------------------------------
-
 DEFAULT_COOLDOWN_SECONDS = 3.0
-
 
 class PlateDebouncer:
     """Rate-limiting cache: track recently seen plates to prevent duplicates."""
@@ -173,11 +162,6 @@ class PlateDebouncer:
             now = time.time()
             self._last_seen[plate] = now - self.cooldown_seconds + seconds
 
-
-# ---------------------------------------------------------------------------
-# Frame processing pipeline helper structures
-# ---------------------------------------------------------------------------
-
 class PlateResult:
     """Result from detecting and classifying a single plate in a frame."""
     def __init__(
@@ -195,7 +179,6 @@ class PlateResult:
         self.debounced = debounced
         self.gate_event = gate_event
         self.timings_ms = timings_ms or {}
-
 
 def process_frame(
     frame: np.ndarray,
@@ -235,7 +218,6 @@ def process_frame(
     results = []
     t_start = time.perf_counter()
 
-    # ── Detection ────────────────────────────────────────────────────────
     try:
         detections = detector.detect(frame)
     except Exception as exc:
@@ -245,7 +227,6 @@ def process_frame(
     if not detections:
         return results
 
-    # ── Classification & Submission ──────────────────────────────────────
     for det in detections:
         t_det = time.perf_counter()
 
@@ -264,11 +245,9 @@ def process_frame(
         gate_event = None
         timings = {}
 
-        # ── Debounce check ───────────────────────────────────────────────
         if debouncer is not None:
             is_debounced = not debouncer.should_process(raw_plate)
 
-        # ── Submit to engine if not debounced ────────────────────────────
         if not is_debounced:
             try:
                 t_engine = time.perf_counter()
@@ -297,7 +276,6 @@ def process_frame(
         results.append(result)
 
     return results
-
 
 def draw_overlays(
     frame: np.ndarray,
@@ -329,7 +307,7 @@ def draw_overlays(
     output = frame.copy()
 
     for i, det in enumerate(detections):
-        # Extract bounding box (try multiple attribute names)
+
         if hasattr(det, "xyxy") and det.xyxy is not None:
             x1, y1, x2, y2 = (int(v) for v in det.xyxy)
         elif hasattr(det, "x1"):
@@ -340,14 +318,11 @@ def draw_overlays(
             logger.warning("Detection %d has no bounding box", i)
             continue
 
-        # Color: grey for debounced, green for fresh
         is_debounced = i in debounced_indices
-        color = (128, 128, 128) if is_debounced else (0, 255, 0)  # BGR
+        color = (128, 128, 128) if is_debounced else (0, 255, 0)
 
-        # Draw rectangle
         cv2.rectangle(output, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
-        # Draw label
         if labels and i < len(labels):
             label = labels[i]
         else:

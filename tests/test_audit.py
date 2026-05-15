@@ -36,11 +36,6 @@ from src.config import GENESIS_PREV_HASH
 from src.audit import finalise_row_hash, verify_chain, log_gate_event
 from src.database import init_db
 
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
 def _insert(conn, plate="AA-1234", ts="2026-01-01T07:00:00Z",
             gate="MAIN_GATE", direction="ENTRY"):
     """Insert a PENDING row and finalise its hash; return row_id."""
@@ -55,24 +50,17 @@ def _insert(conn, plate="AA-1234", ts="2026-01-01T07:00:00Z",
     finalise_row_hash(conn, row_id)
     return row_id
 
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
 def test_01_empty_log_ok(db):
     result = verify_chain(db)
     assert result.ok is True
     assert result.rows_checked == 0
     assert result.first_bad_id is None
 
-
 def test_02_single_row_ok(db):
     _insert(db)
     result = verify_chain(db)
     assert result.ok is True
     assert result.rows_checked == 1
-
 
 def test_03_genesis_prev_hash(db):
     """First row's hash payload must use GENESIS_PREV_HASH as prev_hash."""
@@ -95,7 +83,6 @@ def test_03_genesis_prev_hash(db):
     expected = hashlib.sha256(payload.encode()).hexdigest()
     assert row[4] == expected
 
-
 def test_04_pk_in_payload(db):
     """The hash payload explicitly contains the row's PK (id field)."""
     row_id = _insert(db)
@@ -103,7 +90,7 @@ def test_04_pk_in_payload(db):
         "SELECT plate_number, timestamp, gate_id, direction, row_hash "
         "FROM access_log WHERE id = ?", (row_id,)
     ).fetchone()
-    # Build payload WITH id and verify it matches stored hash
+
     payload_with_id = json.dumps(
         {
             "id":           row_id,
@@ -115,7 +102,7 @@ def test_04_pk_in_payload(db):
         },
         sort_keys=True, separators=(",", ":"),
     )
-    # Build payload WITHOUT id and verify it does NOT match
+
     payload_without_id = json.dumps(
         {
             "plate_number": row[0],
@@ -129,18 +116,16 @@ def test_04_pk_in_payload(db):
     assert row[4] == hashlib.sha256(payload_with_id.encode()).hexdigest()
     assert row[4] != hashlib.sha256(payload_without_id.encode()).hexdigest()
 
-
 def test_05_tamper_interior_row(db):
     """Tamper field value on an interior row -> chain broken at that row."""
     id1 = _insert(db, ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, ts="2026-01-01T08:00:00Z")
     id3 = _insert(db, ts="2026-01-01T09:00:00Z")
-    # Tamper plate_number on id2
+
     db.execute("UPDATE access_log SET plate_number = 'TAMPERED' WHERE id = ?", (id2,))
     result = verify_chain(db)
     assert result.ok is False
     assert result.first_bad_id == id2
-
 
 def test_06_tamper_first_row(db):
     id1 = _insert(db, ts="2026-01-01T07:00:00Z")
@@ -150,7 +135,6 @@ def test_06_tamper_first_row(db):
     assert result.ok is False
     assert result.first_bad_id == id1
 
-
 def test_07_tamper_last_row(db):
     _insert(db, ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, ts="2026-01-01T08:00:00Z")
@@ -159,20 +143,17 @@ def test_07_tamper_last_row(db):
     assert result.ok is False
     assert result.first_bad_id == id2
 
-
 def test_08_row_deletion_flagged(db):
     """Delete an interior row -> chain broken at the next row."""
     _insert(db, ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, ts="2026-01-01T08:00:00Z")
     id3 = _insert(db, ts="2026-01-01T09:00:00Z")
-    # Remove id2 (simulates deletion attack)
+
     db.execute("DELETE FROM access_log WHERE id = ?", (id2,))
     result = verify_chain(db)
     assert result.ok is False
-    # id3's prev_hash now points to id1's hash but id3's stored hash was
-    # computed against id2's hash -> mismatch at id3
-    assert result.first_bad_id == id3
 
+    assert result.first_bad_id == id3
 
 def test_09_row_reordering_flagged(db):
     """Swap field values between two rows -> flagged (PK-in-payload defence).
@@ -184,13 +165,11 @@ def test_09_row_reordering_flagged(db):
     id1 = _insert(db, plate="AA-0001", ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, plate="BB-0002", ts="2026-01-01T08:00:00Z")
 
-    # Swap plate_number between the two rows
     db.execute("UPDATE access_log SET plate_number='BB-0002' WHERE id=?", (id1,))
     db.execute("UPDATE access_log SET plate_number='AA-0001' WHERE id=?", (id2,))
 
     result = verify_chain(db)
-    assert result.ok is False  # PK-in-payload catches the reordering
-
+    assert result.ok is False
 
 def test_10_1000_row_chain_zero_false_positives(db):
     for i in range(1000):
@@ -199,7 +178,6 @@ def test_10_1000_row_chain_zero_false_positives(db):
     assert result.ok is True
     assert result.rows_checked == 1000
 
-
 def test_11_finalise_idempotent(db):
     """Calling finalise_row_hash twice on the same row gives the same hash."""
     row_id = _insert(db)
@@ -207,10 +185,8 @@ def test_11_finalise_idempotent(db):
         "SELECT row_hash FROM access_log WHERE id = ?", (row_id,)
     ).fetchone()[0]
     h2 = finalise_row_hash(db, row_id)
-    # Note: calling finalise again re-reads prev_hash from prior row, so it
-    # should produce the same hash because nothing changed.
-    assert h1 == h2
 
+    assert h1 == h2
 
 def test_12_consecutive_hashes_differ(db):
     """Each row's hash is distinct from its predecessor."""
@@ -221,27 +197,23 @@ def test_12_consecutive_hashes_differ(db):
     ]
     assert len(set(hashes)) == 5
 
-
 def test_13_finalise_returns_hex64(db):
     row_id = _insert(db)
-    # re-call to get return value
+
     h = finalise_row_hash(db, row_id)
     assert len(h) == 64
     assert all(c in "0123456789abcdef" for c in h)
-
 
 def test_14_finalise_raises_for_missing_row(db):
     with pytest.raises(ValueError, match="not found"):
         finalise_row_hash(db, 99999)
 
-
 def test_15_first_bad_id_correct(db):
     ids = [_insert(db, ts=f"2026-01-0{i+1}T07:00:00Z") for i in range(4)]
-    # Tamper the third row
+
     db.execute("UPDATE access_log SET plate_number='X' WHERE id=?", (ids[2],))
     result = verify_chain(db)
     assert result.first_bad_id == ids[2]
-
 
 def test_16_reason_contains_bad_id(db):
     row_id = _insert(db)
@@ -249,14 +221,12 @@ def test_16_reason_contains_bad_id(db):
     result = verify_chain(db)
     assert str(row_id) in result.reason
 
-
 def test_17_rows_checked_intact_chain(db):
     n = 7
     for i in range(n):
         _insert(db, ts=f"2026-01-0{i+1}T07:00:00Z")
     result = verify_chain(db)
     assert result.rows_checked == n
-
 
 def test_18_same_input_same_hash_across_dbs(db):
     """Two fresh DBs with identical inserts produce identical hashes."""
@@ -272,14 +242,12 @@ def test_18_same_input_same_hash_across_dbs(db):
     assert h_a == h_b
     db2.close()
 
-
 def test_19_status_not_in_payload(db):
     """Changing status field alone must NOT break the chain (status is not hashed)."""
     row_id = _insert(db)
     db.execute("UPDATE access_log SET status='LATE_ARRIVAL' WHERE id=?", (row_id,))
     result = verify_chain(db)
     assert result.ok is True
-
 
 def test_20_log_gate_event_helper(db):
     """log_gate_event convenience function leaves a non-PENDING row_hash."""
