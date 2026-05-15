@@ -69,9 +69,9 @@ class BarrierController:
     def _send(self, gate_id: str, command: str) -> None:
         with self._lock:
             if self._mode == "LIVE" and self._serial:
-                self._serial.write(f"{command}\n".encode())
+                self._serial.write(f"{command}:{gate_id}\n".encode())
                 self._serial.flush()
-                logger.info("Barrier[%s] LIVE -> %s", gate_id, command)
+                logger.info("Barrier[%s] LIVE -> %s:%s", gate_id, command, gate_id)
             else:
                 self._log.append((gate_id, command))
                 logger.info("Barrier[%s] MOCK -> %s", gate_id, command)
