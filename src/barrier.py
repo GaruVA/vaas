@@ -51,9 +51,10 @@ class BarrierController:
         self._log: list[tuple[str, str]] = []
 
         if self._mode == "LIVE":
-            import serial
+            import serial, time
             self._serial = serial.Serial(self._port, self._baud, timeout=1)
-            logger.info("Barrier LIVE on %s @ %d baud", self._port, self._baud)
+            time.sleep(2)  # wait for Arduino auto-reset after DTR assertion
+            logger.info("Barrier LIVE on %s @ %d baud (ready)", self._port, self._baud)
         else:
             logger.info("Barrier MOCK mode active")
 
@@ -70,7 +71,7 @@ class BarrierController:
             if self._mode == "LIVE" and self._serial:
                 self._serial.write(f"{command}\n".encode())
                 self._serial.flush()
-                logger.debug("Barrier[%s] LIVE -> %s", gate_id, command)
+                logger.info("Barrier[%s] LIVE -> %s", gate_id, command)
             else:
                 self._log.append((gate_id, command))
                 logger.info("Barrier[%s] MOCK -> %s", gate_id, command)
