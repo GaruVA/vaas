@@ -352,56 +352,43 @@ class AttendanceEngine:
             access_log_id, disposition, operator_user_id,
         )
 
+    _ADMITTED_STATUSES = frozenset({
+        "VISITOR_ADMITTED",
+        "VISITOR_PENDING_REGISTRATION",
+        "ON_TIME_ENTRY",
+        "EARLY_ARRIVAL",
+        "LATE_ARRIVAL",
+    })
+
     def _classify_visitor_anomaly(
         self, raw_plate: str, gate_id: str, direction: str, ts_str: str
     ) -> "GateStatus":
         """Return the appropriate status for an unregistered-plate event.
 
-        Detects two patterns that the registered-plate path already handles
-        but visitor plates previously bypassed:
+        True double-entry — only raised when the previous ENTRY was actually
+        admitted (VISITOR_ADMITTED, ON_TIME_ENTRY, …).  A timed-out or
+        rejected attempt is NOT an admission; the vehicle must be able to
+        retry and reach the exception queue again.
 
-        1. Direction inconsistency — ENTRY after ENTRY (double-entry) or
-           EXIT without a prior ENTRY on record (unmatched exit).
-        2. Rapid cross-gate retry — the same plate triggered an exception
-           or was rejected at *any* gate within the last 5 minutes.
-           A debouncer only covers a single gate; this closes the gap.
+        Unmatched-exit — EXIT with no prior ENTRY on record.
         """
         last_row = self._conn.execute(
-            "SELECT direction FROM access_log "
+            "SELECT direction, status FROM access_log "
             "WHERE plate_number = ? ORDER BY id DESC LIMIT 1",
             (raw_plate,),
         ).fetchone()
-        last_dir = last_row[0] if last_row else None
+        last_dir    = last_row[0] if last_row else None
+        last_status = last_row[1] if last_row else None
 
         if direction == "ENTRY" and last_dir == "ENTRY":
-            logger.warning("[%s] Visitor double-entry: %s", gate_id, raw_plate)
-            return GateStatus.DOUBLE_ENTRY
+            if last_status in self._ADMITTED_STATUSES:
+                logger.warning("[%s] Visitor double-entry: %s", gate_id, raw_plate)
+                return GateStatus.DOUBLE_ENTRY
 
         if direction == "EXIT" and last_dir is not None and last_dir != "ENTRY":
             logger.warning("[%s] Visitor unmatched-exit: %s (last=%s)",
                            gate_id, raw_plate, last_dir)
             return GateStatus.UNMATCHED_EXIT
-
-        recent = self._conn.execute(
-            "SELECT 1 FROM access_log "
-            "WHERE plate_number = ? "
-            "  AND status IN ('VISITOR','VISITOR_TIMEOUT_REJECT','VISITOR_REJECTED') "
-            "  AND datetime(timestamp) >= datetime(?, '-5 minutes') "
-            "LIMIT 1",
-            (raw_plate, ts_str),
-        ).fetchone()
-        if not recent:
-            recent = self._conn.execute(
-                "SELECT 1 FROM gate_rejections "
-                "WHERE plate_number = ? "
-                "  AND datetime(timestamp) >= datetime(?, '-5 minutes') "
-                "LIMIT 1",
-                (raw_plate, ts_str),
-            ).fetchone()
-        if recent:
-            logger.warning("[%s] Rapid cross-gate retry after recent exception: %s",
-                           gate_id, raw_plate)
-            return GateStatus.DOUBLE_ENTRY
 
         return GateStatus.VISITOR
 
