@@ -358,6 +358,188 @@ def gate_throughput_report(
     ).fetchall()
     return [dict(r) for r in rows]
 
+def personal_vehicle_allowance_report_pivot(
+    conn,
+    date_from: str,
+    date_to: str,
+) -> list[dict]:
+    """Pivot of personal_vehicle_allowance_report: one row per driver, dates as columns.
+
+    Each date column shows 'Y' (eligible), 'N' (accessed but ineligible), or '' (no entry).
+    Trailing columns: Eligible Days, Total Days, Compliance %.
+    """
+    from datetime import date as _date, timedelta
+
+    start = _date.fromisoformat(date_from)
+    end   = _date.fromisoformat(date_to)
+    dates: list[str] = []
+    d = start
+    while d <= end:
+        dates.append(d.isoformat())
+        d += timedelta(days=1)
+
+    flat = personal_vehicle_allowance_report(conn, date_from, date_to)
+
+    eligibility: dict[tuple, int] = {}
+    driver_order: dict[tuple, dict] = {}
+    for row in flat:
+        key = (row["driver_name"], row["plate_number"])
+        if key not in driver_order:
+            driver_order[key] = {"Driver": row["driver_name"], "Plate": row["plate_number"]}
+        if row.get("event_date"):
+            eligibility[(row["driver_name"], row["plate_number"], row["event_date"])] = row["eligible"]
+
+    result: list[dict] = []
+    for (driver_name, plate_number), info in driver_order.items():
+        row: dict = {"Driver": driver_name, "Plate": plate_number}
+        total_eligible = 0
+        total_accessed = 0
+        for dt in dates:
+            val = eligibility.get((driver_name, plate_number, dt))
+            short = dt[5:]
+            if val is None:
+                row[short] = ""
+            elif val:
+                row[short] = "Y"
+                total_eligible += 1
+                total_accessed += 1
+            else:
+                row[short] = "N"
+                total_accessed += 1
+        row["Eligible"] = total_eligible
+        row["Days"]     = total_accessed
+        row["Compliance"] = (
+            f"{round(total_eligible / total_accessed * 100)}%"
+            if total_accessed else "—"
+        )
+        result.append(row)
+
+    return result
+
+def export_pdf_pivot(
+    rows: list[dict],
+    fp,
+    title: str = "VAAS Report",
+    date_range_str: str = "",
+) -> None:
+    """PDF export for pivot-style reports (e.g. allowance per driver × date).
+
+    Fixed columns (Driver, Plate, Eligible, Days, Compliance) get extra width;
+    date columns are narrow so up to ~35 columns fit on landscape A4.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    if hasattr(fp, "write"):
+        target = fp
+    else:
+        target = str(fp)
+
+    blue   = colors.HexColor(CDL_FUN_BLUE)
+    yellow = colors.HexColor(CDL_YELLOW)
+    white  = colors.white
+    green  = colors.HexColor("#76bd33")
+    red    = colors.HexColor("#ef4444")
+
+    page_w, page_h = landscape(A4)
+    margin = 1.5 * cm
+    usable_w = page_w - 2 * margin
+
+    doc = SimpleDocTemplate(
+        target,
+        pagesize=landscape(A4),
+        rightMargin=margin, leftMargin=margin,
+        topMargin=2 * cm, bottomMargin=2 * cm,
+        title=title,
+    )
+
+    def _header_footer(canvas, doc):
+        canvas.saveState()
+        w, h = landscape(A4)
+        canvas.setFillColor(blue)
+        canvas.rect(0, h - 1.5 * cm, w, 1.5 * cm, fill=1, stroke=0)
+        canvas.setFillColor(white)
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.drawString(1.5 * cm, h - 1.1 * cm, f"VAAS | {title}")
+        if date_range_str:
+            canvas.setFont("Helvetica", 9)
+            canvas.drawRightString(w - 1.5 * cm, h - 1.1 * cm, date_range_str)
+        canvas.setFillColor(yellow)
+        canvas.rect(0, h - 1.6 * cm, w, 0.1 * cm, fill=1, stroke=0)
+        canvas.setFillColor(colors.HexColor("#555555"))
+        canvas.setFont("Helvetica", 8)
+        canvas.drawCentredString(w / 2, 0.75 * cm, f"Page {doc.page}")
+        canvas.restoreState()
+
+    story = [Spacer(1, 0.5 * cm)]
+
+    if not rows:
+        from reportlab.platypus import Paragraph
+        styles = getSampleStyleSheet()
+        story.append(Paragraph("No data for selected period.", styles["Normal"]))
+    else:
+        headers = list(rows[0].keys())
+        fixed = {"Driver", "Plate", "Eligible", "Days", "Compliance"}
+        date_cols = [h for h in headers if h not in fixed]
+        fixed_cols = [h for h in headers if h in fixed]
+
+        driver_w     = 3.8 * cm
+        plate_w      = 2.5 * cm
+        summary_w    = 1.5 * cm
+        fixed_total  = driver_w + plate_w + summary_w * 3
+        date_total   = usable_w - fixed_total
+        date_w       = max(0.45 * cm, date_total / len(date_cols)) if date_cols else 0.6 * cm
+
+        col_widths: list[float] = []
+        for h in headers:
+            if h == "Driver":
+                col_widths.append(driver_w)
+            elif h == "Plate":
+                col_widths.append(plate_w)
+            elif h in ("Eligible", "Days", "Compliance"):
+                col_widths.append(summary_w)
+            else:
+                col_widths.append(date_w)
+
+        data = [headers] + [[str(r.get(h, "")) for h in headers] for r in rows]
+        tbl = Table(data, colWidths=col_widths, repeatRows=1)
+
+        style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0),  blue),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),  white),
+            ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, 0),  6),
+            ("FONTSIZE",      (0, 1), (-1, -1), 6),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [white, colors.HexColor("#f4f6f9")]),
+            ("GRID",          (0, 0), (-1, -1), 0.25, colors.HexColor("#cccccc")),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN",         (0, 0), (0, -1),  "LEFT"),
+            ("ALIGN",         (1, 0), (1, -1),  "LEFT"),
+        ]
+
+        for col_idx, h in enumerate(headers):
+            if h in ("Driver", "Plate", "Compliance", "Eligible", "Days"):
+                continue
+            for row_idx, row in enumerate(rows, start=1):
+                val = row.get(h, "")
+                if val == "Y":
+                    style_cmds.append(("TEXTCOLOR", (col_idx, row_idx), (col_idx, row_idx), green))
+                    style_cmds.append(("FONTNAME",  (col_idx, row_idx), (col_idx, row_idx), "Helvetica-Bold"))
+                elif val == "N":
+                    style_cmds.append(("TEXTCOLOR", (col_idx, row_idx), (col_idx, row_idx), red))
+
+        tbl.setStyle(TableStyle(style_cmds))
+        story.append(tbl)
+
+    doc.build(story, onFirstPage=_header_footer, onLaterPages=_header_footer)
+    logger.info("Pivot PDF exported: %s", title)
+
 def csv_string(rows: list[dict]) -> str:
     """Serialise a list of row dicts to a CSV string."""
     if not rows:

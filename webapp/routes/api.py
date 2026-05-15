@@ -38,9 +38,11 @@ from src.analytics import (
     admin_audit_report,
     csv_string,
     export_pdf,
+    export_pdf_pivot,
     gate_rejection_audit,
     ohs_compliance_report,
     personal_vehicle_allowance_report,
+    personal_vehicle_allowance_report_pivot,
     subcontractor_billing_audit,
     zone_occupancy_snapshot,
 )
@@ -324,6 +326,7 @@ def dispose_exception(access_log_id: int):
     disposition = (body.get("disposition") or "REJECT").upper()
     if disposition not in ("ADMIT", "REJECT", "REGISTER"):
         return _err("disposition must be ADMIT, REJECT, or REGISTER")
+    note = (body.get("note") or "").strip() or None
 
     engine = current_app.config.get("VAAS_ENGINE")
     if engine is None:
@@ -333,6 +336,7 @@ def dispose_exception(access_log_id: int):
         access_log_id,
         disposition,
         operator_user_id=session.get("user_id"),
+        note=note,
     )
     _audit("DISPOSE_EXCEPTION", "access_log", str(access_log_id),
            {"disposition": disposition})
@@ -356,6 +360,31 @@ def dispose_exception(access_log_id: int):
         })
 
     return jsonify({"status": "ok", "disposition": disposition})
+
+@api_bp.route("/exceptions/history")
+@requires_role("OPERATOR", "MANAGER", "ADMIN")
+def exceptions_history():
+    """Recent disposed exceptions with operator notes — for manager review."""
+    days = min(int(request.args.get("days", 7)), 90)
+    since = _days_ago(days)
+    rows = g.db.execute(
+        """SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.direction,
+                  a.status, a.disposition_note, a.confidence_score,
+                  aal.username AS operator_name
+           FROM access_log a
+           LEFT JOIN admin_audit_log aal
+               ON aal.entity_id = CAST(a.id AS TEXT)
+               AND aal.entity_type = 'access_log'
+           WHERE a.status IN (
+               'VISITOR_ADMITTED', 'VISITOR_REJECTED',
+               'VISITOR_PENDING_REGISTRATION', 'VISITOR_TIMEOUT_REJECT'
+           )
+             AND DATE(a.timestamp) >= ?
+           ORDER BY a.id DESC
+           LIMIT 100""",
+        (since,),
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
 
 @api_bp.route("/fleet/counts")
 @requires_role("ADMIN", "MANAGER")
@@ -1233,12 +1262,14 @@ def report_allowance():
     date_from = request.args.get("date_from", _days_ago(30))
     date_to   = request.args.get("date_to",   _today())
     fmt       = request.args.get("format", "csv").lower()
-    rows = personal_vehicle_allowance_report(g.db, date_from, date_to)
+    rows_flat = personal_vehicle_allowance_report(g.db, date_from, date_to)
     date_range_str = f"{date_from} – {date_to}"
     if fmt == "pdf":
+        pivot_rows = personal_vehicle_allowance_report_pivot(g.db, date_from, date_to)
         buf = io.BytesIO()
-        export_pdf(rows, buf, title="Personal Vehicle Allowance Report",
-                   date_range_str=date_range_str)
+        export_pdf_pivot(pivot_rows, buf,
+                         title="Personal Vehicle Allowance Report",
+                         date_range_str=date_range_str)
         buf.seek(0)
         resp = make_response(buf.read())
         resp.headers["Content-Type"] = "application/pdf"
@@ -1247,7 +1278,7 @@ def report_allowance():
         )
         return resp
 
-    content = csv_string(rows)
+    content = csv_string(rows_flat)
     resp = make_response(content)
     resp.headers["Content-Type"] = "text/csv"
     resp.headers["Content-Disposition"] = (

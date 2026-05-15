@@ -514,6 +514,11 @@
           <span style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a">Anomalies (7d)</span>
           ${anomBadge}
         </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:#3d4f6a;margin-bottom:4px">Disposition Note (optional)</div>
+          <textarea id="note-${exc.id}" placeholder="Add a note for this decision…" rows="2"
+            style="width:100%;background:#080c18;border:1px solid #1a2235;border-radius:3px;color:#8899aa;font-size:.625rem;font-family:'JetBrains Mono',monospace;padding:6px 8px;resize:vertical;outline:none;line-height:1.5"></textarea>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:7px">
           <button class="btn-admit"  onclick="disposeExc(${exc.id},'ADMIT')">✓ ADMIT</button>
           <button class="btn-reject" onclick="disposeExc(${exc.id},'REJECT')">✗ REJECT</button>
@@ -565,11 +570,12 @@
 
   async function disposeExc(id, disposition) {
     const card = document.getElementById('exc-card-' + id);
+    const note = document.getElementById('note-' + id)?.value?.trim() || null;
     try {
       const r = await fetch(`/api/exceptions/${id}/dispose`, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({disposition}),
+        body: JSON.stringify({disposition, note}),
       });
       if (!r.ok) { alert('Dispose failed: ' + (await r.text())); return; }
     } catch(e) { alert('Network error: ' + e); return; }

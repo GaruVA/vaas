@@ -305,6 +305,7 @@ class AttendanceEngine:
         access_log_id: int,
         disposition: Literal["ADMIT", "REJECT", "REGISTER"],
         operator_user_id: int,
+        note: str | None = None,
     ) -> None:
         """Handle operator disposition of a visitor exception.
 
@@ -328,22 +329,22 @@ class AttendanceEngine:
 
         if disposition == "ADMIT":
             self._conn.execute(
-                "UPDATE access_log SET status = ? WHERE id = ?",
-                (GateStatus.VISITOR_ADMITTED.value, access_log_id),
+                "UPDATE access_log SET status = ?, disposition_note = ? WHERE id = ?",
+                (GateStatus.VISITOR_ADMITTED.value, note, access_log_id),
             )
             self._barrier.open(gate_id)
 
         elif disposition == "REJECT":
             self._conn.execute(
-                "UPDATE access_log SET status = ? WHERE id = ?",
-                (GateStatus.VISITOR_REJECTED.value, access_log_id),
+                "UPDATE access_log SET status = ?, disposition_note = ? WHERE id = ?",
+                (GateStatus.VISITOR_REJECTED.value, note, access_log_id),
             )
             self._write_rejection(plate, ts, gate_id, "VISITOR_REJECTED", None, None)
 
         elif disposition == "REGISTER":
             self._conn.execute(
-                "UPDATE access_log SET status = ? WHERE id = ?",
-                (GateStatus.VISITOR_PENDING_REGISTRATION.value, access_log_id),
+                "UPDATE access_log SET status = ?, disposition_note = ? WHERE id = ?",
+                (GateStatus.VISITOR_PENDING_REGISTRATION.value, note, access_log_id),
             )
 
         logger.info(

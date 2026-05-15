@@ -326,6 +326,48 @@
     <div id="rejection-footer" class="px-5 py-3 text-[10px] text-gray-400 border-t border-gray-100"></div>
   </div>
 
+  <!-- ═══ EXCEPTION DECISIONS ═══ -->
+  <div class="card">
+    <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div>
+        <div class="text-sm font-bold text-gray-900">Exception Decisions</div>
+        <div class="text-xs text-gray-400 mt-0.5">Operator dispositions with notes · Auto-rejected timeouts included</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <select id="exc-days-filter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none" style="font-family:'Inter',sans-serif" onchange="loadExceptionHistory()">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <select id="exc-status-filter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none" style="font-family:'Inter',sans-serif" onchange="renderExceptionHistory()">
+          <option value="">All decisions</option>
+          <option value="VISITOR_ADMITTED">Admitted</option>
+          <option value="VISITOR_REJECTED">Rejected</option>
+          <option value="VISITOR_PENDING_REGISTRATION">Pending Reg.</option>
+          <option value="VISITOR_TIMEOUT_REJECT">Timeout</option>
+        </select>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-100" style="background:#eef1fb">
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Timestamp</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Plate</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Gate</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Decision</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Operator</th>
+            <th class="px-4 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style="color:#1B3F95">Note</th>
+          </tr>
+        </thead>
+        <tbody id="exc-history-tbody">
+          <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Loading exception decisions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="exc-history-footer" class="px-5 py-3 text-[10px] text-gray-400 border-t border-gray-100"></div>
+  </div>
+
 </div>
 
 <script>
@@ -811,10 +853,76 @@
     }
   }
 
+  // ── Exception Decisions ───────────────────────────────────────────────────
+  let _excHistoryRows = [];
+
+  const _DECISION_CFG = {
+    'VISITOR_ADMITTED':             { label: 'ADMITTED',    color: '#76bd33', bg: 'rgba(118,189,51,.1)',  border: 'rgba(118,189,51,.25)' },
+    'VISITOR_REJECTED':             { label: 'REJECTED',    color: '#ef4444', bg: 'rgba(239,68,68,.1)',   border: 'rgba(239,68,68,.25)'  },
+    'VISITOR_PENDING_REGISTRATION': { label: 'PENDING REG', color: '#06b6d4', bg: 'rgba(6,182,212,.1)',   border: 'rgba(6,182,212,.25)'  },
+    'VISITOR_TIMEOUT_REJECT':       { label: 'TIMEOUT',     color: '#94a3b8', bg: 'rgba(148,163,184,.1)', border: 'rgba(148,163,184,.25)' },
+  };
+
+  function decisionBadge(status) {
+    const cfg = _DECISION_CFG[status] || { label: status, color: '#94a3b8', bg: 'rgba(148,163,184,.1)', border: 'rgba(148,163,184,.25)' };
+    return `<span class="flag-badge" style="color:${cfg.color};background:${cfg.bg};border:1px solid ${cfg.border}">${cfg.label}</span>`;
+  }
+
+  function renderExceptionHistory() {
+    const statusFilter = document.getElementById('exc-status-filter')?.value || '';
+    const rows = statusFilter
+      ? _excHistoryRows.filter(r => r.status === statusFilter)
+      : _excHistoryRows;
+
+    const tbody = document.getElementById('exc-history-tbody');
+    const footer = document.getElementById('exc-history-footer');
+    if (!tbody) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No exception decisions in selected period</td></tr>`;
+      if (footer) footer.textContent = '';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(row => {
+      const ts  = row.timestamp ? row.timestamp.replace('T',' ').slice(0,19) : '—';
+      const note = row.disposition_note
+        ? `<span class="text-gray-700">${row.disposition_note.replace(/</g,'&lt;')}</span>`
+        : `<span class="text-gray-300 italic">—</span>`;
+      const op  = row.operator_name || '—';
+      return `<tr class="risk-row border-b border-gray-50">
+        <td class="px-4 py-2.5 mono text-gray-500">${ts}</td>
+        <td class="px-4 py-2.5 mono font-semibold text-gray-900">${row.plate_number || '—'}</td>
+        <td class="px-4 py-2.5 text-gray-600">${row.gate_id || '—'}</td>
+        <td class="px-4 py-2.5">${decisionBadge(row.status)}</td>
+        <td class="px-4 py-2.5 text-gray-500">${op}</td>
+        <td class="px-4 py-2.5 max-w-xs" style="white-space:pre-wrap;word-break:break-word">${note}</td>
+      </tr>`;
+    }).join('');
+
+    if (footer) {
+      footer.textContent = `${rows.length} decision${rows.length !== 1 ? 's' : ''} · Ordered newest first`;
+    }
+  }
+
+  async function loadExceptionHistory() {
+    const days = document.getElementById('exc-days-filter')?.value || 7;
+    try {
+      const r = await fetch(`/api/exceptions/history?days=${days}`);
+      if (!r.ok) throw new Error(r.status);
+      _excHistoryRows = await r.json();
+      renderExceptionHistory();
+    } catch(e) {
+      const tbody = document.getElementById('exc-history-tbody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-red-400">Failed to load exception decisions</td></tr>`;
+    }
+  }
+
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   loadUserInfo();
   loadDashboard();
   loadRejections();
+  loadExceptionHistory();
   setInterval(loadDashboard, 60000);
 </script>
 </body>

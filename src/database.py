@@ -189,6 +189,7 @@ _MIGRATIONS: dict[int, str] = {
     3: "ALTER TABLE users ADD COLUMN employee_no TEXT",
 
     4: "ALTER TABLE gate_rejections ADD COLUMN plate_crop_b64 TEXT",
+    5: "ALTER TABLE access_log ADD COLUMN disposition_note TEXT",
 }
 
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
