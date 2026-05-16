@@ -1033,16 +1033,21 @@ def manager_dashboard():
         "SELECT COUNT(*) FROM access_log WHERE DATE(timestamp) = ?", (yesterday_str,)
     ).fetchone()[0]
 
+    from src.config import ALLOWANCE_RATES, ALLOWANCE_DEFAULT_LKR
+
     fc_rows = db.execute(
         """SELECT
                u.id AS user_id,
                COALESCE(u.full_name, u.username) AS driver_name,
                va.plate_number,
+               rv.vehicle_category,
+               rv.vehicle_type,
                COUNT(DISTINCT DATE(al.timestamp)) AS total_days,
                COUNT(DISTINCT CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL')
                                    THEN DATE(al.timestamp) END) AS eligible_days
            FROM users u
            JOIN vehicle_assignments va ON va.user_id = u.id AND va.is_active = 1
+           JOIN registered_vehicles rv ON rv.plate_number = va.plate_number
            JOIN access_log al ON al.plate_number = va.plate_number
                AND al.direction = 'ENTRY'
                AND DATE(al.timestamp) BETWEEN ? AND ?
@@ -1056,12 +1061,21 @@ def manager_dashboard():
     for row in fc_rows:
         total    = row["total_days"]    or 0
         eligible = row["eligible_days"] or 0
+        ineligible = total - eligible
+        rate = ALLOWANCE_RATES.get(
+            (row["vehicle_category"], row["vehicle_type"]),
+            ALLOWANCE_DEFAULT_LKR,
+        )
         fuel_compliance.append({
             "driver_name":     row["driver_name"],
             "plate_number":    row["plate_number"],
+            "vehicle_category": row["vehicle_category"],
+            "vehicle_type":    row["vehicle_type"],
+            "daily_rate_lkr":  rate,
             "total_days":      total,
             "eligible_days":   eligible,
-            "ineligible_days": total - eligible,
+            "ineligible_days": ineligible,
+            "ineligible_lkr":  ineligible * rate,
             "compliance_pct":  round(eligible / total * 100) if total else 0,
         })
 
@@ -1071,11 +1085,14 @@ def manager_dashboard():
         prev_from = (date.fromisoformat(date_from) - timedelta(days=30)).isoformat()
         prev_fc = db.execute(
             """SELECT
+                   rv.vehicle_category,
+                   rv.vehicle_type,
                    COUNT(DISTINCT DATE(al.timestamp)) AS total_days,
                    COUNT(DISTINCT CASE WHEN al.status IN ('ON_TIME_ENTRY','EARLY_ARRIVAL')
                                        THEN DATE(al.timestamp) END) AS eligible_days
                FROM users u
                JOIN vehicle_assignments va ON va.user_id = u.id AND va.is_active = 1
+               JOIN registered_vehicles rv ON rv.plate_number = va.plate_number
                JOIN access_log al ON al.plate_number = va.plate_number
                    AND al.direction = 'ENTRY'
                    AND DATE(al.timestamp) BETWEEN ? AND ?
@@ -1083,8 +1100,12 @@ def manager_dashboard():
                HAVING total_days > 0""",
             (prev_from, prev_to),
         ).fetchall()
-        prev_ineligible = sum((r["total_days"] - r["eligible_days"]) for r in prev_fc)
-        prev_leakage_lkr = prev_ineligible * 2678
+        prev_leakage_lkr = sum(
+            (r["total_days"] - r["eligible_days"]) * ALLOWANCE_RATES.get(
+                (r["vehicle_category"], r["vehicle_type"]), ALLOWANCE_DEFAULT_LKR
+            )
+            for r in prev_fc
+        )
     except Exception:
         prev_leakage_lkr = 0
 

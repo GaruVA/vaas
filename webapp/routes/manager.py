@@ -62,11 +62,11 @@ def home():
         (week_ago,),
     ).fetchall()
 
-    DAILY_ALLOWANCE_LKR = 2678
+    from src.config import ALLOWANCE_RATES, ALLOWANCE_DEFAULT_LKR
 
     allow_q = db.execute(
         "SELECT u.id, COALESCE(u.full_name, u.username) AS driver_name, "
-        "       va.plate_number, "
+        "       va.plate_number, rv.vehicle_category, rv.vehicle_type, "
         "       COUNT(DISTINCT DATE(al.timestamp)) AS eligible_days, "
         "       (SELECT COUNT(DISTINCT DATE(al2.timestamp)) "
         "        FROM access_log al2 "
@@ -75,6 +75,7 @@ def home():
         "          AND DATE(al2.timestamp) BETWEEN ? AND ?) AS access_days "
         "FROM users u "
         "JOIN vehicle_assignments va ON va.user_id = u.id AND va.is_active = 1 "
+        "JOIN registered_vehicles rv ON rv.plate_number = va.plate_number "
         "LEFT JOIN access_log al "
         "    ON al.plate_number = va.plate_number "
         "   AND al.direction = 'ENTRY' "
@@ -96,10 +97,14 @@ def home():
             round(d["eligible_days"] / d["access_days"] * 100)
             if d["access_days"] > 0 else 0
         )
+        d["daily_rate_lkr"] = ALLOWANCE_RATES.get(
+            (d["vehicle_category"], d["vehicle_type"]), ALLOWANCE_DEFAULT_LKR
+        )
         drivers.append(d)
 
-    total_ineligible  = sum(d["ineligible_days"] for d in drivers)
-    prevented_leakage = total_ineligible * DAILY_ALLOWANCE_LKR
+    prevented_leakage = sum(
+        d["ineligible_days"] * d["daily_rate_lkr"] for d in drivers
+    )
     total_drivers     = len(drivers)
     band_high = sum(1 for d in drivers if d["compliance_pct"] >= 85)
     band_mid  = sum(1 for d in drivers if 70 <= d["compliance_pct"] < 85)

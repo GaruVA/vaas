@@ -89,7 +89,7 @@
       <div class="flex items-center gap-4 text-xs text-gray-500 mt-3 pt-3" style="border-top:1px solid #f0f2f6">
         <span><span id="leakage-count" class="font-semibold text-gray-700 mono">—</span> ineligible days found</span>
         <span class="text-gray-200">·</span>
-        <span>Daily rate <span class="font-semibold mono text-gray-700">LKR 2,678</span></span>
+        <span>Rates per vehicle category/type</span>
         <span class="text-gray-200">·</span>
         <span>Projected annual: <span id="leakage-annual" class="font-bold mono" style="color:#76bd33">LKR —</span></span>
       </div>
@@ -371,7 +371,9 @@
 </div>
 
 <script>
-  const DAILY_RATE = 2678;
+  // Per-vehicle rates now come from the API (ineligible_lkr field).
+  // This fallback is used only for legacy data rows that lack the field.
+  const DAILY_RATE_FALLBACK = 2678;
 
   // ── Watchlist raw data (for client-side filter) ───────────────────────────
   let _watchlistRows = [];
@@ -462,7 +464,7 @@
         ? `<span class="mono font-bold text-red-500">${pct}%</span>`
         : `<span class="mono font-bold" style="color:#a07000">${pct}%</span>`;
       const ineligible = v.ineligible_days || 0;
-      const riskLKR    = ineligible * DAILY_RATE;
+      const riskLKR    = v.ineligible_lkr != null ? v.ineligible_lkr : ineligible * DAILY_RATE_FALLBACK;
       const riskHTML   = pct < 65
         ? `<span class="mono font-bold text-red-500">${riskLKR.toLocaleString()}</span>`
         : `<span class="mono font-bold" style="color:#a07000">${riskLKR.toLocaleString()}</span>`;
@@ -557,7 +559,8 @@
 
       // ── Prevented Leakage hero card ────────────────────────────────────────
       const totalIneligible = fuelCompliance.reduce((s, v) => s + (v.ineligible_days || 0), 0);
-      const leakageLKR      = totalIneligible * DAILY_RATE;
+      const leakageLKR      = fuelCompliance.reduce((s, v) =>
+        s + (v.ineligible_lkr != null ? v.ineligible_lkr : (v.ineligible_days || 0) * DAILY_RATE_FALLBACK), 0);
 
       // Period label from date range
       const df = d.date_from || '';
@@ -571,8 +574,8 @@
 
       // Tooltip (hover detail)
       setHTML('leakage-tooltip',
-        `${totalIneligible} ineligible days × LKR ${DAILY_RATE.toLocaleString()} daily rate<br>` +
-        `Configured rate: LKR ${DAILY_RATE.toLocaleString()} / day<br>` +
+        `${totalIneligible} ineligible days · per-vehicle rates applied<br>` +
+        `Total prevented leakage: ${fmtLKR(leakageLKR)}<br>` +
         `Period: ${df || '—'} to ${dt || '—'}`
       );
 
@@ -653,7 +656,7 @@
       const highPct  = Math.round(compHigh / compSum * 100);
       const midPct   = Math.round(compMid  / compSum * 100);
       const lowPct   = Math.round(compLow  / compSum * 100);
-      const riskLKR  = totalIneligible * DAILY_RATE;
+      const riskLKR  = leakageLKR;
 
       setHTML('compliance-bands-col', `
         <div class="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-4">Compliance Bands</div>

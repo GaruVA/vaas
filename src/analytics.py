@@ -44,14 +44,19 @@ def personal_vehicle_allowance_report(
     if they have at least one ON_TIME_ENTRY or EARLY_ARRIVAL record in the
     access_log for a vehicle assigned to them.
 
-    Returns one row per (user_id, plate_number, date) triple.
+    Returns one row per (user_id, plate_number, date) triple, with
+    daily_rate_lkr resolved from ALLOWANCE_RATES by (category, type).
     """
+    from src.config import ALLOWANCE_RATES, ALLOWANCE_DEFAULT_LKR
+
     sql = """
         SELECT
             u.id                                    AS user_id,
             u.username,
             COALESCE(u.full_name, u.username)      AS driver_name,
             va.plate_number,
+            rv.vehicle_category,
+            rv.vehicle_type,
             DATE(al.timestamp)                      AS event_date,
             COUNT(CASE WHEN al.status = 'ON_TIME_ENTRY'  THEN 1 END) AS on_time_entries,
             COALESCE(SUM(al.dwell_time_seconds) / 3600.0, 0) AS hours_on_site,
@@ -61,6 +66,8 @@ def personal_vehicle_allowance_report(
         FROM users u
         JOIN vehicle_assignments va
             ON va.user_id = u.id AND va.is_active = 1
+        JOIN registered_vehicles rv
+            ON rv.plate_number = va.plate_number
         LEFT JOIN access_log al
             ON al.plate_number = va.plate_number
             AND al.direction = 'ENTRY'
@@ -74,7 +81,15 @@ def personal_vehicle_allowance_report(
         params.append(driver_user_id)
     sql += " GROUP BY u.id, va.plate_number, DATE(al.timestamp) ORDER BY event_date, u.username"
     rows = conn.execute(sql, params).fetchall()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["daily_rate_lkr"] = ALLOWANCE_RATES.get(
+            (d["vehicle_category"], d["vehicle_type"]),
+            ALLOWANCE_DEFAULT_LKR,
+        )
+        result.append(d)
+    return result
 
 def ohs_compliance_report(conn) -> list[dict]:
     """Driver assignment coverage, overstay flags, and vehicle status.
@@ -366,7 +381,8 @@ def personal_vehicle_allowance_report_pivot(
     """Pivot of personal_vehicle_allowance_report: one row per driver, dates as columns.
 
     Each date column shows 'Y' (eligible), 'N' (accessed but ineligible), or '' (no entry).
-    Trailing columns: Eligible Days, Total Days, Compliance %.
+    Trailing columns: Category, Type, Rate (LKR/day), Eligible Days, Total Days,
+    Eligible LKR, Compliance %.
     """
     from datetime import date as _date, timedelta
 
@@ -381,17 +397,29 @@ def personal_vehicle_allowance_report_pivot(
     flat = personal_vehicle_allowance_report(conn, date_from, date_to)
 
     eligibility: dict[tuple, int] = {}
-    driver_order: dict[tuple, dict] = {}
+    driver_meta: dict[tuple, dict] = {}
     for row in flat:
         key = (row["driver_name"], row["plate_number"])
-        if key not in driver_order:
-            driver_order[key] = {"Driver": row["driver_name"], "Plate": row["plate_number"]}
+        if key not in driver_meta:
+            driver_meta[key] = {
+                "Driver":   row["driver_name"],
+                "Plate":    row["plate_number"],
+                "Category": row["vehicle_category"],
+                "Type":     row["vehicle_type"],
+                "Rate LKR/day": row["daily_rate_lkr"],
+            }
         if row.get("event_date"):
             eligibility[(row["driver_name"], row["plate_number"], row["event_date"])] = row["eligible"]
 
     result: list[dict] = []
-    for (driver_name, plate_number), info in driver_order.items():
-        row: dict = {"Driver": driver_name, "Plate": plate_number}
+    for (driver_name, plate_number), meta in driver_meta.items():
+        row: dict = {
+            "Driver":   meta["Driver"],
+            "Plate":    meta["Plate"],
+            "Category": meta["Category"],
+            "Type":     meta["Type"],
+        }
+        rate = meta["Rate LKR/day"]
         total_eligible = 0
         total_accessed = 0
         for dt in dates:
@@ -406,9 +434,11 @@ def personal_vehicle_allowance_report_pivot(
             else:
                 row[short] = "N"
                 total_accessed += 1
-        row["Eligible"] = total_eligible
-        row["Days"]     = total_accessed
-        row["Compliance"] = (
+        row["Rate LKR/day"] = rate
+        row["Eligible"]     = total_eligible
+        row["Days"]         = total_accessed
+        row["Eligible LKR"] = total_eligible * rate
+        row["Compliance"]   = (
             f"{round(total_eligible / total_accessed * 100)}%"
             if total_accessed else "—"
         )
@@ -482,14 +512,19 @@ def export_pdf_pivot(
         story.append(Paragraph("No data for selected period.", styles["Normal"]))
     else:
         headers = list(rows[0].keys())
-        fixed = {"Driver", "Plate", "Eligible", "Days", "Compliance"}
+        fixed = {"Driver", "Plate", "Category", "Type", "Rate LKR/day",
+                 "Eligible", "Days", "Eligible LKR", "Compliance"}
         date_cols = [h for h in headers if h not in fixed]
-        fixed_cols = [h for h in headers if h in fixed]
 
-        driver_w     = 3.8 * cm
-        plate_w      = 2.5 * cm
-        summary_w    = 1.5 * cm
-        fixed_total  = driver_w + plate_w + summary_w * 3
+        driver_w       = 3.5 * cm
+        plate_w        = 2.2 * cm
+        cat_w          = 1.6 * cm
+        type_w         = 1.5 * cm
+        rate_w         = 1.8 * cm
+        summary_w      = 1.3 * cm
+        eligible_lkr_w = 2.0 * cm
+        fixed_total  = (driver_w + plate_w + cat_w + type_w + rate_w
+                        + summary_w * 3 + eligible_lkr_w)
         date_total   = usable_w - fixed_total
         date_w       = max(0.45 * cm, date_total / len(date_cols)) if date_cols else 0.6 * cm
 
@@ -499,8 +534,16 @@ def export_pdf_pivot(
                 col_widths.append(driver_w)
             elif h == "Plate":
                 col_widths.append(plate_w)
+            elif h == "Category":
+                col_widths.append(cat_w)
+            elif h == "Type":
+                col_widths.append(type_w)
+            elif h == "Rate LKR/day":
+                col_widths.append(rate_w)
             elif h in ("Eligible", "Days", "Compliance"):
                 col_widths.append(summary_w)
+            elif h == "Eligible LKR":
+                col_widths.append(eligible_lkr_w)
             else:
                 col_widths.append(date_w)
 
@@ -524,7 +567,8 @@ def export_pdf_pivot(
         ]
 
         for col_idx, h in enumerate(headers):
-            if h in ("Driver", "Plate", "Compliance", "Eligible", "Days"):
+            if h in ("Driver", "Plate", "Category", "Type", "Rate LKR/day",
+                     "Compliance", "Eligible", "Days", "Eligible LKR"):
                 continue
             for row_idx, row in enumerate(rows, start=1):
                 val = row.get(h, "")
