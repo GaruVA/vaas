@@ -2,25 +2,33 @@ from __future__ import annotations
 
 """Shift-aware attendance engine for VAAS.
 
-Classifies each gate event into one of 13 statuses based on:
-- Vehicle registration status (ACTIVE / SUSPENDED / EXPIRED)
-- Whether the vehicle has a shift assignment
-- Current time vs shift start/end + grace period
-- Direction (ENTRY vs EXIT)
-- Previous entry for dwell-time / overstay calculation
+Gate processing runs two independent pathways:
 
-All 13 status values
----------------------
-ON_TIME_ENTRY, LATE_ARRIVAL, EARLY_ARRIVAL,
-ON_TIME_EXIT, EARLY_DEPARTURE, OVERSTAY,
-VISITOR, VISITOR_ADMITTED, VISITOR_REJECTED,
-VISITOR_PENDING_REGISTRATION, VISITOR_TIMEOUT_REJECT,
-SUSPENDED, EXPIRED.
+Pathway 1 — Registered employees (schedule-anchored offset)
+    Triggered when: plate matches registered_vehicles AND vehicle_shifts
+    has an active shift assignment.
+    Algorithm: signed datetime subtraction from the scheduled shift-start.
+    Two candidate shift-start datetimes are evaluated (today / yesterday);
+    the first whose window covers the arrival wins.  No modular arithmetic.
+    Outputs: EARLY_ARRIVAL, ON_TIME_ENTRY, LATE_ARRIVAL,
+             EARLY_DEPARTURE, ON_TIME_EXIT, OVERSTAY.
 
-Midnight boundary
------------------
-If ``shift.start_time >= shift.end_time`` the shift crosses midnight.
-``end_dt`` is set to ``start_dt + timedelta(days=1) + (end_time - start_time)``.
+Pathway 2 — Unregistered vehicles / visitors (time-of-day fallback)
+    Triggered when: plate not in registered_vehicles, confidence below
+    threshold, or registration status SUSPENDED / EXPIRED.
+    Unregistered vehicles have no schedule and no compliance obligation;
+    the system records the timestamp and raises an exception alert.
+    Outputs: VISITOR, VISITOR_ADMITTED, VISITOR_REJECTED,
+             VISITOR_PENDING_REGISTRATION, VISITOR_TIMEOUT_REJECT,
+             SUSPENDED, EXPIRED.
+
+Midnight boundary (Pathway 1)
+------------------------------
+``_classify_status`` evaluates two candidate shift-start datetimes (today
+and yesterday) and picks the first where the arrival offset is within
+``_EARLY_WINDOW_MINUTES``.  This means a 22:45 arrival for a shift that
+starts at 23:00 is correctly classified as EARLY_ARRIVAL for tonight, not
+LATE_ARRIVAL for yesterday.
 
 Grace period
 ------------
@@ -102,6 +110,8 @@ class AttendanceEngine:
     exception_timeout:
         Seconds before an unresolved visitor exception auto-rejects.
     """
+
+    _EARLY_WINDOW_MINUTES = 60
 
     def __init__(
         self,
@@ -450,14 +460,33 @@ class AttendanceEngine:
         now: datetime,
         shift_row,
     ) -> GateStatus:
-        """Return attendance status for an ACTIVE vehicle."""
-        if shift_row is None:
+        """Return attendance status for a registered, active vehicle (Pathway 1).
 
+        Uses schedule-anchored signed offset so that early arrivals for
+        midnight-crossing shifts are never misclassified as late returns
+        from the previous shift.
+
+        Candidate selection
+        -------------------
+        Two shift-start datetimes are evaluated: today's and yesterday's.
+        The first candidate where the arrival offset is within
+        ``[-_EARLY_WINDOW_MINUTES, ∞)`` is selected as the anchor.
+
+        Example — NIGHT shift starts 23:00, employee arrives 22:45:
+            candidate today 23:00 → offset = -15 min → within window → use ✓
+            Result: EARLY_ARRIVAL  (not a late return from yesterday)
+
+        Example — NIGHT shift starts 23:00, employee arrives 00:01 next day:
+            candidate today 23:00 → offset = -1379 min → outside window
+            candidate yesterday 23:00 → offset = +61 min → within window → use ✓
+            Result: LATE_ARRIVAL (61 min past shift start)
+        """
+        if shift_row is None:
             if direction == "ENTRY":
                 return GateStatus.VISITOR_ADMITTED
             return GateStatus.ON_TIME_EXIT
 
-        shift_id, start_str, end_str, grace_minutes = (
+        _, start_str, end_str, grace_minutes = (
             shift_row[0], shift_row[1], shift_row[2], shift_row[3]
         )
 
@@ -465,36 +494,51 @@ class AttendanceEngine:
         end_h,   end_m   = (int(x) for x in end_str.split(":"))
         grace = timedelta(minutes=grace_minutes)
 
-        event_date = now.date()
-        start_dt = datetime(
-            event_date.year, event_date.month, event_date.day,
-            start_h, start_m, tzinfo=timezone.utc,
-        )
-        end_dt = datetime(
-            event_date.year, event_date.month, event_date.day,
+        arrival_date = now.date()
+
+        # ── Candidate-date selection ──────────────────────────────────────
+        shift_start_dt: datetime | None = None
+        for delta in (0, -1):
+            anchor = arrival_date + timedelta(days=delta)
+            candidate = datetime(
+                anchor.year, anchor.month, anchor.day,
+                start_h, start_m, tzinfo=timezone.utc,
+            )
+            offset_mins = (now - candidate).total_seconds() / 60
+            if offset_mins >= -self._EARLY_WINDOW_MINUTES:
+                shift_start_dt = candidate
+                break
+
+        if shift_start_dt is None:
+            # Arrived more than EARLY_WINDOW before any candidate; treat as
+            # early for today's shift (edge case: very long shift gaps).
+            shift_start_dt = datetime(
+                arrival_date.year, arrival_date.month, arrival_date.day,
+                start_h, start_m, tzinfo=timezone.utc,
+            )
+
+        # ── Shift end anchored to confirmed start ─────────────────────────
+        shift_end_dt = datetime(
+            shift_start_dt.year, shift_start_dt.month, shift_start_dt.day,
             end_h, end_m, tzinfo=timezone.utc,
         )
+        if (end_h * 60 + end_m) <= (start_h * 60 + start_m):
+            shift_end_dt += timedelta(days=1)
 
-        crosses_midnight = (start_h * 60 + start_m) >= (end_h * 60 + end_m)
-        if crosses_midnight:
-            end_dt += timedelta(days=1)
-
-            if now < start_dt:
-                start_dt -= timedelta(days=1)
-                end_dt   -= timedelta(days=1)
+        # ── Signed offset classification ──────────────────────────────────
+        offset_minutes = (now - shift_start_dt).total_seconds() / 60
 
         if direction == "ENTRY":
-            if now < start_dt:
+            if offset_minutes < 0:
                 return GateStatus.EARLY_ARRIVAL
-            elif now <= start_dt + grace:
+            elif offset_minutes <= grace_minutes:
                 return GateStatus.ON_TIME_ENTRY
             else:
                 return GateStatus.LATE_ARRIVAL
-
         else:
-            if now < end_dt:
+            if now < shift_end_dt:
                 return GateStatus.EARLY_DEPARTURE
-            elif now <= end_dt + grace:
+            elif now <= shift_end_dt + grace:
                 return GateStatus.ON_TIME_EXIT
             else:
                 return GateStatus.OVERSTAY

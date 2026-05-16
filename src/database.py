@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS access_log (
     zone_id            TEXT,
     project_code       TEXT,
     row_hash           TEXT    NOT NULL DEFAULT 'PENDING',
-    plate_crop_b64     TEXT
+    plate_crop_b64     TEXT,
+    disposition_note   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS users (
