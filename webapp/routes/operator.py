@@ -240,11 +240,8 @@ def dashboard():
     ).fetchone()[0]
     ohs_by_plate = {r["plate_number"]: dict(r) for r in ohs_compliance_report(g.db)}
 
-    return render_template("operator/dashboard.html",
-                           recent=recent, pending=pending,
-                           recent_by_plate=recent_by_plate,
-                           events_today=events_today,
-                           ohs_by_plate=ohs_by_plate)
+    from flask import redirect as _redirect
+    return _redirect("/vaas-gateops.html")
 
 @operator_bp.route("/sse")
 @_requires_login

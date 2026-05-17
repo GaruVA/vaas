@@ -36,7 +36,7 @@ def _audit(conn, action: str, entity_type: str, entity_id: str,
 @admin_bp.route("/")
 @requires_role("ADMIN")
 def home():
-    return render_template("admin/home.html")
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/vehicles")
 @requires_role("ADMIN")
@@ -53,7 +53,7 @@ def vehicles():
         LEFT JOIN users u ON va.user_id = u.id
         ORDER BY rv.plate_number
     """).fetchall()
-    return render_template("admin/vehicles.html", rows=rows)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/vehicles/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -104,12 +104,7 @@ def new_vehicle():
         flash(f"Saved vehicle {plate}", "success")
         return redirect(url_for("admin.vehicles"))
 
-    prefilled = request.args.get("plate", "")
-    return render_template("admin/vehicle_form.html",
-                           shifts=shifts, users=users,
-                           prefilled=prefilled,
-                           categories=VEHICLE_CATEGORIES,
-                           vtypes=VEHICLE_TYPES)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/vehicles/<plate>/edit", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -179,15 +174,7 @@ def edit_vehicle(plate: str):
         flash(f"Updated vehicle {plate}", "success")
         return redirect(url_for("admin.vehicles"))
 
-    return render_template("admin/vehicle_form.html",
-                           shifts=shifts, users=users,
-                           prefilled=plate,
-                           vehicle=vehicle,
-                           current_shift=current_shift["shift_id"] if current_shift else None,
-                           current_user_id=current_user["user_id"] if current_user else None,
-                           categories=VEHICLE_CATEGORIES,
-                           vtypes=VEHICLE_TYPES,
-                           editing=True)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/vehicles/<plate>/status", methods=["POST"])
 @requires_role("ADMIN")
@@ -221,7 +208,7 @@ def shifts():
     rows = g.db.execute(
         "SELECT * FROM shifts ORDER BY shift_id"
     ).fetchall()
-    return render_template("admin/shifts.html", rows=rows)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/shifts/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -245,7 +232,7 @@ def new_shift():
         _audit(db, "CREATE", "SHIFT", str(sid))
         flash(f"Saved shift {name}", "success")
         return redirect(url_for("admin.shifts"))
-    return render_template("admin/shift_form.html")
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/shifts/<sid>/delete", methods=["POST"])
 @requires_role("ADMIN")
@@ -263,7 +250,7 @@ def users():
     rows = g.db.execute(
         "SELECT id, username, full_name, role, last_login FROM users ORDER BY username"
     ).fetchall()
-    return render_template("admin/users.html", rows=rows)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
 @requires_role("ADMIN")
@@ -285,7 +272,7 @@ def new_user():
         _audit(db, "CREATE", "USER", u, {"role": role})
         flash(f"Created user {u}", "success")
         return redirect(url_for("admin.users"))
-    return render_template("admin/user_form.html")
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/users/<int:uid>/reset", methods=["POST"])
 @requires_role("ADMIN")
@@ -323,7 +310,7 @@ def zones():
             "current_occupancy": cur,
             "utilisation_pct":   round(cur / cap * 100, 1),
         })
-    return render_template("admin/zones.html", rows=rows)
+    return redirect("/vaas-fleet.html")
 
 @admin_bp.route("/audit-log")
 @requires_role("ADMIN")
@@ -331,5 +318,5 @@ def audit_log():
     rows = g.db.execute(
         "SELECT * FROM admin_audit_log ORDER BY timestamp DESC LIMIT 500"
     ).fetchall()
-    return render_template("admin/audit_log.html", rows=rows)
+    return redirect("/vaas-fleet.html")
 
