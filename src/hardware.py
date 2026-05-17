@@ -18,7 +18,6 @@ class ArduinoController:
             logging.error(f"Failed to connect to Arduino on {self.port}: {e}")
 
     def grant_access(self):
-        """Sends command to Arduino to open the gate/turn on green LED."""
         if self.connection and self.connection.is_open:
             self.connection.write(b'OPEN_GATE\n')
             logging.info("Command sent: OPEN_GATE")
@@ -26,7 +25,6 @@ class ArduinoController:
             logging.warning("Arduino not connected. Gate cannot be opened.")
 
     def deny_access(self):
-        """Sends command to Arduino for unauthorized vehicle (e.g., sound alarm/red LED)."""
         if self.connection and self.connection.is_open:
             self.connection.write(b'DENY_ACCESS\n')
             logging.info("Command sent: DENY_ACCESS")

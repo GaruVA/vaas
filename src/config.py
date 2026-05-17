@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-"""VAAS configuration constants.  Override via environment variables.
-
-References: §6.1 of BUILD_SPEC.md
-"""
-
 import os
 from pathlib import Path
 
@@ -56,10 +51,6 @@ BCRYPT_COST           = 12
 CDL_FUN_BLUE   = "#1B3F95"
 CDL_YELLOW     = "#f4bd0f"
 CDL_SAFETY_GRN = "#76bd33"
-
-
-
-
 
 ALLOWANCE_DEFAULT_LKR: int = 2678
 

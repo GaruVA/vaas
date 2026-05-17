@@ -15,10 +15,6 @@ class ALPRPipeline:
         self.ocr_model.eval()
 
     def process_frame(self, frame):
-        """
-        Takes an image frame (numpy array), runs detection and OCR,
-        and returns the recognized license plate text and bounding box.
-        """
         if frame is None:
             return None, None
             

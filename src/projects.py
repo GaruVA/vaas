@@ -1,20 +1,5 @@
 from __future__ import annotations
 
-"""CDL Specialisation Layer -- 17 public functions.
-
-Groups
-------
-A. Zones (4):        create_zone, get_zone, list_zones, get_zone_occupancy
-B. Companies (3):    create_company, get_company, list_companies
-C. Projects (5):     create_project, get_project, list_projects,
-                     close_project, assign_vehicle_to_project
-D. Assignments (3):  unassign_vehicle_from_project, list_project_vehicles,
-                     get_project_attendance_summary
-E. Cross-cutting (2): get_subcontractor_hours, resolve_event_attribution
-
-References: section 6.7 of BUILD_SPEC.md
-"""
-
 import json
 import logging
 from datetime import datetime, timezone
@@ -30,7 +15,6 @@ def create_zone(
     associated_gates: list[str],
     vehicle_capacity: int = 50,
 ) -> None:
-    """Create a CDL zone.  Raises ValueError for invalid zone_type."""
     valid_types = ("DRYDOCK", "BERTH", "WORKSHOP", "ADMIN", "SECURITY")
     if zone_type not in valid_types:
         raise ValueError(f"zone_type must be one of {valid_types}, got {zone_type!r}")
@@ -43,14 +27,12 @@ def create_zone(
     logger.info("Zone created: %s (%s)", zone_id, zone_type)
 
 def get_zone(conn, zone_id: str) -> dict | None:
-    """Return zone dict or None."""
     row = conn.execute(
         "SELECT * FROM cdl_zones WHERE zone_id = ?", (zone_id,)
     ).fetchone()
     return dict(row) if row else None
 
 def list_zones(conn, zone_type: str | None = None) -> list[dict]:
-    """Return all zones, optionally filtered by zone_type."""
     if zone_type:
         rows = conn.execute(
             "SELECT * FROM cdl_zones WHERE zone_type = ? ORDER BY zone_id",
@@ -63,7 +45,6 @@ def list_zones(conn, zone_type: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 def get_zone_occupancy(conn, zone_id: str) -> int:
-    """Count vehicles currently inside a zone (ENTRY without matching EXIT)."""
     row = conn.execute(
         "SELECT associated_gates FROM cdl_zones WHERE zone_id = ?", (zone_id,)
     ).fetchone()
@@ -97,7 +78,6 @@ def create_company(
     contact_phone: str | None = None,
     contact_email: str | None = None,
 ) -> None:
-    """Register a new subcontractor company."""
     conn.execute(
         """INSERT INTO subcontractor_companies
            (company_id, company_name, contact_name, contact_phone, contact_email)
@@ -107,14 +87,12 @@ def create_company(
     logger.info("Company created: %s", company_id)
 
 def get_company(conn, company_id: str) -> dict | None:
-    """Return company dict or None."""
     row = conn.execute(
         "SELECT * FROM subcontractor_companies WHERE company_id = ?", (company_id,)
     ).fetchone()
     return dict(row) if row else None
 
 def list_companies(conn, approval_status: str | None = None) -> list[dict]:
-    """Return all companies, optionally filtered by approval_status."""
     if approval_status:
         rows = conn.execute(
             "SELECT * FROM subcontractor_companies WHERE approval_status = ? ORDER BY company_id",
@@ -135,7 +113,6 @@ def create_project(
     end_date: str | None = None,
     project_manager: str | None = None,
 ) -> None:
-    """Create a new CDL project.  Raises IntegrityError if zone_id is invalid."""
     conn.execute(
         """INSERT INTO projects
            (project_code, vessel_name, zone_id, start_date, end_date,
@@ -146,14 +123,12 @@ def create_project(
     logger.info("Project created: %s (vessel: %s)", project_code, vessel_name)
 
 def get_project(conn, project_code: str) -> dict | None:
-    """Return project dict or None."""
     row = conn.execute(
         "SELECT * FROM projects WHERE project_code = ?", (project_code,)
     ).fetchone()
     return dict(row) if row else None
 
 def list_projects(conn, status: str | None = None) -> list[dict]:
-    """Return all projects, optionally filtered by status."""
     if status:
         rows = conn.execute(
             "SELECT * FROM projects WHERE status = ? ORDER BY project_code",
@@ -166,11 +141,6 @@ def list_projects(conn, status: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 def close_project(conn, project_code: str, closure_date: str) -> None:
-    """Set project status to CLOSED and soft-remove all active assignments.
-
-    Soft-removal: sets removed_at = closure_date on all project_vehicle_assignments
-    where removed_at IS NULL.  Does NOT hard-delete any rows.
-    """
     conn.execute(
         "UPDATE projects SET status = 'CLOSED', end_date = ? WHERE project_code = ?",
         (closure_date, project_code),
@@ -191,12 +161,6 @@ def assign_vehicle_to_project(
     company_id: str | None = None,
     assigned_at: str | None = None,
 ) -> None:
-    """Assign a vehicle to a project with a given role.
-
-    If role == SUBCONTRACTOR:
-    - company_id must be non-empty (raises ValueError otherwise).
-    - company_id must exist in subcontractor_companies (raises ValueError otherwise).
-    """
     if role == "SUBCONTRACTOR":
         if not company_id:
             raise ValueError("company_id is required for SUBCONTRACTOR role")
@@ -221,7 +185,6 @@ def unassign_vehicle_from_project(
     plate_number: str,
     removed_at: str | None = None,
 ) -> None:
-    """Soft-remove a vehicle from a project by setting removed_at."""
     ts = removed_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
         """UPDATE project_vehicle_assignments
@@ -235,7 +198,6 @@ def list_project_vehicles(
     project_code: str,
     active_only: bool = True,
 ) -> list[dict]:
-    """Return vehicle assignments for a project."""
     if active_only:
         rows = conn.execute(
             """SELECT * FROM project_vehicle_assignments
@@ -258,11 +220,6 @@ def get_project_attendance_summary(
     date_from: str,
     date_to: str,
 ) -> list[dict]:
-    """Return attendance summary per vehicle for a project.
-
-    days_present uses COUNT(DISTINCT DATE(timestamp)) to avoid double-counting
-    multiple events on the same calendar day.
-    """
     rows = conn.execute(
         """SELECT
                pva.plate_number,
@@ -289,7 +246,6 @@ def get_subcontractor_hours(
     date_from: str,
     date_to: str,
 ) -> list[dict]:
-    """Return billed hours per vehicle for a subcontractor company."""
     rows = conn.execute(
         """SELECT
                pva.plate_number,
@@ -317,14 +273,6 @@ def resolve_event_attribution(
     gate_id: str,
     timestamp: str,
 ) -> tuple[str | None, str | None]:
-    """Resolve (zone_id, project_code) for a gate event.
-
-    Looks for an ACTIVE project whose zone has *gate_id* in its
-    associated_gates JSON array and whose vehicle assignment includes
-    *plate_number*.
-
-    Returns (zone_id, project_code) or (None, None) if no match.
-    """
     rows = conn.execute(
         """SELECT cz.zone_id, p.project_code, cz.associated_gates
            FROM projects p

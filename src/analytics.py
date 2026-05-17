@@ -1,25 +1,5 @@
 from __future__ import annotations
 
-"""Analytics -- 10 named report functions + 3 helpers.
-
-Report functions (10)
----------------------
-1.  personal_vehicle_allowance_report
-2.  ohs_compliance_report           -- LEFT JOIN, non-compliant first
-3.  gate_rejection_audit
-4.  admin_audit_report
-5.  zone_occupancy_snapshot
-6.  subcontractor_billing_audit
-
-Helpers (3)
------------
-csv_string(rows)           -> str
-export_csv(rows, fp)       -> None
-export_pdf(rows, fp, title, date_range_str) -> None   (ReportLab)
-
-References: section 6.8 of BUILD_SPEC.md
-"""
-
 import csv
 import io
 import json
@@ -38,15 +18,6 @@ def personal_vehicle_allowance_report(
     date_to: str,
     driver_user_id: int | None = None,
 ) -> list[dict]:
-    """Daily allowance eligibility per driver based on on-time entry records.
-
-    A driver is eligible for their personal vehicle allowance on a given day
-    if they have at least one ON_TIME_ENTRY or EARLY_ARRIVAL record in the
-    access_log for a vehicle assigned to them.
-
-    Returns one row per (user_id, plate_number, date) triple, with
-    daily_rate_lkr resolved from ALLOWANCE_RATES by (category, type).
-    """
     from src.config import ALLOWANCE_RATES, ALLOWANCE_DEFAULT_LKR
 
     sql = """
@@ -92,13 +63,6 @@ def personal_vehicle_allowance_report(
     return result
 
 def ohs_compliance_report(conn) -> list[dict]:
-    """Driver assignment coverage, overstay flags, and vehicle status.
-
-    Uses LEFT JOIN so every registered vehicle appears, even those with
-    zero access_log events (the LEFT JOIN test is a required assertion).
-
-    Returns vehicles ordered non-compliant first.
-    """
     rows = conn.execute(
         """
         SELECT
@@ -146,7 +110,6 @@ def gate_rejection_audit(
     date_to: str,
     gate_id: str | None = None,
 ) -> list[dict]:
-    """Post-incident audit trail of gate rejections."""
     sql = """
         SELECT
             gr.id,
@@ -175,7 +138,6 @@ def admin_audit_report(
     username: str | None = None,
     entity_type: str | None = None,
 ) -> list[dict]:
-    """Administrative action trail from admin_audit_log."""
     sql = """
         SELECT *
         FROM admin_audit_log
@@ -193,7 +155,6 @@ def admin_audit_report(
     return [dict(r) for r in rows]
 
 def zone_occupancy_snapshot(conn) -> list[dict]:
-    """Real-time vehicle headcount across all CDL zones."""
     zones = conn.execute("SELECT * FROM cdl_zones ORDER BY zone_id").fetchall()
     results: list[dict] = []
     for zone in zones:
@@ -240,7 +201,6 @@ def subcontractor_billing_audit(
     date_from: str = "2000-01-01",
     date_to: str   = "2099-12-31",
 ) -> list[dict]:
-    """Billed hours per subcontractor vehicle and project."""
     sql = """
         SELECT
             sc.company_id,
@@ -271,11 +231,6 @@ def subcontractor_billing_audit(
     return [dict(r) for r in rows]
 
 def daily_attendance_report(conn, report_date: str) -> list[dict]:
-    """Attendance presence per registered vehicle for a single date.
-
-    Returns one row per registered vehicle with:
-      plate_number, vehicle_category, total_events, present (1/0)
-    """
     rows = conn.execute(
         """
         SELECT rv.plate_number,
@@ -294,12 +249,6 @@ def daily_attendance_report(conn, report_date: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 def weekly_attendance_report(conn, week_start: str) -> list[dict]:
-    """Distinct days present per registered vehicle for the 7-day window
-    starting on *week_start* (ISO date string, inclusive).
-
-    Returns one row per registered vehicle with:
-      plate_number, vehicle_category, days_present
-    """
     rows = conn.execute(
         """
         SELECT rv.plate_number,
@@ -318,11 +267,6 @@ def weekly_attendance_report(conn, week_start: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 def monthly_attendance_report(conn, year: int, month: int) -> list[dict]:
-    """Distinct days present per registered vehicle for a calendar month.
-
-    Returns one row per registered vehicle with:
-      plate_number, vehicle_category, days_present
-    """
     month_str = f"{year:04d}-{month:02d}"
     rows = conn.execute(
         """
@@ -346,10 +290,6 @@ def gate_throughput_report(
     date_to: str,
     gate_id: str | None = None,
 ) -> list[dict]:
-    """Hourly gate throughput broken down by gate and direction.
-
-    Returns rows with: gate_id, event_date, hour (0-23), direction, count
-    """
     params: list = [date_from, date_to]
     gate_filter = ""
     if gate_id:
@@ -378,12 +318,6 @@ def personal_vehicle_allowance_report_pivot(
     date_from: str,
     date_to: str,
 ) -> list[dict]:
-    """Pivot of personal_vehicle_allowance_report: one row per driver, dates as columns.
-
-    Each date column shows 'Y' (eligible), 'N' (accessed but ineligible), or '' (no entry).
-    Trailing columns: Category, Type, Rate (LKR/day), Eligible Days, Total Days,
-    Eligible LKR, Compliance %.
-    """
     from datetime import date as _date, timedelta
 
     start = _date.fromisoformat(date_from)
@@ -452,11 +386,6 @@ def export_pdf_pivot(
     title: str = "VAAS Report",
     date_range_str: str = "",
 ) -> None:
-    """PDF export for pivot-style reports (e.g. allowance per driver × date).
-
-    Fixed columns (Driver, Plate, Eligible, Days, Compliance) get extra width;
-    date columns are narrow so up to ~35 columns fit on landscape A4.
-    """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.units import cm
@@ -585,7 +514,6 @@ def export_pdf_pivot(
     logger.info("Pivot PDF exported: %s", title)
 
 def csv_string(rows: list[dict]) -> str:
-    """Serialise a list of row dicts to a CSV string."""
     if not rows:
         return ""
     buf = io.StringIO()
@@ -595,7 +523,6 @@ def csv_string(rows: list[dict]) -> str:
     return buf.getvalue()
 
 def export_csv(rows: list[dict], fp: str | Path | IO) -> None:
-    """Write rows as CSV to a file path or file-like object."""
     content = csv_string(rows)
     if hasattr(fp, "write"):
         fp.write(content)
@@ -608,12 +535,6 @@ def export_pdf(
     title: str = "VAAS Report",
     date_range_str: str = "",
 ) -> None:
-    """Write rows as a styled PDF using ReportLab.
-
-    Header bar: CDL Fun Blue (#1B3F95).
-    Accent underline: CDL Yellow (#f4bd0f).
-    Footer: page numbers.
-    """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.units import cm

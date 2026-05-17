@@ -1,20 +1,5 @@
 from __future__ import annotations
 
-"""tests/test_integration.py — 12 end-to-end integration tests.
-
-Bypasses YOLO by injecting mock detector and classifier.
-Exercises the full path: frame -> detection -> CLAHE -> classification
--> AttendanceEngine (LPM-MLED + DB write) -> access_log with SHA-256 hash.
-
-Key facts about seeded_db (from conftest.py):
-  - Registered plates include: WP-CAB-1234 (STAFF/ACTIVE, DAY shift)
-  - DAY shift: 07:00-15:00, permitted_gates=["MAIN_GATE","WORKSHOP_GATE"]
-  - Suspended test: UPDATE vehicle_category manually
-  - gate_rejections table (not access_log) receives SUSPENDED/EXPIRED plates
-
-Marker: integration (no YOLO dependency).
-"""
-
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -80,7 +65,6 @@ def _run(seeded_db, plate, gate=_GATE, direction="ENTRY", frames=1, emit=True,
 
 @pytest.mark.integration
 def test_int_01_entry_creates_log_row(seeded_db, monkeypatch):
-    """Pipeline ENTRY for a valid vehicle writes one access_log row."""
     _patch_now(monkeypatch, _TS_ONTIME)
     _run(seeded_db, _PLATE_GOOD)
     rows = seeded_db.execute(
@@ -90,7 +74,6 @@ def test_int_01_entry_creates_log_row(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_02_row_hash_not_pending(seeded_db, monkeypatch):
-    """Every row inserted by the pipeline has a non-PENDING row_hash."""
     _patch_now(monkeypatch, _TS_ONTIME)
     _run(seeded_db, _PLATE_GOOD)
     rows = seeded_db.execute("SELECT row_hash FROM access_log").fetchall()
@@ -100,7 +83,6 @@ def test_int_02_row_hash_not_pending(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_03_no_detection_no_log_row(seeded_db, monkeypatch):
-    """When detector returns no plates, no access_log row is inserted."""
     _patch_now(monkeypatch, _TS_ONTIME)
     before = seeded_db.execute("SELECT COUNT(*) FROM access_log").fetchone()[0]
     _run(seeded_db, "", emit=False, frames=2)
@@ -109,7 +91,6 @@ def test_int_03_no_detection_no_log_row(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_04_lpm_correction_applied(seeded_db, monkeypatch):
-    """Engine corrects WP-CA8-1234 (8<->B confusion) to WP-CAB-1234."""
     _patch_now(monkeypatch, _TS_ONTIME)
     _run(seeded_db, _PLATE_CONF)
     rows = seeded_db.execute("SELECT plate_number FROM access_log").fetchall()
@@ -119,7 +100,6 @@ def test_int_04_lpm_correction_applied(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_05_unregistered_plate_visitor_flow(seeded_db, monkeypatch):
-    """Unregistered plate enters visitor exception flow (VISITOR status)."""
     _patch_now(monkeypatch, _TS_ONTIME)
     _run(seeded_db, _PLATE_UNREG)
     row = seeded_db.execute(
@@ -130,7 +110,6 @@ def test_int_05_unregistered_plate_visitor_flow(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_06_suspended_plate_writes_rejection(seeded_db, monkeypatch):
-    """Suspended vehicle is written to gate_rejections, not access_log."""
     seeded_db.execute(
         "UPDATE registered_vehicles SET registration_status='SUSPENDED'"
         " WHERE plate_number=?", (_PLATE_GOOD,)
@@ -145,7 +124,6 @@ def test_int_06_suspended_plate_writes_rejection(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_07_barrier_opens_for_valid_entry(seeded_db, monkeypatch):
-    """Barrier opens at least once for a valid on-time ENTRY."""
     _patch_now(monkeypatch, _TS_ONTIME)
     barrier = BarrierController("MOCK")
     _run(seeded_db, _PLATE_GOOD, barrier=barrier)
@@ -155,7 +133,6 @@ def test_int_07_barrier_opens_for_valid_entry(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_08_barrier_stays_closed_on_rejection(seeded_db, monkeypatch):
-    """Barrier does NOT open for a suspended vehicle."""
     seeded_db.execute(
         "UPDATE registered_vehicles SET registration_status='SUSPENDED'"
         " WHERE plate_number=?", (_PLATE_GOOD,)
@@ -168,7 +145,6 @@ def test_int_08_barrier_stays_closed_on_rejection(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_09_stop_event_halts_pipeline(seeded_db, monkeypatch):
-    """Setting stop_event terminates the pipeline loop."""
     _patch_now(monkeypatch, _TS_ONTIME)
     eng = AttendanceEngine(seeded_db, BarrierController("MOCK"))
     stop = threading.Event()
@@ -193,7 +169,6 @@ def test_int_09_stop_event_halts_pipeline(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_10_frame_callback_called_per_frame(seeded_db, monkeypatch):
-    """frame_callback is invoked once for every frame read from the camera."""
     _patch_now(monkeypatch, _TS_ONTIME)
     received: list[np.ndarray] = []
     eng = AttendanceEngine(seeded_db, BarrierController("MOCK"))
@@ -206,7 +181,6 @@ def test_int_10_frame_callback_called_per_frame(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_11_camera_released_after_pipeline(seeded_db, monkeypatch):
-    """camera.release() is always called when the pipeline finishes."""
     _patch_now(monkeypatch, _TS_ONTIME)
     eng = AttendanceEngine(seeded_db, BarrierController("MOCK"))
     cam = _make_camera([_blank_frame()])
@@ -216,7 +190,6 @@ def test_int_11_camera_released_after_pipeline(seeded_db, monkeypatch):
 
 @pytest.mark.integration
 def test_int_12_chain_integrity_after_multiple_events(seeded_db, monkeypatch):
-    """SHA-256 chain remains intact after several pipeline ENTRY events."""
     _patch_now(monkeypatch, _TS_ONTIME)
     barrier = BarrierController("MOCK")
     eng = AttendanceEngine(seeded_db, barrier)

@@ -1,22 +1,5 @@
 from __future__ import annotations
 
-"""LPM-MLED: Licence Plate Matching via Minimum Levenshtein Edit Distance.
-
-Implements a weighted edit-distance corrector that exploits the specific
-character confusion pairs produced by the YOLOv8 37-class character
-classifier at Colombo Dockyard.
-
-Confusion pairs (substitution cost 0.1):
-    {0, O}  {1, I}  {5, S}  {8, B}
-
-All other substitutions: cost 1.0
-Insertions / deletions:  cost 1.0
-Normalisation:           dist / max(len(raw), len(candidate))
-Acceptance threshold:    strict < 0.5  (exactly 0.5 is REJECTED)
-
-References: section 6.3 of BUILD_SPEC.md
-"""
-
 import logging
 from typing import Optional
 
@@ -25,19 +8,9 @@ from src.config import CONFUSION_PAIRS, CONFUSION_COST, FULL_COST, LPM_THRESHOLD
 logger = logging.getLogger(__name__)
 
 def _substitution_cost(a: str, b: str) -> float:
-    """Return the substitution cost between two characters.
-
-    Returns ``CONFUSION_COST`` (0.1) if the pair is in the confusion set,
-    otherwise ``FULL_COST`` (1.0).
-    """
     return CONFUSION_COST if frozenset({a.upper(), b.upper()}) in CONFUSION_PAIRS else FULL_COST
 
 def _weighted_edit_distance(s: str, t: str) -> float:
-    """Wagner-Fischer weighted Levenshtein distance between *s* and *t*.
-
-    Insertion / deletion cost: 1.0.
-    Substitution cost: see ``_substitution_cost``.
-    """
     m, n = len(s), len(t)
 
     dp: list[list[float]] = [
@@ -60,26 +33,6 @@ def lpm_mled_correct(
     candidates: list[str],
     threshold: float = LPM_THRESHOLD,
 ) -> Optional[str]:
-    """Return the closest candidate plate to *raw*, or ``None``.
-
-    Parameters
-    ----------
-    raw:
-        The raw string produced by the character classifier (may contain
-        OCR errors).
-    candidates:
-        Iterable of registered plate strings to match against.
-    threshold:
-        Normalised distance threshold.  Only candidates with
-        ``normalised_dist < threshold`` are accepted.  **Strict less-than**:
-        a normalised distance of exactly ``threshold`` is rejected.
-
-    Returns
-    -------
-    str | None
-        The best-matching candidate, or ``None`` if no candidate is within
-        the threshold.
-    """
     if not raw or not candidates:
         return None
 

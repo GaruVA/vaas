@@ -1,1 +1,0 @@
-"""VAAS source package."""

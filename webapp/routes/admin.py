@@ -1,4 +1,3 @@
-"""Admin blueprint: vehicle / shift / user CRUD + vehicle assignments."""
 from __future__ import annotations
 
 import json
@@ -17,7 +16,6 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 def _audit(conn, action: str, entity_type: str, entity_id: str,
            details: dict | None = None) -> None:
-    """Write a row to admin_audit_log using the current session user."""
     try:
         conn.execute(
             "INSERT INTO admin_audit_log "
@@ -304,7 +302,6 @@ def reset_password(uid: int):
 @admin_bp.route("/zones")
 @requires_role("ADMIN")
 def zones():
-    """Zone capacity grid: raw cdl_zones + live occupancy snapshot merged."""
     db         = g.db
     zones_raw  = db.execute("SELECT * FROM cdl_zones ORDER BY zone_id").fetchall()
     snap_by_id = {z["zone_id"]: z for z in zone_occupancy_snapshot(db)}

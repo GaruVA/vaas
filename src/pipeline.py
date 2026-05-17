@@ -1,13 +1,5 @@
 from __future__ import annotations
 
-"""src/pipeline.py — ALPR pipeline: frame → gate event.
-
-run_pipeline(camera, detector, classifier, attendance_engine,
-             gate_id, direction, stop_event, frame_callback) -> None
-
-References: §6.11 of BUILD_SPEC.md.
-"""
-
 import logging
 import threading
 import time
@@ -30,38 +22,6 @@ def run_pipeline(
     stop_event: threading.Event | None = None,
     frame_callback: Callable[[np.ndarray], None] | None = None,
 ) -> None:
-    """Run the ALPR recognition loop until *stop_event* is set.
-
-    Each iteration:
-    1. Read a frame from *camera*.
-    2. Call *frame_callback* (if provided) with the raw frame.
-    3. Run plate *detector* → list of detection objects (each with .crop, .confidence).
-    4. Apply CLAHE pre-processing to each crop.
-    5. Run character *classifier* on each CLAHE crop → raw OCR string.
-    6. Call ``attendance_engine.process_gate_event()`` — the engine handles
-       LPM-MLED correction internally before writing to the DB.
-
-    Parameters
-    ----------
-    camera:
-        Object exposing ``read() -> np.ndarray | None`` and ``release()``.
-    detector:
-        Object exposing ``detect(frame) -> list`` where each element has
-        ``.crop`` (np.ndarray) and ``.confidence`` (float) attributes.
-    classifier:
-        Object exposing ``classify(crop: np.ndarray) -> str``.
-    attendance_engine:
-        ``AttendanceEngine`` instance with an open DB connection.
-    gate_id:
-        Gate identifier (e.g. ``"GATE-A"``).
-    direction:
-        ``"ENTRY"`` or ``"EXIT"``.
-    stop_event:
-        ``threading.Event``; loop exits when set.  Pass ``None`` to run until
-        the camera returns ``None``.
-    frame_callback:
-        Optional callable invoked with each BGR frame before detection.
-    """
     logger.info("Pipeline started: gate=%s direction=%s", gate_id, direction)
 
     while True:
@@ -128,7 +88,6 @@ def run_pipeline(
 DEFAULT_COOLDOWN_SECONDS = 3.0
 
 class PlateDebouncer:
-    """Rate-limiting cache: track recently seen plates to prevent duplicates."""
 
     def __init__(self, cooldown_seconds: float = DEFAULT_COOLDOWN_SECONDS):
         self.cooldown_seconds = cooldown_seconds
@@ -136,7 +95,6 @@ class PlateDebouncer:
         self._lock = threading.Lock()
 
     def should_process(self, plate: str) -> bool:
-        """Return True if *plate* should be processed (not in cooldown window)."""
         with self._lock:
             now = time.time()
             last_time = self._last_seen.get(plate, now - self.cooldown_seconds - 1)
@@ -148,22 +106,11 @@ class PlateDebouncer:
             return is_fresh
 
     def snooze(self, plate: str, seconds: float) -> None:
-        """Block *plate* for *seconds* from now, regardless of cooldown_seconds.
-
-        Used after an EXCEPTION outcome so an unregistered vehicle sitting in
-        front of the camera cannot re-trigger the exception queue every 3 s
-        while the operator decides what to do.
-
-        Mechanics: sets _last_seen such that ``now - last_seen < cooldown`` for
-        the next *seconds* seconds.  Formula: last_seen = now - cooldown + seconds.
-        At time (now + delta): delta + cooldown - seconds >= cooldown ↔ delta >= seconds.
-        """
         with self._lock:
             now = time.time()
             self._last_seen[plate] = now - self.cooldown_seconds + seconds
 
 class PlateResult:
-    """Result from detecting and classifying a single plate in a frame."""
     def __init__(
         self,
         plate_detection,
@@ -189,32 +136,6 @@ def process_frame(
     direction: str,
     debouncer: Optional[PlateDebouncer] = None,
 ) -> list[PlateResult]:
-    """Process a single frame through the full ALPR pipeline.
-
-    Detects plates, classifies them, optionally debounces, and submits to engine.
-
-    Parameters
-    ----------
-    frame : np.ndarray
-        BGR video frame
-    detector
-        PlateDetector instance with detect(frame) method
-    classifier
-        CharClassifier instance with classify(crop) method
-    engine
-        AttendanceEngine instance
-    gate_id : str
-        Gate identifier (e.g. "GATE-A")
-    direction : str
-        "ENTRY" or "EXIT"
-    debouncer : Optional[PlateDebouncer]
-        Optional debouncer to prevent rapid re-submissions
-
-    Returns
-    -------
-    list[PlateResult]
-        List of detection results (including debounced ones)
-    """
     results = []
     t_start = time.perf_counter()
 
@@ -283,24 +204,6 @@ def draw_overlays(
     labels: Optional[list[str]] = None,
     debounced_indices: Optional[set[int]] = None,
 ) -> np.ndarray:
-    """Draw bounding boxes and labels on a frame.
-
-    Parameters
-    ----------
-    frame : np.ndarray
-        Input BGR frame
-    detections : list
-        List of detection objects (each with .bbox or .x1, .y1, .x2, .y2)
-    labels : Optional[list[str]]
-        Optional labels (one per detection); if None, draw confidence scores
-    debounced_indices : Optional[set[int]]
-        Indices of debounced detections (drawn in grey instead of green)
-
-    Returns
-    -------
-    np.ndarray
-        Annotated frame (copy of input with overlays)
-    """
     if debounced_indices is None:
         debounced_indices = set()
 

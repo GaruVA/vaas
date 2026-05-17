@@ -1,4 +1,3 @@
-"""Manager blueprint: reports, analytics, exports, audit verify."""
 from __future__ import annotations
 
 import io

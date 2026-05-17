@@ -1,21 +1,5 @@
 from __future__ import annotations
 
-"""SHA-256 hash-chained audit log for VAAS access_log table.
-
-Two-step INSERT / UPDATE pattern
----------------------------------
-1. Insert the row with ``row_hash = 'PENDING'`` to obtain the auto-assigned PK.
-2. Compute SHA-256 over the JSON payload ``{id, plate_number, timestamp,
-   gate_id, direction, prev_hash}`` (sorted keys, compact separators).
-3. UPDATE the row with the real hash.
-
-Including the PK in the payload defeats row-reordering attacks: if two rows
-are swapped, the hash chain will be broken at the first swapped row because
-the recomputed hash will embed the *original* PK, not the swapped position.
-
-References: section 6.6 of BUILD_SPEC.md
-"""
-
 import hashlib
 import json
 import logging
@@ -28,23 +12,6 @@ from src.config import GENESIS_PREV_HASH
 logger = logging.getLogger(__name__)
 
 def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
-    """Compute and commit the SHA-256 hash for an ``access_log`` row.
-
-    Must be called after the INSERT that created the row.  The row must
-    already have ``row_hash = 'PENDING'``.
-
-    Parameters
-    ----------
-    conn:
-        Open database connection (autocommit or inside a transaction).
-    row_id:
-        The ``access_log.id`` of the newly inserted row.
-
-    Returns
-    -------
-    str
-        The computed hex digest, also written to ``access_log.row_hash``.
-    """
     cur = conn.cursor()
 
     cur.execute(
@@ -87,7 +54,6 @@ def finalise_row_hash(conn: sqlite3.Connection, row_id: int) -> str:
 
 @dataclass
 class ChainVerificationResult:
-    """Result returned by :func:`verify_chain`."""
 
     ok: bool
     first_bad_id: int | None
@@ -96,15 +62,6 @@ class ChainVerificationResult:
     rows_checked: int
 
 def verify_chain(conn: sqlite3.Connection) -> ChainVerificationResult:
-    """Walk the entire ``access_log`` and verify SHA-256 chain integrity.
-
-    Returns
-    -------
-    ChainVerificationResult
-        ``.ok`` is ``True`` only when every row's stored hash matches the
-        recomputed hash.  On failure, ``.first_bad_id`` identifies the
-        first offending row.
-    """
     verified_at = datetime.now(timezone.utc).isoformat()
     cur = conn.cursor()
     cur.execute(
@@ -184,10 +141,6 @@ def log_gate_event(
     project_code: str | None = None,
     plate_crop_b64: str | None = None,
 ) -> int:
-    """Insert an ``access_log`` row and finalise its hash chain link.
-
-    Returns the new row id.
-    """
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO access_log

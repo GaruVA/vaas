@@ -1,4 +1,3 @@
-"""Session auth, bcrypt password hashing, role decorators (§5.7)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

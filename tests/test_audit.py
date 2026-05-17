@@ -1,31 +1,5 @@
 from __future__ import annotations
 
-"""20 tests for src/audit.py -- SHA-256 two-step hash chain.
-
-Test matrix
------------
-1.  empty log -> ok=True, rows_checked=0
-2.  single row -> ok=True, rows_checked=1
-3.  genesis prev_hash matches GENESIS_PREV_HASH constant
-4.  PK is in payload (verify field)
-5.  field-value tampering on interior row -> flagged
-6.  field-value tampering on first row -> flagged
-7.  field-value tampering on last row -> flagged
-8.  row deletion (gap) -> flagged at next row
-9.  row reordering (swap field values) -> flagged (PK-in-payload defence)
-10. 1000-row chain -> ok=True, zero false positives
-11. duplicate insert + finalise on same row -> idempotent (same hash)
-12. multi-row chain: each stored hash != its predecessor
-13. finalise_row_hash returns hex string of length 64
-14. finalise_row_hash raises ValueError for missing row_id
-15. verify_chain first_bad_id points to correct row
-16. verify_chain reason string contains id of bad row
-17. verify_chain rows_checked = total rows on intact chain
-18. two separate chains (two DBs) produce same hash for same input
-19. status field NOT in payload -- changing status does not break chain
-20. log_gate_event convenience helper inserts row with non-PENDING hash
-"""
-
 import hashlib
 import json
 import sqlite3
@@ -38,7 +12,6 @@ from src.database import init_db
 
 def _insert(conn, plate="AA-1234", ts="2026-01-01T07:00:00Z",
             gate="MAIN_GATE", direction="ENTRY"):
-    """Insert a PENDING row and finalise its hash; return row_id."""
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO access_log
@@ -63,7 +36,6 @@ def test_02_single_row_ok(db):
     assert result.rows_checked == 1
 
 def test_03_genesis_prev_hash(db):
-    """First row's hash payload must use GENESIS_PREV_HASH as prev_hash."""
     row_id = _insert(db)
     row = db.execute(
         "SELECT plate_number, timestamp, gate_id, direction, row_hash "
@@ -84,7 +56,6 @@ def test_03_genesis_prev_hash(db):
     assert row[4] == expected
 
 def test_04_pk_in_payload(db):
-    """The hash payload explicitly contains the row's PK (id field)."""
     row_id = _insert(db)
     row = db.execute(
         "SELECT plate_number, timestamp, gate_id, direction, row_hash "
@@ -117,7 +88,6 @@ def test_04_pk_in_payload(db):
     assert row[4] != hashlib.sha256(payload_without_id.encode()).hexdigest()
 
 def test_05_tamper_interior_row(db):
-    """Tamper field value on an interior row -> chain broken at that row."""
     id1 = _insert(db, ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, ts="2026-01-01T08:00:00Z")
     id3 = _insert(db, ts="2026-01-01T09:00:00Z")
@@ -144,7 +114,6 @@ def test_07_tamper_last_row(db):
     assert result.first_bad_id == id2
 
 def test_08_row_deletion_flagged(db):
-    """Delete an interior row -> chain broken at the next row."""
     _insert(db, ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, ts="2026-01-01T08:00:00Z")
     id3 = _insert(db, ts="2026-01-01T09:00:00Z")
@@ -156,12 +125,6 @@ def test_08_row_deletion_flagged(db):
     assert result.first_bad_id == id3
 
 def test_09_row_reordering_flagged(db):
-    """Swap field values between two rows -> flagged (PK-in-payload defence).
-
-    Even if an attacker swaps all non-PK fields between two rows, the hash
-    payload contains the PK, so the recomputed hash won't match the stored
-    one at whichever row now has mismatched PK/fields.
-    """
     id1 = _insert(db, plate="AA-0001", ts="2026-01-01T07:00:00Z")
     id2 = _insert(db, plate="BB-0002", ts="2026-01-01T08:00:00Z")
 
@@ -179,7 +142,6 @@ def test_10_1000_row_chain_zero_false_positives(db):
     assert result.rows_checked == 1000
 
 def test_11_finalise_idempotent(db):
-    """Calling finalise_row_hash twice on the same row gives the same hash."""
     row_id = _insert(db)
     h1 = db.execute(
         "SELECT row_hash FROM access_log WHERE id = ?", (row_id,)
@@ -189,7 +151,6 @@ def test_11_finalise_idempotent(db):
     assert h1 == h2
 
 def test_12_consecutive_hashes_differ(db):
-    """Each row's hash is distinct from its predecessor."""
     ids = [_insert(db, ts=f"2026-01-0{i+1}T07:00:00Z") for i in range(5)]
     hashes = [
         db.execute("SELECT row_hash FROM access_log WHERE id=?", (i,)).fetchone()[0]
@@ -229,7 +190,6 @@ def test_17_rows_checked_intact_chain(db):
     assert result.rows_checked == n
 
 def test_18_same_input_same_hash_across_dbs(db):
-    """Two fresh DBs with identical inserts produce identical hashes."""
     db2 = __import__("sqlite3").connect(":memory:")
     db2.row_factory = __import__("sqlite3").Row
     init_db(db2)
@@ -243,14 +203,12 @@ def test_18_same_input_same_hash_across_dbs(db):
     db2.close()
 
 def test_19_status_not_in_payload(db):
-    """Changing status field alone must NOT break the chain (status is not hashed)."""
     row_id = _insert(db)
     db.execute("UPDATE access_log SET status='LATE_ARRIVAL' WHERE id=?", (row_id,))
     result = verify_chain(db)
     assert result.ok is True
 
 def test_20_log_gate_event_helper(db):
-    """log_gate_event convenience function leaves a non-PENDING row_hash."""
     row_id = log_gate_event(
         db,
         plate_number="WP-CAB-1234",

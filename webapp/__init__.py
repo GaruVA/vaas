@@ -1,4 +1,3 @@
-"""VAAS web application — Flask application factory and initialization."""
 from __future__ import annotations
 
 import queue
@@ -10,12 +9,6 @@ from flask import Flask, g
 from src.config import DB_PATH, HARDWARE_MODE as _DEFAULT_HW_MODE, SECRET_KEY
 
 class SSEBroker:
-    """Fan-out pub/sub broker for Server-Sent Events.
-
-    Each call to ``subscribe()`` returns a ``queue.Queue`` that will receive
-    every event dict published via ``publish()``.  Call ``unsubscribe(q)``
-    when the SSE client disconnects to stop filling its queue.
-    """
 
     def __init__(self) -> None:
         self._lock: threading.Lock = threading.Lock()
@@ -44,16 +37,6 @@ class SSEBroker:
                 pass
 
 def create_app(config_overrides: dict | None = None, hardware_mode: str | None = None, start_overstay_monitor: bool = False) -> Flask:
-    """Create and configure the VAAS Flask application.
-    
-    Args:
-        config_overrides: Optional dict to override Flask config settings.
-        hardware_mode: Optional hardware mode (LIVE or MOCK); passed to config if provided.
-        start_overstay_monitor: Whether to start the overstay monitoring thread (not yet implemented).
-        
-    Returns:
-        Configured Flask application with all blueprints registered.
-    """
     import logging as _logging
     _logger = _logging.getLogger(__name__)
 
@@ -104,7 +87,6 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     
     @app.before_request
     def ensure_db():
-        """Ensure database connection is available for each request."""
         if "db" not in g:
             g.db = sqlite3.connect(str(DB_PATH))
             g.db.isolation_level = None
@@ -113,7 +95,6 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     
     @app.teardown_appcontext
     def close_db(error):
-        """Close database connection on app teardown."""
         db = g.pop("db", None)
         if db is not None:
             db.close()
@@ -135,7 +116,6 @@ def create_app(config_overrides: dict | None = None, hardware_mode: str | None =
     UI_DIR = app.static_folder + "/ui"
 
     def _require_login(next_url: str):
-        """Return a redirect to the login page if no session, else None."""
         if "user_id" not in session:
             return redirect(url_for("auth.login", next=next_url))
         return None

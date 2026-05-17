@@ -1,20 +1,3 @@
-"""Operator blueprint: live dashboard, exception disposition, SSE, MJPEG stream.
-
-Sprint 3.3 — LIVE bounding-box stream
---------------------------------------
-`start_camera_worker(gate_id, camera_index, direction, app_context)` launches a
-background daemon thread that:
-  1. Opens a real USBCamera (Logitech C920 / any V4L2 / DirectShow device)
-  2. Reads frames continuously
-  3. Runs the PlateDetector on every frame
-  4. Draws bounding boxes + confidence labels onto the frame
-  5. For every detected plate, runs the full ALPR pipeline (CLAHE → CharClassifier
-     → AttendanceEngine.process_gate_event)
-  6. Stores the annotated frame in _LATEST_FRAMES so the MJPEG endpoint can serve it
-
-The MJPEG endpoint (/operator/stream/<gate_id>.mjpg) reads from _LATEST_FRAMES and
-yields multipart JPEG data at ~10 fps.  No mock frames are served in production.
-"""
 from __future__ import annotations
 
 import json
@@ -49,7 +32,6 @@ _SHARED_DETECTOR = None
 _SHARED_CLASSIFIER = None
 
 def _get_models():
-    """Return (detector, classifier), loading from disk only on the first call."""
     global _SHARED_DETECTOR, _SHARED_CLASSIFIER
     if _SHARED_DETECTOR is not None:
         return _SHARED_DETECTOR, _SHARED_CLASSIFIER
@@ -74,7 +56,6 @@ def _latest_frame(gate_id: str) -> Optional[np.ndarray]:
 
 def _camera_worker(gate_id: str, camera_index: int, direction: str,
                    stop_event: threading.Event, app) -> None:
-    """Background thread: read live frames, detect plates, draw overlays, run pipeline."""
     from src.camera import USBCamera
     from src.detection import PlateDetection
 
@@ -193,11 +174,6 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
 
 def start_camera_worker(gate_id: str, camera_index: int,
                         direction: str, app) -> threading.Thread:
-    """Launch (or restart) the live camera worker for *gate_id*.
-
-    Called from the production runner (app.py) after create_app().
-    Safe to call multiple times — previous worker is stopped first.
-    """
     stop_camera_worker(gate_id)
     stop_event = threading.Event()
     _WORKER_STOP[gate_id] = stop_event
@@ -273,7 +249,6 @@ def dashboard():
 @operator_bp.route("/sse")
 @_requires_login
 def sse():
-    """Server-Sent Events stream (pushes new gate events to the dashboard)."""
     broker = g.get("VAAS_BROKER") or current_app.config.get("VAAS_BROKER")
     if broker is None:
         logger.error("VAAS_BROKER not initialized")
@@ -352,12 +327,6 @@ def dispose(access_log_id: int):
 @operator_bp.route("/stream/<gate_id>.mjpg")
 @_requires_login
 def stream(gate_id: str):
-    """MJPEG live stream with ALPR bounding-box overlays (Sprint 3.3).
-
-    Yields annotated frames from _LATEST_FRAMES, which are populated by the
-    background camera worker threads.  If the worker hasn't produced a frame
-    yet a 'waiting' placeholder is served so the <img> tag is never broken.
-    """
     if gate_id not in ("GATE_A", "GATE_B"):
         return "Unknown gate", 404
 

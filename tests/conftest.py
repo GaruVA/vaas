@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-"""Shared pytest fixtures for VAAS test suite."""
-
 import io
 import tempfile
 import threading
@@ -17,7 +15,6 @@ from src.database import init_db, migrate_db, connect as db_connect
 
 @pytest.fixture
 def db():
-    """Bare in-memory SQLite connection with VAAS schema applied."""
     conn = db_connect(":memory:")
     init_db(conn)
     yield conn
@@ -25,8 +22,6 @@ def db():
 
 @pytest.fixture
 def seeded_db(db):
-    """In-memory DB seeded with 3 shifts, demo zones, companies, projects,
-    registered vehicles, and users."""
     import json
     import bcrypt
 
@@ -153,7 +148,6 @@ def seeded_db(db):
 
 @pytest.fixture
 def engine(seeded_db):
-    """AttendanceEngine wired to seeded_db with a mock barrier."""
     from src.attendance import AttendanceEngine
     from src.barrier import BarrierController
 
@@ -163,7 +157,6 @@ def engine(seeded_db):
 
 @pytest.fixture
 def frozen_time(monkeypatch):
-    """Return a setter that fixes src.attendance.datetime.now to a given datetime."""
     import src.attendance as att_mod
 
     class _FrozenDatetime:
@@ -181,13 +174,11 @@ def frozen_time(monkeypatch):
 
 @pytest.fixture
 def mock_barrier():
-    """MOCK-mode BarrierController — records open/close calls."""
     from src.barrier import BarrierController
     return BarrierController("MOCK")
 
 @pytest.fixture
 def make_jpeg_bytes():
-    """Return a factory that creates a tiny JPEG bytestring (numpy required)."""
     import numpy as np
     import cv2
 

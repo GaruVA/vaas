@@ -1,26 +1,5 @@
 from __future__ import annotations
 
-"""15 tests for src/projects.py -- CDL Specialisation Layer.
-
-Coverage
---------
-1.  create_zone + get_zone round-trip
-2.  create_zone rejects invalid zone_type (ValueError)
-3.  create_project raises FK violation when zone_id missing
-4.  list_projects filtered by status
-5.  close_project sets status=CLOSED
-6.  close_project soft-removes assignments (removed_at set)
-7.  close_project does not hard-delete rows
-8.  assign_vehicle_to_project: SUBCONTRACTOR without company_id -> ValueError
-9.  assign_vehicle_to_project: SUBCONTRACTOR with non-existent company_id -> ValueError
-10. assign_vehicle_to_project: EMPLOYEE without company_id accepted
-11. get_project_attendance_summary distinct-day counting
-12. list_companies filtered by approval_status (SUSPENDED)
-13. get_zone_occupancy: counts unmatched ENTRY events
-14. list_project_vehicles active_only=True filters removed assignments
-15. resolve_event_attribution matches gate in zone's associated_gates
-"""
-
 import json
 import sqlite3
 

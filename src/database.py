@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-"""SQLite WAL database layer -- 12-table VAAS schema.
-
-Tables
-------
-Core (8): registered_vehicles, shifts, vehicle_shifts, vehicle_assignments,
-          access_log, users, gate_rejections, admin_audit_log
-CDL  (4): cdl_zones, subcontractor_companies, projects, project_vehicle_assignments
-
-References: section 5 of BUILD_SPEC.md
-"""
-
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -194,19 +183,6 @@ _MIGRATIONS: dict[int, str] = {
 }
 
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
-    """Open a SQLite connection, preferring WAL journal mode.
-
-    Falls back to MEMORY journal mode on file-systems that do not support
-    WAL's shared-memory sidecar files (e.g. certain overlay mounts used in
-    development containers).  In-memory databases (``":memory:"``) are
-    unaffected.
-
-    Parameters
-    ----------
-    db_path:
-        Filesystem path or ``':memory:'`` for an in-memory database.
-        Defaults to ``DB_PATH`` from config.
-    """
     path = str(db_path) if db_path is not None else str(DB_PATH)
     if path != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -224,24 +200,10 @@ def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     return conn
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """Apply the base schema from scratch.  Safe on a fresh database."""
     conn.executescript(_DDL_SQL)
     logger.debug("VAAS schema initialised")
 
 def migrate_db(conn: sqlite3.Connection) -> None:
-    """Apply base schema then run incremental migrations idempotently.
-
-    Each migration in ``_MIGRATIONS`` is attempted in key order.
-    ``sqlite3.OperationalError`` is silently swallowed when the message
-    contains any of:
-
-    - ``"duplicate column name"`` -- column already exists (fresh DB)
-    - ``"no such column"``        -- rename of non-existent column
-    - ``"no such table"``         -- table not yet created
-
-    This makes the function safe on both fresh databases (base DDL already
-    names columns correctly) and legacy databases (ALTER TABLE is needed).
-    """
 
     conn.executescript(_DDL_SQL)
 
@@ -263,13 +225,6 @@ def migrate_db(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Generator[sqlite3.Cursor, None, None]:
-    """Explicit BEGIN / COMMIT / ROLLBACK context manager.
-
-    Usage::
-
-        with transaction(conn) as cur:
-            cur.execute(...)
-    """
     cur = conn.cursor()
     cur.execute("BEGIN")
     try:

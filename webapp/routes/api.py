@@ -1,30 +1,3 @@
-"""Comprehensive JSON API — covers FR-01 through FR-13.
-
-Endpoint groups
----------------
-Stats          GET  /api/stats
-Events         GET  /api/events/recent
-Exceptions     GET  /api/exceptions/pending
-               POST /api/exceptions/<id>/dispose
-Vehicles       GET/POST            /api/vehicles
-               GET/PUT/DELETE      /api/vehicles/<plate>
-Shifts         GET/POST            /api/shifts
-               GET/PUT/DELETE      /api/shifts/<id>
-Zones          GET/POST            /api/zones
-               GET/PUT/DELETE      /api/zones/<zone_id>
-Users          GET/POST            /api/users
-               GET/PUT/DELETE      /api/users/<id>
-Companies      GET/POST            /api/companies
-Projects       GET/POST            /api/projects
-               GET/PUT             /api/projects/<code>
-               POST                /api/projects/<code>/close
-               GET/POST            /api/projects/<code>/vehicles
-               DELETE              /api/projects/<code>/vehicles/<plate>
-Manager dash   GET  /api/manager/dashboard
-Audit          GET  /api/audit/chain
-               GET  /api/audit/log
-               GET  /api/audit/rejections
-"""
 from __future__ import annotations
 
 import io
@@ -67,7 +40,6 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 def _audit(action: str, entity_type: str, entity_id: str,
            details: dict | None = None) -> None:
-    """Write a row to admin_audit_log (never raises)."""
     try:
         g.db.execute(
             "INSERT INTO admin_audit_log "
@@ -107,7 +79,6 @@ _STATUS_DISPLAY: dict[str, str] = {
 }
 
 def _current_shift() -> dict:
-    """Return the current operational shift name, label, and minutes remaining."""
     now = datetime.now(timezone.utc)
     h = now.hour
     if 7 <= h < 15:
@@ -128,7 +99,6 @@ def _current_shift() -> dict:
 
 @api_bp.route("/user")
 def get_current_user():
-    """Return current logged-in user info from session."""
     user_id = session.get("user_id")
     if not user_id:
         return _err("Not authenticated", 401)
@@ -151,7 +121,6 @@ def get_current_user():
 @api_bp.route("/stats")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def stats():
-    """Top-level KPI summary for the VAAS hub page."""
     db = g.db
     today_str = _today()
     events_today = db.execute(
@@ -212,13 +181,11 @@ def recent():
 @api_bp.route("/shift")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def current_shift_route():
-    """Return active shift name, label, and minutes remaining (UTC-based)."""
     return jsonify(_current_shift())
 
 @api_bp.route("/gates/status")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def gates_status():
-    """Return real-time status of all gates — which have pending exceptions/ALPR activity."""
     gates = g.db.execute(
         """SELECT DISTINCT gate_id FROM access_log
            WHERE DATE(timestamp) = DATE('now')
@@ -364,7 +331,6 @@ def dispose_exception(access_log_id: int):
 @api_bp.route("/exceptions/history")
 @requires_role("OPERATOR", "MANAGER", "ADMIN")
 def exceptions_history():
-    """Recent disposed exceptions with operator notes — for manager review."""
     days = min(int(request.args.get("days", 7)), 90)
     since = _days_ago(days)
     rows = g.db.execute(
@@ -389,7 +355,6 @@ def exceptions_history():
 @api_bp.route("/fleet/counts")
 @requires_role("ADMIN", "MANAGER")
 def fleet_counts():
-    """Return total counts of active vehicles, shifts, zones, and users."""
     vehicles = g.db.execute(
         "SELECT COUNT(*) FROM registered_vehicles WHERE registration_status='ACTIVE'"
     ).fetchone()[0]
@@ -455,7 +420,6 @@ def list_vehicles():
 @api_bp.route("/vehicles/<plate>/impact", methods=["GET"])
 @requires_role("ADMIN", "MANAGER")
 def vehicle_impact(plate: str):
-    """Return downstream impact data for the Cascade Suspend modal."""
     plate = plate.upper()
     veh = g.db.execute(
         "SELECT 1 FROM registered_vehicles WHERE plate_number=?", (plate,)
@@ -950,7 +914,6 @@ def project_vehicles_unassign(code: str, plate: str):
 @api_bp.route("/manager/dashboard")
 @requires_role("MANAGER", "ADMIN")
 def manager_dashboard():
-    """Single endpoint delivering all BI data for vaas-manager.html."""
     db = g.db
 
     date_to   = request.args.get("date_to",   _today())
@@ -1129,7 +1092,6 @@ def manager_dashboard():
 @api_bp.route("/audit/chain")
 @requires_role("ADMIN")
 def audit_chain():
-    """Chain integrity + forensic detail: tamper attribution, byte-diff, taint count."""
     import hashlib as _hashlib
     import json as _json2
     from datetime import timedelta as _td
@@ -1256,7 +1218,6 @@ def audit_chain():
 @api_bp.route("/audit/log")
 @requires_role("ADMIN")
 def audit_log():
-    """Admin audit log with optional filters."""
     date_from   = request.args.get("date_from",   _days_ago(30))
     date_to     = request.args.get("date_to",     _today())
     username    = request.args.get("username")    or None

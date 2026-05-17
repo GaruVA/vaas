@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-"""6 tests for src/barrier.py -- MOCK-mode BarrierController."""
-
 import pytest
 from src.barrier import BarrierController
 

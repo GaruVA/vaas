@@ -1,43 +1,5 @@
 from __future__ import annotations
 
-"""Shift-aware attendance engine for VAAS.
-
-Gate processing runs two independent pathways:
-
-Pathway 1 — Registered employees (schedule-anchored offset)
-    Triggered when: plate matches registered_vehicles AND vehicle_shifts
-    has an active shift assignment.
-    Algorithm: signed datetime subtraction from the scheduled shift-start.
-    Two candidate shift-start datetimes are evaluated (today / yesterday);
-    the first whose window covers the arrival wins.  No modular arithmetic.
-    Outputs: EARLY_ARRIVAL, ON_TIME_ENTRY, LATE_ARRIVAL,
-             EARLY_DEPARTURE, ON_TIME_EXIT, OVERSTAY.
-
-Pathway 2 — Unregistered vehicles / visitors (time-of-day fallback)
-    Triggered when: plate not in registered_vehicles, confidence below
-    threshold, or registration status SUSPENDED / EXPIRED.
-    Unregistered vehicles have no schedule and no compliance obligation;
-    the system records the timestamp and raises an exception alert.
-    Outputs: VISITOR, VISITOR_ADMITTED, VISITOR_REJECTED,
-             VISITOR_PENDING_REGISTRATION, VISITOR_TIMEOUT_REJECT,
-             SUSPENDED, EXPIRED.
-
-Midnight boundary (Pathway 1)
-------------------------------
-``_classify_status`` evaluates two candidate shift-start datetimes (today
-and yesterday) and picks the first where the arrival offset is within
-``_EARLY_WINDOW_MINUTES``.  This means a 22:45 arrival for a shift that
-starts at 23:00 is correctly classified as EARLY_ARRIVAL for tonight, not
-LATE_ARRIVAL for yesterday.
-
-Grace period
-------------
-Read at runtime from ``shifts.grace_period_minutes``.  No hardcoded value
-anywhere in this module.
-
-References: section 6.5 of BUILD_SPEC.md
-"""
-
 import json
 import logging
 import re
@@ -97,19 +59,6 @@ class GateEventResult:
     message:       str = ""
 
 class AttendanceEngine:
-    """Processes gate events and determines attendance status.
-
-    Parameters
-    ----------
-    conn:
-        Open SQLite connection.
-    barrier:
-        :class:`~src.barrier.BarrierController` instance.
-    sse_callback:
-        Optional callable(event_type: str, data: dict) for SSE push.
-    exception_timeout:
-        Seconds before an unresolved visitor exception auto-rejects.
-    """
 
     _EARLY_WINDOW_MINUTES = 60
 
@@ -137,23 +86,6 @@ class AttendanceEngine:
         plate_crop_jpeg_bytes: bytes,
         timestamp: datetime | None = None,
     ) -> GateEventResult:
-        """Process one gate event and return the outcome.
-
-        Parameters
-        ----------
-        raw_plate:
-            Raw OCR string from the classifier.
-        confidence:
-            Classifier confidence score (0–1).
-        gate_id:
-            Gate identifier (e.g. ``"MAIN_GATE"``).
-        direction:
-            ``"ENTRY"`` or ``"EXIT"``.
-        plate_crop_jpeg_bytes:
-            JPEG bytes of the plate crop (stored in DB, may be empty).
-        timestamp:
-            Event time; defaults to ``utcnow()``.
-        """
         import base64
         now = timestamp or _now()
         ts_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -317,12 +249,6 @@ class AttendanceEngine:
         operator_user_id: int,
         note: str | None = None,
     ) -> None:
-        """Handle operator disposition of a visitor exception.
-
-        ADMIT   -> status VISITOR_ADMITTED, open barrier.
-        REJECT  -> status VISITOR_REJECTED, write gate_rejections row.
-        REGISTER -> status VISITOR_PENDING_REGISTRATION.
-        """
 
         timer = self._pending_timers.pop(access_log_id, None)
         if timer:
@@ -373,15 +299,6 @@ class AttendanceEngine:
     def _classify_visitor_anomaly(
         self, raw_plate: str, gate_id: str, direction: str, ts_str: str
     ) -> "GateStatus":
-        """Return the appropriate status for an unregistered-plate event.
-
-        True double-entry — only raised when the previous ENTRY was actually
-        admitted (VISITOR_ADMITTED, ON_TIME_ENTRY, …).  A timed-out or
-        rejected attempt is NOT an admission; the vehicle must be able to
-        retry and reach the exception queue again.
-
-        Unmatched-exit — EXIT with no prior ENTRY on record.
-        """
         last_row = self._conn.execute(
             "SELECT direction, status FROM access_log "
             "WHERE plate_number = ? ORDER BY id DESC LIMIT 1",
@@ -405,7 +322,6 @@ class AttendanceEngine:
     def _handle_visitor(
         self, raw_plate, confidence, gate_id, direction, ts_str, crop_b64
     ) -> GateEventResult:
-        """Insert VISITOR row and schedule auto-reject timeout."""
         visitor_status = self._classify_visitor_anomaly(raw_plate, gate_id, direction, ts_str)
         row_id = self._insert_access_log(
             raw_plate, ts_str, gate_id, direction,
@@ -438,7 +354,6 @@ class AttendanceEngine:
         )
 
     def _auto_reject(self, access_log_id: int) -> None:
-        """Called by threading.Timer after timeout -- auto-reject visitor."""
         self._pending_timers.pop(access_log_id, None)
         row = self._conn.execute(
             "SELECT gate_id FROM access_log WHERE id = ?", (access_log_id,)
@@ -460,27 +375,6 @@ class AttendanceEngine:
         now: datetime,
         shift_row,
     ) -> GateStatus:
-        """Return attendance status for a registered, active vehicle (Pathway 1).
-
-        Uses schedule-anchored signed offset so that early arrivals for
-        midnight-crossing shifts are never misclassified as late returns
-        from the previous shift.
-
-        Candidate selection
-        -------------------
-        Two shift-start datetimes are evaluated: today's and yesterday's.
-        The first candidate where the arrival offset is within
-        ``[-_EARLY_WINDOW_MINUTES, ∞)`` is selected as the anchor.
-
-        Example — NIGHT shift starts 23:00, employee arrives 22:45:
-            candidate today 23:00 → offset = -15 min → within window → use ✓
-            Result: EARLY_ARRIVAL  (not a late return from yesterday)
-
-        Example — NIGHT shift starts 23:00, employee arrives 00:01 next day:
-            candidate today 23:00 → offset = -1379 min → outside window
-            candidate yesterday 23:00 → offset = +61 min → within window → use ✓
-            Result: LATE_ARRIVAL (61 min past shift start)
-        """
         if shift_row is None:
             if direction == "ENTRY":
                 return GateStatus.VISITOR_ADMITTED
@@ -496,7 +390,6 @@ class AttendanceEngine:
 
         arrival_date = now.date()
 
-
         shift_start_dt: datetime | None = None
         for delta in (0, -1):
             anchor = arrival_date + timedelta(days=delta)
@@ -511,12 +404,10 @@ class AttendanceEngine:
 
         if shift_start_dt is None:
 
-
             shift_start_dt = datetime(
                 arrival_date.year, arrival_date.month, arrival_date.day,
                 start_h, start_m, tzinfo=timezone.utc,
             )
-
 
         shift_end_dt = datetime(
             shift_start_dt.year, shift_start_dt.month, shift_start_dt.day,
@@ -524,7 +415,6 @@ class AttendanceEngine:
         )
         if (end_h * 60 + end_m) <= (start_h * 60 + start_m):
             shift_end_dt += timedelta(days=1)
-
 
         offset_minutes = (now - shift_start_dt).total_seconds() / 60
 
@@ -544,7 +434,6 @@ class AttendanceEngine:
                 return GateStatus.OVERSTAY
 
     def _resolve_attribution(self, plate, gate_id, now):
-        """Resolve zone_id and project_code for this event."""
         try:
             from src.projects import resolve_event_attribution
             return resolve_event_attribution(self._conn, plate, gate_id, now.isoformat())
@@ -579,7 +468,6 @@ class AttendanceEngine:
         )
 
     def _flag_overstay(self, row_id: int, plate: str, window_start: str, window_end: str) -> None:
-        """Idempotent overstay flag using double NOT EXISTS subquery."""
         self._conn.execute(
             """UPDATE access_log SET status = 'OVERSTAY'
                WHERE id = ?

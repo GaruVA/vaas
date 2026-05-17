@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-"""28 tests for src/attendance.py -- AttendanceEngine."""
-
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -284,12 +282,6 @@ def test_32_valid_format_xx_0000_passes_filter(db):
     assert result.access_log_id is not None
 
 def test_33_night_shift_early_arrival_not_misclassified_as_late(seeded_db):
-    """Employee on NIGHT shift (23:00 start) arrives at 22:45 — 15 min early.
-
-    Before the candidate-date fix, the engine rolled back one day and returned
-    LATE_ARRIVAL (treating it as 23h45m past yesterday's shift start).
-    Correct answer: EARLY_ARRIVAL for tonight's shift.
-    """
     seeded_db.execute(
         "INSERT OR IGNORE INTO vehicle_shifts (plate_number, shift_id) VALUES (?,?)",
         ("WP-CD-7788", "NIGHT"),
@@ -301,10 +293,6 @@ def test_33_night_shift_early_arrival_not_misclassified_as_late(seeded_db):
     assert result.status == GateStatus.EARLY_ARRIVAL
 
 def test_34_day_shift_early_arrival_within_window(seeded_db):
-    """Employee on DAY shift (07:00 start) arrives at 06:15 — 45 min early.
-
-    Within the 60-minute early window so should be EARLY_ARRIVAL, not VISITOR.
-    """
     eng = _engine(seeded_db)
     ts = datetime(2026, 1, 5, 6, 15, 0, tzinfo=timezone.utc)
     result = eng.process_gate_event("WP-CAB-1234", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)

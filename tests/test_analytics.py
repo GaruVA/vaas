@@ -1,21 +1,5 @@
 from __future__ import annotations
 
-"""45 tests for src/analytics.py -- 10 report functions + 3 helpers.
-
-Distribution: 8+6+4+4+3+3+3+4+3+4+3 = 45
- 8  personal_vehicle_allowance_report
- 6  ohs_compliance_report  (incl. LEFT JOIN test)
- 4  gate_rejection_audit
- 4  admin_audit_report
- 3  daily_attendance_report
- 3  weekly_attendance_report
- 3  monthly_attendance_report
- 4  gate_throughput_report
- 3  zone_occupancy_snapshot
- 4  subcontractor_billing_audit
- 3  export helpers (csv_string, export_csv, export_pdf)
-"""
-
 import csv
 import io
 import json
@@ -131,7 +115,6 @@ def test_ohs_01_returns_all_vehicles(seeded_db):
     assert len(rows) == total_vehicles
 
 def test_ohs_02_left_join_zero_event_vehicle_present(seeded_db):
-    """LEFT JOIN: vehicle with zero access_log events must still appear."""
 
     seeded_db.execute(
         """INSERT INTO registered_vehicles (plate_number, vehicle_category, vehicle_type)
