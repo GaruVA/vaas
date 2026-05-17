@@ -295,7 +295,7 @@ def test_33_night_shift_early_arrival_not_misclassified_as_late(seeded_db):
         ("WP-CD-7788", "NIGHT"),
     )
     eng = _engine(seeded_db)
-    ts = datetime(2026, 1, 5, 22, 45, 0, tzinfo=timezone.utc)  # 15 min before 23:00 NIGHT start
+    ts = datetime(2026, 1, 5, 22, 45, 0, tzinfo=timezone.utc)
     result = eng.process_gate_event("WP-CD-7788", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
     assert result.outcome == GateOutcome.BARRIER_OPENED
     assert result.status == GateStatus.EARLY_ARRIVAL
@@ -306,7 +306,7 @@ def test_34_day_shift_early_arrival_within_window(seeded_db):
     Within the 60-minute early window so should be EARLY_ARRIVAL, not VISITOR.
     """
     eng = _engine(seeded_db)
-    ts = datetime(2026, 1, 5, 6, 15, 0, tzinfo=timezone.utc)  # 45 min before 07:00 DAY start
+    ts = datetime(2026, 1, 5, 6, 15, 0, tzinfo=timezone.utc)
     result = eng.process_gate_event("WP-CAB-1234", 0.9, "MAIN_GATE", "ENTRY", b"", timestamp=ts)
     assert result.outcome == GateOutcome.BARRIER_OPENED
     assert result.status == GateStatus.EARLY_ARRIVAL

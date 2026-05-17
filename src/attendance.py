@@ -496,7 +496,7 @@ class AttendanceEngine:
 
         arrival_date = now.date()
 
-        # ── Candidate-date selection ──────────────────────────────────────
+
         shift_start_dt: datetime | None = None
         for delta in (0, -1):
             anchor = arrival_date + timedelta(days=delta)
@@ -510,14 +510,14 @@ class AttendanceEngine:
                 break
 
         if shift_start_dt is None:
-            # Arrived more than EARLY_WINDOW before any candidate; treat as
-            # early for today's shift (edge case: very long shift gaps).
+
+
             shift_start_dt = datetime(
                 arrival_date.year, arrival_date.month, arrival_date.day,
                 start_h, start_m, tzinfo=timezone.utc,
             )
 
-        # ── Shift end anchored to confirmed start ─────────────────────────
+
         shift_end_dt = datetime(
             shift_start_dt.year, shift_start_dt.month, shift_start_dt.day,
             end_h, end_m, tzinfo=timezone.utc,
@@ -525,7 +525,7 @@ class AttendanceEngine:
         if (end_h * 60 + end_m) <= (start_h * 60 + start_m):
             shift_end_dt += timedelta(days=1)
 
-        # ── Signed offset classification ──────────────────────────────────
+
         offset_minutes = (now - shift_start_dt).total_seconds() / 60
 
         if direction == "ENTRY":

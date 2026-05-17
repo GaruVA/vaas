@@ -57,50 +57,50 @@ CDL_FUN_BLUE   = "#1B3F95"
 CDL_YELLOW     = "#f4bd0f"
 CDL_SAFETY_GRN = "#76bd33"
 
-# ── Personal Vehicle Allowance Rates ─────────────────────────────────────────
-# Daily allowance in LKR, keyed by (vehicle_category, vehicle_type).
-# Edit the values below to reflect CDL's actual rate schedule.
-# Any unlisted combination falls back to ALLOWANCE_DEFAULT_LKR.
+
+
+
+
 ALLOWANCE_DEFAULT_LKR: int = 2678
 
 ALLOWANCE_RATES: dict[tuple[str, str], int] = {
-    # ── STAFF ────────────────────────────────────────────────────
+
     ("STAFF",       "CAR"):        2678,
     ("STAFF",       "VAN"):        2678,
     ("STAFF",       "TRUCK"):      2678,
     ("STAFF",       "MOTORCYCLE"): 2678,
     ("STAFF",       "UTILITY"):    2678,
-    # ── CONTRACTOR ───────────────────────────────────────────────
+
     ("CONTRACTOR",  "CAR"):        2678,
     ("CONTRACTOR",  "VAN"):        2678,
     ("CONTRACTOR",  "TRUCK"):      2678,
     ("CONTRACTOR",  "MOTORCYCLE"): 2678,
     ("CONTRACTOR",  "UTILITY"):    2678,
-    # ── MANAGEMENT ───────────────────────────────────────────────
+
     ("MANAGEMENT",  "CAR"):        2678,
     ("MANAGEMENT",  "VAN"):        2678,
     ("MANAGEMENT",  "TRUCK"):      2678,
     ("MANAGEMENT",  "MOTORCYCLE"): 2678,
     ("MANAGEMENT",  "UTILITY"):    2678,
-    # ── FLEET ────────────────────────────────────────────────────
+
     ("FLEET",       "CAR"):        2678,
     ("FLEET",       "VAN"):        2678,
     ("FLEET",       "TRUCK"):      2678,
     ("FLEET",       "MOTORCYCLE"): 2678,
     ("FLEET",       "UTILITY"):    2678,
-    # ── VISITOR ──────────────────────────────────────────────────
+
     ("VISITOR",     "CAR"):        2678,
     ("VISITOR",     "VAN"):        2678,
     ("VISITOR",     "TRUCK"):      2678,
     ("VISITOR",     "MOTORCYCLE"): 2678,
     ("VISITOR",     "UTILITY"):    2678,
-    # ── EMERGENCY ────────────────────────────────────────────────
+
     ("EMERGENCY",   "CAR"):        2678,
     ("EMERGENCY",   "VAN"):        2678,
     ("EMERGENCY",   "TRUCK"):      2678,
     ("EMERGENCY",   "MOTORCYCLE"): 2678,
     ("EMERGENCY",   "UTILITY"):    2678,
-    # ── MAINTENANCE ──────────────────────────────────────────────
+
     ("MAINTENANCE", "CAR"):        2678,
     ("MAINTENANCE", "VAN"):        2678,
     ("MAINTENANCE", "TRUCK"):      2678,

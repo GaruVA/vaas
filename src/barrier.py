@@ -53,7 +53,7 @@ class BarrierController:
         if self._mode == "LIVE":
             import serial, time
             self._serial = serial.Serial(self._port, self._baud, timeout=1)
-            time.sleep(2)  # wait for Arduino auto-reset after DTR assertion
+            time.sleep(2)
             logger.info("Barrier LIVE on %s @ %d baud (ready)", self._port, self._baud)
         else:
             logger.info("Barrier MOCK mode active")
