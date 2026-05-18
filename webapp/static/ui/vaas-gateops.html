@@ -409,7 +409,7 @@
   function ohsBadge(ohs) {
     const cfg = {
       'UNASSIGNED':    ['rgba(239,68,68,.12)',  '#ef4444','rgba(239,68,68,.25)',  'OHS: UNASSIGNED'],
-      'HIGH_OVERSTAY': ['rgba(239,68,68,.12)',  '#ef4444','rgba(239,68,68,.25)',  'OHS: HIGH RISK'],
+      'HIGH_RISK':     ['rgba(239,68,68,.12)',  '#ef4444','rgba(239,68,68,.25)',  'OHS: HIGH RISK'],
       'MEDIUM_RISK':   ['rgba(244,189,15,.12)', '#f4bd0f','rgba(244,189,15,.25)', 'OHS: MEDIUM RISK'],
       'OK':            ['rgba(118,189,51,.12)', '#76bd33','rgba(118,189,51,.25)', 'OHS: OK'],
     };
@@ -472,8 +472,8 @@
         <div style="font-size:.5625rem;font-weight:600;color:#ef4444;margin-bottom:2px">⚠ NO DRIVER ASSIGNED</div>
         <div style="font-size:.5rem;color:#5a6c8a">Vehicle has no active driver on record</div>
       </div>`;
-    } else if (ohs === 'HIGH_OVERSTAY' || ohs === 'MEDIUM_RISK') {
-      const riskCol = ohs === 'HIGH_OVERSTAY' ? '#ef4444' : '#f4bd0f';
+    } else if (ohs === 'HIGH_RISK' || ohs === 'MEDIUM_RISK') {
+      const riskCol = ohs === 'HIGH_RISK' ? '#ef4444' : '#f4bd0f';
       const driver  = exc.driver_name || 'Unknown driver';
       warningBox = `<div style="border:1px solid rgba(244,189,15,.2);border-radius:3px;padding:8px 10px;background:rgba(244,189,15,.04);margin-bottom:8px">
         <div style="font-size:.5625rem;font-weight:600;color:${riskCol};margin-bottom:2px">⚠ RISK FLAG · ${driver}</div>

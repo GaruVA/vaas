@@ -26,6 +26,7 @@ _FRAME_LOCK = threading.Lock()
 _LATEST_FRAMES: dict[str, np.ndarray] = {}
 
 _WORKER_STOP: dict[str, threading.Event] = {}
+_WORKER_THREADS: dict[str, threading.Thread] = {}
 
 _MODEL_LOCK = threading.Lock()
 _SHARED_DETECTOR = None
@@ -175,6 +176,9 @@ def _camera_worker(gate_id: str, camera_index: int, direction: str,
 def start_camera_worker(gate_id: str, camera_index: int,
                         direction: str, app) -> threading.Thread:
     stop_camera_worker(gate_id)
+    old_thread = _WORKER_THREADS.get(gate_id)
+    if old_thread is not None and old_thread.is_alive():
+        old_thread.join(timeout=5)
     stop_event = threading.Event()
     _WORKER_STOP[gate_id] = stop_event
     t = threading.Thread(
@@ -183,6 +187,7 @@ def start_camera_worker(gate_id: str, camera_index: int,
         daemon=True,
         name=f"cam-{gate_id}",
     )
+    _WORKER_THREADS[gate_id] = t
     t.start()
     return t
 

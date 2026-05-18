@@ -30,8 +30,11 @@ import logging
 import os
 import random
 import shutil
+import socket
+import subprocess
 import sys
 import tempfile
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -47,8 +50,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
 RNG = random.Random(42)
-TODAY = date(2026, 5, 14)
-START = date(2026, 3, 10)
+TODAY = date.today()
+START = TODAY - timedelta(days=60)
 
 def _hash_pw(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=BCRYPT_COST)).decode()
@@ -520,6 +523,11 @@ def seed(db_path: Path | None = None, in_place: bool = False) -> None:
             conn.close()
             try:
                 shutil.copy2(str(tmp_path), str(target))
+                for suffix in ("-wal", "-shm"):
+                    stale = target.parent / (target.name + suffix)
+                    if stale.exists():
+                        stale.unlink()
+                        logger.info("Removed stale %s", stale.name)
                 logger.info("Database written to %s  (%d bytes)", target, target.stat().st_size)
             except (PermissionError, OSError) as exc:
                 logger.warning("Could not replace DB file (%s) — falling back to in-place seed", exc)
@@ -541,12 +549,51 @@ def seed(db_path: Path | None = None, in_place: bool = False) -> None:
 
     logger.info("Seed complete.")
 
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+def _kill_vaas_server(port: int = 5000) -> None:
+    if not _port_in_use(port):
+        return
+    logger.warning("VAAS server detected on port %d — attempting shutdown…", port)
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano"],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+        pid = None
+        for line in out.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                parts = line.split()
+                pid = int(parts[-1])
+                break
+        if pid:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                           check=True, capture_output=True)
+            logger.info("Killed PID %d", pid)
+        else:
+            logger.error("Could not find PID for port %d — stop the server manually and retry", port)
+            sys.exit(1)
+    except Exception as exc:
+        logger.error("Failed to kill server: %s — stop it manually and retry", exc)
+        sys.exit(1)
+
+    for _ in range(10):
+        time.sleep(0.5)
+        if not _port_in_use(port):
+            logger.info("Port %d is free — proceeding with seed", port)
+            return
+    logger.error("Port %d still occupied after 5 s — stop the server manually and retry", port)
+    sys.exit(1)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the VAAS demo database")
     parser.add_argument("--db-path", type=Path, default=None)
     parser.add_argument("--in-place", action="store_true",
                         help="Write directly into the target DB (safe while app is running)")
     args = parser.parse_args()
+    _kill_vaas_server()
     seed(args.db_path, in_place=args.in_place)
 
 if __name__ == "__main__":

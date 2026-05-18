@@ -257,7 +257,7 @@ def exceptions_pending():
         if not row.get("driver_user_id"):
             row["ohs_status"] = "UNASSIGNED"
         elif row["anomaly_count"] >= 7:
-            row["ohs_status"] = "HIGH_OVERSTAY"
+            row["ohs_status"] = "HIGH_RISK"
         elif row["anomaly_count"] >= 3:
             row["ohs_status"] = "MEDIUM_RISK"
         else:
@@ -409,7 +409,7 @@ def list_vehicles():
         elif not row.get("assigned_user_id"):
             row["ohs_status"] = "UNASSIGNED"
         elif overstay >= 3:
-            row["ohs_status"] = "HIGH_OVERSTAY"
+            row["ohs_status"] = "HIGH_RISK"
         elif overstay > 0:
             row["ohs_status"] = "MEDIUM_RISK"
         else:
@@ -1305,5 +1305,47 @@ def report_rejections():
     resp.headers["Content-Type"] = "text/csv"
     resp.headers["Content-Disposition"] = (
         f'attachment; filename="gate_rejections_{date_from}_{date_to}.csv"'
+    )
+    return resp
+
+@api_bp.route("/reports/exceptions")
+@requires_role("OPERATOR", "MANAGER", "ADMIN")
+def report_exceptions():
+    date_from = request.args.get("date_from", _days_ago(30))
+    date_to   = request.args.get("date_to",   _today())
+    fmt       = request.args.get("format", "csv").lower()
+    rows = g.db.execute(
+        """SELECT a.id, a.plate_number, a.timestamp, a.gate_id, a.direction,
+                  a.status, a.disposition_note, a.confidence_score,
+                  aal.username AS operator_name
+           FROM access_log a
+           LEFT JOIN admin_audit_log aal
+               ON aal.entity_id = CAST(a.id AS TEXT)
+              AND aal.entity_type = 'access_log'
+           WHERE a.status IN (
+               'VISITOR_ADMITTED', 'VISITOR_REJECTED',
+               'VISITOR_PENDING_REGISTRATION', 'VISITOR_TIMEOUT_REJECT'
+           )
+             AND DATE(a.timestamp) BETWEEN ? AND ?
+           ORDER BY a.id DESC""",
+        (date_from, date_to),
+    ).fetchall()
+    rows = [dict(r) for r in rows]
+    if fmt == "pdf":
+        buf = io.BytesIO()
+        export_pdf(rows, buf, title="Exception Decision Records",
+                   date_range_str=f"{date_from} – {date_to}")
+        buf.seek(0)
+        resp = make_response(buf.read())
+        resp.headers["Content-Type"] = "application/pdf"
+        resp.headers["Content-Disposition"] = (
+            f'attachment; filename="exceptions_{date_from}_{date_to}.pdf"'
+        )
+        return resp
+    content = csv_string(rows)
+    resp = make_response(content)
+    resp.headers["Content-Type"] = "text/csv"
+    resp.headers["Content-Disposition"] = (
+        f'attachment; filename="exceptions_{date_from}_{date_to}.csv"'
     )
     return resp

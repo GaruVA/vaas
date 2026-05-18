@@ -466,7 +466,7 @@
   }
 
   function ohsBadgeClass(ohs) {
-    const m = {OK:'badge-ok',UNASSIGNED:'badge-unassigned',MEDIUM_RISK:'badge-medium_risk',HIGH_OVERSTAY:'badge-high_overstay',SUSPENDED:'badge-suspended'};
+    const m = {OK:'badge-ok',UNASSIGNED:'badge-unassigned',MEDIUM_RISK:'badge-medium_risk',HIGH_RISK:'badge-high_overstay',SUSPENDED:'badge-suspended'};
     return m[ohs] || 'badge-unassigned';
   }
 
@@ -477,7 +477,7 @@
   }
 
   function ohsLabel(ohs) {
-    return {OK:'OK',UNASSIGNED:'UNASSIGNED',MEDIUM_RISK:'MEDIUM RISK',HIGH_OVERSTAY:'HIGH_OVERSTAY',SUSPENDED:'SUSPENDED'}[ohs] || ohs;
+    return {OK:'OK',UNASSIGNED:'UNASSIGNED',MEDIUM_RISK:'MEDIUM RISK',HIGH_RISK:'HIGH RISK',SUSPENDED:'SUSPENDED'}[ohs] || ohs;
   }
 
   function timeToPercent(t) {
